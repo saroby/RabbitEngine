@@ -10,7 +10,14 @@ import { selectContext } from './memory/legacy-strategies.js'
 import { compilePrompt } from './prompt/compile.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
 
-export async function buildTurn(input = {}, ctx = {}) {
+/**
+ * 한 턴의 요청을 만든다. 이 라이브러리의 권장 진입점이다.
+ * 모델은 부르지 않는다 — 돌려받은 system 과 messages 를 당신의 LLM 호출에 넣는다.
+ * @param {import('./types.js').TurnInput} input
+ * @param {import('./types.js').EngineContext} [ctx]
+ * @returns {Promise<import('./types.js').Turn>}
+ */
+export async function buildTurn(input, ctx = {}) {
   const {
     dialect = koreanPlayscript,
     cards,

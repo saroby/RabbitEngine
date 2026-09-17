@@ -20,6 +20,11 @@ function noteLayer(note, names) {
   return { kind: `context_${note.kind}`, content: `${MEMORY_LABEL}\n${substitute(note.text, names)}` }
 }
 
+/**
+ * 프롬프트층을 쌓는다 — 지시문 · 카드 · 등장인물 · 플레이어 · 기억 노트 · 로어북 · 호칭 경계 · 대본 규약.
+ * @param {object} [options]
+ * @returns {{ system: string, layers: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object }}
+ */
 export function compilePrompt({
   cards,
   card,

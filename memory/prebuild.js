@@ -24,6 +24,10 @@ function addCost(target, calls) {
 
 // buildForCondition(condition) → { recipeHashes, calls } 또는 throw.
 // 지금 프리셋에는 LLM 부품이 없어 빈 결과를 낸다. 단계 5 가 이 자리를 채운다.
+/**
+ * @param {object[]} [cells]
+ * @param {{ buildForCondition?: (condition: object) => Promise<{ recipeHashes: string[], calls: object[] }> }} [options]
+ */
 export async function prebuildMemory(cells = [], { buildForCondition } = {}) {
   const ledger = { builds: {}, conditions: {}, total: emptyCost() }
   const failures = []

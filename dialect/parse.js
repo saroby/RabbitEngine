@@ -3,6 +3,13 @@
 
 // partial: 스트리밍 중에는 마지막 줄이 아직 오는 중이다. 연출을 거는 쪽은
 // 완성된 줄만 봐야 반쪽 태그로 무대를 갈아끼우지 않는다.
+/**
+ * 방언으로 대본을 파싱한다.
+ * @param {import('../types.js').ScriptDialect} dialect
+ * @param {string} text 모델이 쓴 대본
+ * @param {{ partial?: boolean }} [options] partial 이면 마지막 줄을 버린다 (스트리밍 중)
+ * @returns {import('../types.js').ScriptSegment[]}
+ */
 export function parseWith(dialect, text, { partial = false } = {}) {
   const segments = []
   const lines = (text || '').split('\n')
@@ -37,10 +44,13 @@ function applyRules(rules, line) {
     if (rule.reject && rule.reject.test(m[rule.speaker ?? rule.text])) continue
     // 키 순서를 type → speaker → text 로 지킨다. verifyDialect 가 직렬화해서
     // 비교하므로 순서가 흔들리면 같은 조각을 다르다고 본다.
-    const segment = { type: rule.kind }
-    if (rule.speaker) segment.speaker = m[rule.speaker].trim()
-    segment.text = (m[rule.text] ?? '').trim()
-    return segment
+    // 스프레드는 삽입 순서를 지킨다 — type → speaker → text 가 유지된다.
+    // 조각을 나눠 쌓으면 타입이 중간 상태(text 없음)로 새어 나간다.
+    return {
+      type: rule.kind,
+      ...(rule.speaker ? { speaker: m[rule.speaker].trim() } : {}),
+      text: (m[rule.text] ?? '').trim(),
+    }
   }
   return null
 }

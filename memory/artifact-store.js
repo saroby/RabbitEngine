@@ -40,6 +40,11 @@ export function decorate(record, { id, now }) {
 
 // 참조 구현. 엔진 테스트가 쓰고, 소비자가 자기 저장소를 붙이기 전에 그대로
 // 써 볼 수 있다. 프로세스가 죽으면 사라진다 — 영속이 필요하면 직접 구현한다.
+/**
+ * 인메모리 산출물 저장소. 프로세스가 죽으면 사라진다.
+ * @param {{ uid?: () => string, now?: () => string }} [options] 테스트에서 결정적으로 만들 때 준다
+ * @returns {import('../types.js').ArtifactStore & { all: () => object[] }}
+ */
 export function createMemoryArtifactStore({ uid, now } = {}) {
   const artifacts = []
   const index = new Map()

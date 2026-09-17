@@ -15,7 +15,12 @@ export const CALL_FIELDS = [
   'promptTokens', 'completionTokens', 'ms', 'outcome', 'cacheHit',
 ]
 
-export function definePart(spec = {}) {
+/**
+ * 기억 부품을 정의한다. kind 에 맞는 진입 함수가 있는지 검사하고 얼려서 돌려준다.
+ * @param {{ partId: string, partVersion: number, kind: 'compactor' | 'reducer' | 'retriever' | 'tracker' } & Record<string, unknown>} spec
+ * @returns {Readonly<object>}
+ */
+export function definePart(spec) {
   if (!spec.partId) throw new Error('부품에 partId 가 없습니다')
   if (!PART_KINDS.includes(spec.kind)) throw new Error(`알 수 없는 부품 kind: ${spec.kind}`)
   if (!Number.isInteger(spec.partVersion)) throw new Error(`${spec.partId}: partVersion 은 정수여야 합니다`)

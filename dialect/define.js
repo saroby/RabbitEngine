@@ -3,7 +3,12 @@
 // memory/contract.js 의 definePart 와 같은 집 스타일이다.
 import { parseWith, SCRIPT_PARSER_VERSION } from './parse.js'
 
-export function defineDialect(spec = {}) {
+/**
+ * 방언을 정의한다. 검증하고 얼려서 돌려준다.
+ * @param {Omit<import('../types.js').ScriptDialect, 'parse' | 'blocks' | 'examples'> & Partial<Pick<import('../types.js').ScriptDialect, 'blocks' | 'examples'>>} spec
+ * @returns {import('../types.js').ScriptDialect}
+ */
+export function defineDialect(spec) {
   if (!spec.id) throw new Error('방언에 id 가 없습니다')
   if (!Number.isInteger(spec.version)) throw new Error(`${spec.id}: version 은 정수여야 합니다`)
   if (typeof spec.spec !== 'string' || !spec.spec) throw new Error(`${spec.id}: spec(규약 텍스트)이 필요합니다`)
@@ -33,6 +38,11 @@ export function defineDialect(spec = {}) {
 // 규약 텍스트는 사람이 쓴다 — 규칙에서 자연어를 생성하면 프롬프트 품질이
 // 나빠지고, 프롬프트 품질이 이 엔진의 존재 이유다. 대신 예시를 돌려서
 // "규약이 약속한 형태가 실제로 파싱되는지" 를 증명한다.
+/**
+ * 방언의 examples 를 돌려 규약 텍스트와 규칙이 맞물리는지 본다. 어긋나면 던진다.
+ * @param {import('../types.js').ScriptDialect} dialect
+ * @returns {void}
+ */
 export function verifyDialect(dialect) {
   for (const example of dialect.examples) {
     const actual = dialect.parse(example.text)
@@ -49,6 +59,11 @@ export function verifyDialect(dialect) {
 // 한다. 다만 korean-playscript v1 은 기존 'script-v1' 을 그대로 쓴다 — 저장된
 // 기억 산출물 캐시와 과거 스냅샷이 그 문자열에 묶여 있고, 바꾸면 요약을 전부
 // 다시 사게 된다. 보기 싫은 특례지만 대안이 캐시 전량 폐기다.
+/**
+ * 기억 산출물 캐시 키와 output_contract 에 들어가는 문법 이름.
+ * @param {Pick<import('../types.js').ScriptDialect, 'id' | 'version'>} dialect
+ * @returns {string}
+ */
 export function parserVersionOf(dialect) {
   if (dialect.id === 'korean-playscript' && dialect.version === 1) return SCRIPT_PARSER_VERSION
   return `${dialect.id}-v${dialect.version}`

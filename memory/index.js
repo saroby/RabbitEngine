@@ -76,6 +76,13 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
   return { artifacts, calls, cold, cacheHit, recipeHashes }
 }
 
+/**
+ * 긴 이력을 접는다. 프리셋이 정한 방식으로 메시지를 고르고 기억 노트를 만든다.
+ * @param {Array<{ role: string, text: string }>} messages
+ * @param {object} [config] `{ preset, dialect, assembly, chunkPolicy, worldbook, summary, memoryNote }`
+ * @param {import('../types.js').EngineContext} [ctx]
+ * @returns {Promise<{ messages: object[], notes: Array<{ kind: string, text: string }>, manifest: object }>}
+ */
 export async function selectMemory(messages = [], config = {}, ctx = {}) {
   const preset = presetOf(config.preset)
   const assembly = { ...preset.assembly, ...(config.assembly || {}) }
