@@ -2,7 +2,8 @@
 // 부품이 없는 프리셋(legacy)은 여기서 조립만 하고 끝나므로 LLM 도 캐시도
 // 타지 않는다 — 그래서 기존 동작을 그대로 재현할 수 있다.
 import { projectMessages, activeTextOf, isReal } from './projection.js'
-import { chunkEntries, assertWindowInvariant, DEFAULT_CHUNK_POLICY } from './chunking.js'
+import { chunkEntries, assertWindowInvariant, DEFAULT_CHUNK_POLICY, policyWith, hashablePolicyOf } from './chunking.js'
+import { koreanPlayscript } from '../dialect/korean-playscript.js'
 import { assemble, boundedSize } from './assemble.js'
 import { presetOf } from './presets.js'
 import { bigramRetrieve } from './retrievers/bigram.js'
@@ -33,7 +34,7 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
     const recipeHash = recipeHashOf({
       partId: part.partId,
       partVersion: part.partVersion,
-      chunkPolicy,
+      chunkPolicy: hashablePolicyOf(chunkPolicy),
       config: builderConfig,
       builder: {
         provider: builderConfig.provider ?? null,
@@ -82,7 +83,8 @@ export async function selectMemory(messages = [], config = {}, ctx = {}) {
   // 로어북 설정은 기억 프리셋이 정한다. 기본은 'selected'(기존 동작)이고 새
   // 프리셋만 'raw' 를 쓴다 — 그래야 저장된 세션의 발동 결과가 안 바뀐다.
   const worldbook = { scanSource: 'selected', budgetChars: 0, ...(preset.worldbook || {}), ...(config.worldbook || {}) }
-  const chunkPolicy = { ...DEFAULT_CHUNK_POLICY, ...(config.chunkPolicy || {}) }
+  // 방언은 엔진 층 설정이다 — 프롬프트 규약과 씬 경계가 같은 문법을 봐야 한다.
+  const chunkPolicy = policyWith(config.dialect || koreanPlayscript, config.chunkPolicy || {})
   // 프리셋과 호출자 override 를 합친 뒤에 검사한다. 등록 시점 검사만으로는
   // 화면에서 창 크기를 바꾸는 runtime override 를 못 잡는다.
   assertWindowInvariant(assembly, chunkPolicy, { hasCompactor: Boolean(preset.compactor) })
@@ -123,7 +125,7 @@ export async function selectMemory(messages = [], config = {}, ctx = {}) {
       preset: preset.id,
       worldbook,
       parts: { compactor: preset.compactor, reducer: preset.reducer, retriever: preset.retriever, tracker: preset.tracker },
-      assembly, chunkPolicy,
+      assembly, chunkPolicy: hashablePolicyOf(chunkPolicy),
       chunkBoundaries: closed.map((chunk) => chunk.coversOrdinals.at(-1)),
       openChunkOrdinals: open ? open.coversOrdinals : [],
       selectedOrdinals: assembled.selectedEntries.map((entry) => entry.ordinal),

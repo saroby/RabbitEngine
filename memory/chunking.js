@@ -1,7 +1,8 @@
 // 기억 빌드는 고정된 chunk 경계 위에서만 일어난다. 경계가 projection 의 순수
 // 함수라서, 증분으로 만들든 통짜로 만들든 같은 chunk 집합이 나오고 같은
 // recipeHash 를 조회한다 — 이것이 Chat 과 Study 가 갈리지 않는 유일한 근거다.
-import { parseScript, SCRIPT_PARSER_VERSION } from '../dialect/compat.js'
+import { koreanPlayscript } from '../dialect/korean-playscript.js'
+import { parserVersionOf } from '../dialect/define.js'
 
 // 경계는 메시지 수가 정한다. 씬 표지는 있으면 경계를 그 지점으로 당겨 주는
 // 보정이지 근거가 아니다 — 실측(2026-08-27)에서 씬 표지는 생성 턴 43개 중
@@ -11,15 +12,30 @@ export const DEFAULT_CHUNK_POLICY = {
   by: 'messages',
   maxMessages: 20,
   sceneSnap: true,          // 씬 표지를 만나면 거기서 일찍 닫는다
-  parserVersion: SCRIPT_PARSER_VERSION,
+  parserVersion: parserVersionOf(koreanPlayscript),
+}
+
+// 방언을 실은 정책. parserVersion 은 방언이 정한다 — 둘이 따로 놀면
+// 문법은 바뀌었는데 캐시 키는 그대로인 상태가 된다.
+export function policyWith(dialect, over = {}) {
+  return { ...DEFAULT_CHUNK_POLICY, ...over, dialect, parserVersion: parserVersionOf(dialect) }
+}
+
+// 해시와 manifest 에 들어가는 모양. 방언 객체는 정규식과 함수를 들고 있어
+// 직렬화하면 같은 문법도 다른 해시가 된다. 밖으로 나가는 것은 문자열 하나다.
+export function hashablePolicyOf(policy) {
+  const { dialect: _dialect, ...rest } = policy
+  return rest
 }
 
 // 메시지 중간에서 자르지 않는다 — 자르면 user/assistant 교대가 깨져
 // 일부 제공사가 요청 자체를 거부한다. 표지가 몇 개든 경계는 그 메시지 뒤 하나.
-const closesChunk = (text) => parseScript(text).some((segment) => segment.type === 'scene')
+const closesChunk = (dialect, text) =>
+  dialect.parse(text).some((segment) => segment.type === 'scene')
 
 export function chunkEntries(entries = [], texts = [], policy = DEFAULT_CHUNK_POLICY) {
   const maxMessages = Math.max(1, Number(policy.maxMessages) || DEFAULT_CHUNK_POLICY.maxMessages)
+  const dialect = policy.dialect || koreanPlayscript
   const closed = []
   let current = []
 
@@ -36,7 +52,7 @@ export function chunkEntries(entries = [], texts = [], policy = DEFAULT_CHUNK_PO
     current.push(entries[index])
     // 옛 정책 이름 'scene' 도 받는다 — 저장된 세션과 과거 Study 가 들고 있다.
     const snap = policy.sceneSnap ?? policy.by === 'scene'
-    if ((snap && closesChunk(texts[index])) || current.length >= maxMessages) seal()
+    if ((snap && closesChunk(dialect, texts[index])) || current.length >= maxMessages) seal()
   }
 
   return {

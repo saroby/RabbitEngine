@@ -18,6 +18,7 @@ export function selectContext(messages = [], config = {}, ctx = {}) {
   const preset = PRESET_OF[config.strategy] || PRESET_OF.full
   return selectMemory(messages, {
     preset,
+    dialect: config.dialect,
     summary: config.summary,
     memoryNote: config.memoryNote,
     assembly: {
