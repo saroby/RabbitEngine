@@ -1,7 +1,7 @@
 // 기억 빌드는 고정된 chunk 경계 위에서만 일어난다. 경계가 projection 의 순수
 // 함수라서, 증분으로 만들든 통짜로 만들든 같은 chunk 집합이 나오고 같은
 // recipeHash 를 조회한다 — 이것이 Chat 과 Study 가 갈리지 않는 유일한 근거다.
-import { parseScript, SCRIPT_PARSER_VERSION } from '../dialect/parse.js'
+import { parseScript, SCRIPT_PARSER_VERSION } from '../dialect/compat.js'
 
 // 경계는 메시지 수가 정한다. 씬 표지는 있으면 경계를 그 지점으로 당겨 주는
 // 보정이지 근거가 아니다 — 실측(2026-08-27)에서 씬 표지는 생성 턴 43개 중

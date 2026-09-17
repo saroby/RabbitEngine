@@ -1,52 +1,48 @@
-// 희곡 형식 대본 파서 — server/prompt.js 의 SCRIPT_FORMAT 과 짝 (ssot: ScriptSegment)
-// 종류: dialogue(대사) · action(지문) · narration(나레이션) · inner(속마음) · scene(장면 전환) · choice(선택지) · stage(연출)
+// 대본 파서 엔진. 문법 자체는 방언이 소유한다 (dialect/korean-playscript.js).
+// 여기는 "줄 단위로 규칙을 순서대로 대 본다" 는 기계일 뿐이고, 어떤 방언도 모른다.
 
-// completeLinesOnly: 스트리밍 중에는 마지막 줄이 아직 오는 중이다.
-// 연출을 거는 쪽은 완성된 줄만 봐야 반쪽 태그로 무대를 갈아끼우지 않는다.
-export function parseScript(text, { completeLinesOnly = false } = {}) {
+// partial: 스트리밍 중에는 마지막 줄이 아직 오는 중이다. 연출을 거는 쪽은
+// 완성된 줄만 봐야 반쪽 태그로 무대를 갈아끼우지 않는다.
+export function parseWith(dialect, text, { partial = false } = {}) {
   const segments = []
-  let choiceMode = false
   const lines = (text || '').split('\n')
-  if (completeLinesOnly) lines.pop()
+  if (partial) lines.pop()
+
+  let openBlock = null
+
   for (const rawLine of lines) {
     const line = rawLine.trim()
-    if (!line) { choiceMode = false; continue }
+    if (!line) { openBlock = null; continue }
 
-    if (choiceMode) {
-      const m = line.match(/^(?:[-*•]|\d+[.)])\s*(.+)$/)
-      if (m) { segments.push({ type: 'choice', text: m[1].trim() }); continue }
-      choiceMode = false
+    if (openBlock) {
+      const item = line.match(openBlock.item)
+      if (item) { segments.push({ type: openBlock.kind, text: item[1].trim() }); continue }
+      openBlock = null
     }
 
-    if (/^선택지\s*[::]?\s*$/.test(line)) { choiceMode = true; continue }
+    const opened = (dialect.blocks || []).find((block) => block.open.test(line))
+    if (opened) { openBlock = opened; continue }
 
-    let m
-    // 연출은 장면 전환과 다른 조각이다 — 장면은 이야기의 마디이고, 연출은 무대 지시다.
-    if ((m = line.match(/^\[\s*연출\s*[::]?\s*(.*?)\]$/))) {
-      segments.push({ type: 'stage', text: m[1].trim() }); continue
-    }
-    if ((m = line.match(/^\[\s*장면\s*[::]?\s*(.*?)\]$/))) {
-      segments.push({ type: 'scene', text: m[1].trim() }); continue
-    }
-    if (/^\(.*\)$/.test(line)) {
-      segments.push({ type: 'action', text: line.slice(1, -1).trim() }); continue
-    }
-    if ((m = line.match(/^(.+?)\s*\(\s*속마음\s*\)\s*[::]\s*(.*)$/))) {
-      segments.push({ type: 'inner', speaker: m[1].trim(), text: m[2].trim() }); continue
-    }
-    if ((m = line.match(/^속마음\s*[::]\s*(.*)$/))) {
-      segments.push({ type: 'inner', text: m[1].trim() }); continue
-    }
-    if ((m = line.match(/^(?:나레이션|나레이터|Narration)\s*[::]\s*(.*)$/i))) {
-      segments.push({ type: 'narration', text: m[1].trim() }); continue
-    }
-    // `이름: 대사` — 이름은 공백 포함 20자까지, URL 오탐 방지
-    if ((m = line.match(/^([^::]{1,20}?)\s*[::]\s*(.+)$/)) && !/https?$/.test(m[1])) {
-      segments.push({ type: 'dialogue', speaker: m[1].trim(), text: m[2].trim() }); continue
-    }
-    segments.push({ type: 'narration', text: line })
+    segments.push(applyRules(dialect.rules, line) || { type: dialect.fallback, text: line })
   }
+
   return segments
+}
+
+function applyRules(rules, line) {
+  for (const rule of rules) {
+    const m = line.match(rule.match)
+    if (!m) continue
+    // reject 는 오탐 가드다 — 매치했지만 이 규칙이 아닌 경우 다음 규칙으로 넘긴다.
+    if (rule.reject && rule.reject.test(m[rule.speaker ?? rule.text])) continue
+    // 키 순서를 type → speaker → text 로 지킨다. verifyDialect 가 직렬화해서
+    // 비교하므로 순서가 흔들리면 같은 조각을 다르다고 본다.
+    const segment = { type: rule.kind }
+    if (rule.speaker) segment.speaker = m[rule.speaker].trim()
+    segment.text = (m[rule.text] ?? '').trim()
+    return segment
+  }
+  return null
 }
 
 export function choicesOf(segments) {

@@ -1,7 +1,10 @@
 // 공개 표면. 여기 없는 것은 공개 API 가 아니다.
 export const VERSION = '0.0.1'
 
-export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/parse.js'
+export { defineDialect, verifyDialect, parserVersionOf } from './dialect/define.js'
+export { koreanPlayscript } from './dialect/korean-playscript.js'
+export { parseWith } from './dialect/parse.js'
+export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/compat.js'
 export { compilePrompt } from './prompt/compile.js'
 export { SCRIPT_FORMAT, namesOf, renderCard, renderCast, renderPlayerCard, substitute, substituteCard } from './prompt/parts.js'
 export { selectMemory } from './memory/index.js'

@@ -1,7 +1,7 @@
 // 희곡 파서 — 모델 출력 ≠ 화면 표현의 경계(원칙 ④). SCRIPT_FORMAT 이 약속한 줄 모양이 깨지면 여기서 잡힌다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseScript, choicesOf } from '../dialect/parse.js'
+import { parseScript, choicesOf } from '../dialect/compat.js'
 
 test('희곡 형식 6종을 가른다', () => {
   const segs = parseScript([
