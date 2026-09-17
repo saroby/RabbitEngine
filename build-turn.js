@@ -17,7 +17,7 @@ import { koreanPlayscript } from './dialect/korean-playscript.js'
  * @param {import('./types.js').EngineContext} [ctx]
  * @returns {Promise<import('./types.js').Turn>}
  */
-export async function buildTurn(input, ctx = {}) {
+export async function buildTurn(input = {}, ctx = {}) {
   const {
     dialect = koreanPlayscript,
     cards,

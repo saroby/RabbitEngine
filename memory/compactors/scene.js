@@ -46,9 +46,6 @@ export const sceneCompactor = definePart({
   kind: 'compactor',
   promptTemplateHash: SCENE_PROMPT_VERSION,
 
-  /**
-   * @param {{ chunk: object, texts?: string[], config?: { provider?: string, model?: string, maxTokens?: number }, llm?: (request: object) => Promise<object> }} args
-   */
   async build({ chunk, texts = [], config = {}, llm }) {
     if (!llm) throw new Error('scene 압축기에 요약 호출자(llm)가 없습니다')
     const started = Date.now()

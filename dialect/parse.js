@@ -44,13 +44,10 @@ function applyRules(rules, line) {
     if (rule.reject && rule.reject.test(m[rule.speaker ?? rule.text])) continue
     // 키 순서를 type → speaker → text 로 지킨다. verifyDialect 가 직렬화해서
     // 비교하므로 순서가 흔들리면 같은 조각을 다르다고 본다.
-    // 스프레드는 삽입 순서를 지킨다 — type → speaker → text 가 유지된다.
-    // 조각을 나눠 쌓으면 타입이 중간 상태(text 없음)로 새어 나간다.
-    return {
-      type: rule.kind,
-      ...(rule.speaker ? { speaker: m[rule.speaker].trim() } : {}),
-      text: (m[rule.text] ?? '').trim(),
-    }
+    const segment = { type: rule.kind }
+    if (rule.speaker) segment.speaker = m[rule.speaker].trim()
+    segment.text = (m[rule.text] ?? '').trim()
+    return segment
   }
   return null
 }
