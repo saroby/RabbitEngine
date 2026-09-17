@@ -94,13 +94,28 @@ test('buildTurn — manifest.prompt 에 층과 컴파일러 버전이 남는다'
   assert.deepEqual(turn.manifest.prompt.names, { char: '유리', user: '유저' })
 })
 
+// 컴팩터가 도는 프리셋으로 본다. lorebook 은 저장소도 llm 도 안 쓰기 때문에
+// ctx 가 통째로 버려져도 통과해 버린다 — 그러면 아무것도 증명하지 못한다.
 test('buildTurn — ctx 를 기억 층에 그대로 넘긴다', async () => {
-  const store = createMemoryArtifactStore()
-  const turn = await buildTurn(
-    { cards: [card], messages: history, memory: { preset: 'lorebook' } },
-    { artifacts: store, scope: 'session', scopeId: 's1' },
-  )
-  assert.equal(turn.manifest.preset, 'lorebook')
+  let builds = 0
+  const store = createMemoryArtifactStore({ uid: () => `t${builds}`, now: () => 'now' })
+  const llm = async () => {
+    builds += 1
+    return { text: '요약: 서고에서 이야기가 이어졌다.\n핵심어: 서고', provider: 'openai', latencyMs: 5, usage: { input: 10, output: 3 } }
+  }
+  const long = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
+  const input = { cards: [card], messages: long, memory: { preset: 'memory-books' } }
+  const ctx = { artifacts: store, llm, scope: 'session', scopeId: 's1' }
+
+  const first = await buildTurn(input, ctx)
+  assert.equal(first.manifest.preset, 'memory-books')
+  assert.ok(store.all().length > 0, 'ctx.artifacts 가 기억 층에 닿지 않았다')
+  assert.ok(builds > 0, 'ctx.llm 이 기억 층에 닿지 않았다')
+  const spent = builds
+
+  const second = await buildTurn(input, ctx)
+  assert.equal(second.manifest.cacheHit, true)
+  assert.equal(builds, spent, '같은 입력인데 요약을 다시 샀다')
 })
 
 test('buildTurn — enforceFormat:false 면 대본 규약 층이 빠진다', async () => {

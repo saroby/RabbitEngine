@@ -1,6 +1,6 @@
 // 공개 표면. 여기 없는 것은 공개 API 가 아니다.
 // 공개 타입은 types.js 에 있다.
-export const VERSION = '0.0.1'
+export const VERSION = '0.0.2'
 
 export { defineDialect, verifyDialect, parserVersionOf } from './dialect/define.js'
 export { koreanPlayscript } from './dialect/korean-playscript.js'

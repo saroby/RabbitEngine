@@ -36,6 +36,27 @@ const messages = [
   { role: 'user', text: '고마워요.' },
 ]
 
+// 컴팩터가 실제로 도는 유일한 케이스. 나머지 15건은 전부 압축기 없는
+// 프리셋이라 recipeHashes 가 [] 였다 — 캐시 키의 재료가 어디에도 못박히지
+// 않았다는 뜻이다. 42개 중 21번째에 씬 표지를 하나 넣어 chunking 의 sceneSnap
+// 경로까지 함께 지난다 (닫힌 chunk 3개 → recipeHash 3개).
+const compactorMessages = Array.from({ length: 42 }, (_, i) => (
+  i === 20
+    ? { id: 'c20', role: 'assistant', text: '[장면: 다음 날 아침, 서고]\n유리: 여기까지 오셨네요.' }
+    : { id: `c${i}`, role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }
+))
+
+// 결정적인 가짜 요약자. latencyMs 를 고정하므로 sceneCompactor 가 내는
+// calls[].ms 도 실행마다 같다 — 골든에서 덮어써야 하는 필드가 없다.
+// (덮었다면 recipeHashes·chunkBoundaries·산출물의 text/keywords/coversOrdinals
+//  는 덮지 않았을 자리다. 지금은 아무것도 덮지 않는다.)
+const fixedLlm = async () => ({
+  text: '요약: 두 사람은 서고에서 3층 이야기를 마쳤다.\n핵심어: 유리, 서고, 3층',
+  provider: 'openai',
+  latencyMs: 7,
+  usage: { input: 100, output: 20 },
+})
+
 export const CASES = {
   'compile:최소': () => compilePrompt({ cards: [card], instructionText: '장면을 전진시킨다.' }),
   'compile:전체': () => compilePrompt({
@@ -51,6 +72,9 @@ export const CASES = {
   'context:retrieval': () => selectContext(messages, { strategy: 'retrieval', retrievalLimit: 2 }),
   'memory:lorebook': () => selectMemory(messages, { preset: 'lorebook' }),
   'memory:vector': () => selectMemory(messages, { preset: 'vector' }),
+  'memory:memory-books': () => selectMemory(compactorMessages, { preset: 'memory-books' }, {
+    llm: fixedLlm, scope: 'session', scopeId: 'golden',
+  }),
   'hash:빈값': () => recipeHashOf({}),
   'hash:중첩': () => recipeHashOf({ b: [1, 2, { c: null }], a: '한글', d: undefined }),
   'hash:키순서': () => recipeHashOf({ z: 1, a: 2 }),

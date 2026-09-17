@@ -786,6 +786,376 @@
       }
     }
   },
+  "memory:memory-books": {
+    "messages": [
+      {
+        "id": "c18",
+        "role": "user",
+        "text": "대사 18"
+      },
+      {
+        "id": "c19",
+        "role": "assistant",
+        "text": "대사 19"
+      },
+      {
+        "id": "c20",
+        "role": "assistant",
+        "text": "[장면: 다음 날 아침, 서고]\n유리: 여기까지 오셨네요."
+      },
+      {
+        "id": "c21",
+        "role": "assistant",
+        "text": "대사 21"
+      },
+      {
+        "id": "c22",
+        "role": "user",
+        "text": "대사 22"
+      },
+      {
+        "id": "c23",
+        "role": "assistant",
+        "text": "대사 23"
+      },
+      {
+        "id": "c24",
+        "role": "user",
+        "text": "대사 24"
+      },
+      {
+        "id": "c25",
+        "role": "assistant",
+        "text": "대사 25"
+      },
+      {
+        "id": "c26",
+        "role": "user",
+        "text": "대사 26"
+      },
+      {
+        "id": "c27",
+        "role": "assistant",
+        "text": "대사 27"
+      },
+      {
+        "id": "c28",
+        "role": "user",
+        "text": "대사 28"
+      },
+      {
+        "id": "c29",
+        "role": "assistant",
+        "text": "대사 29"
+      },
+      {
+        "id": "c30",
+        "role": "user",
+        "text": "대사 30"
+      },
+      {
+        "id": "c31",
+        "role": "assistant",
+        "text": "대사 31"
+      },
+      {
+        "id": "c32",
+        "role": "user",
+        "text": "대사 32"
+      },
+      {
+        "id": "c33",
+        "role": "assistant",
+        "text": "대사 33"
+      },
+      {
+        "id": "c34",
+        "role": "user",
+        "text": "대사 34"
+      },
+      {
+        "id": "c35",
+        "role": "assistant",
+        "text": "대사 35"
+      },
+      {
+        "id": "c36",
+        "role": "user",
+        "text": "대사 36"
+      },
+      {
+        "id": "c37",
+        "role": "assistant",
+        "text": "대사 37"
+      },
+      {
+        "id": "c38",
+        "role": "user",
+        "text": "대사 38"
+      },
+      {
+        "id": "c39",
+        "role": "assistant",
+        "text": "대사 39"
+      },
+      {
+        "id": "c40",
+        "role": "user",
+        "text": "대사 40"
+      },
+      {
+        "id": "c41",
+        "role": "assistant",
+        "text": "대사 41"
+      }
+    ],
+    "notes": [
+      {
+        "kind": "memory",
+        "text": "두 사람은 서고에서 3층 이야기를 마쳤다.\n두 사람은 서고에서 3층 이야기를 마쳤다.\n두 사람은 서고에서 3층 이야기를 마쳤다."
+      }
+    ],
+    "manifest": {
+      "preset": "memory-books",
+      "worldbook": {
+        "scanSource": "raw",
+        "budgetChars": 8000
+      },
+      "parts": {
+        "compactor": "scene",
+        "reducer": null,
+        "retriever": null,
+        "tracker": null
+      },
+      "assembly": {
+        "windowSize": 24,
+        "windowMode": "protect",
+        "hideCompacted": true,
+        "placement": "note",
+        "budgetChars": 6000,
+        "retain": 5,
+        "minScore": 1
+      },
+      "chunkPolicy": {
+        "by": "messages",
+        "maxMessages": 20,
+        "sceneSnap": true,
+        "parserVersion": "script-v1"
+      },
+      "chunkBoundaries": [
+        19,
+        20,
+        40
+      ],
+      "openChunkOrdinals": [
+        41
+      ],
+      "selectedOrdinals": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41
+      ],
+      "selectedMessageIds": [
+        "c18",
+        "c19",
+        "c20",
+        "c21",
+        "c22",
+        "c23",
+        "c24",
+        "c25",
+        "c26",
+        "c27",
+        "c28",
+        "c29",
+        "c30",
+        "c31",
+        "c32",
+        "c33",
+        "c34",
+        "c35",
+        "c36",
+        "c37",
+        "c38",
+        "c39",
+        "c40",
+        "c41"
+      ],
+      "retrievedOrdinals": [],
+      "retrievedMessageIds": [],
+      "retrievedArtifactIds": [],
+      "retrievalScores": [],
+      "hiddenOrdinals": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "artifacts": [
+        {
+          "id": null,
+          "kind": "scene",
+          "coversOrdinals": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "text": "두 사람은 서고에서 3층 이야기를 마쳤다.",
+          "origin": "auto",
+          "editedAt": null
+        },
+        {
+          "id": null,
+          "kind": "scene",
+          "coversOrdinals": [
+            20
+          ],
+          "text": "두 사람은 서고에서 3층 이야기를 마쳤다.",
+          "origin": "auto",
+          "editedAt": null
+        },
+        {
+          "id": null,
+          "kind": "scene",
+          "coversOrdinals": [
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40
+          ],
+          "text": "두 사람은 서고에서 3층 이야기를 마쳤다.",
+          "origin": "auto",
+          "editedAt": null
+        }
+      ],
+      "coldChunks": [],
+      "recipeHashes": [
+        "6417d8f5973a353da9160912e0ebd6c9",
+        "6259f40a112ad6e1bb23049f40ec88a4",
+        "2849205a718c50d2e501bd596223597c"
+      ],
+      "trackerState": null,
+      "injectedMessages": [
+        "[대화 참고 정보]\n두 사람은 서고에서 3층 이야기를 마쳤다.",
+        "[대화 참고 정보]\n두 사람은 서고에서 3층 이야기를 마쳤다.",
+        "[대화 참고 정보]\n두 사람은 서고에서 3층 이야기를 마쳤다."
+      ],
+      "injectedText": null,
+      "budgetChars": 6000,
+      "usedChars": 82,
+      "truncated": 0,
+      "memoryCalls": [
+        {
+          "provider": "openai",
+          "model": "gpt-5.4-mini",
+          "partId": "scene",
+          "purpose": "compact",
+          "promptTokens": 100,
+          "completionTokens": 20,
+          "ms": 7,
+          "outcome": "success",
+          "cacheHit": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.4-mini",
+          "partId": "scene",
+          "purpose": "compact",
+          "promptTokens": 100,
+          "completionTokens": 20,
+          "ms": 7,
+          "outcome": "success",
+          "cacheHit": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.4-mini",
+          "partId": "scene",
+          "purpose": "compact",
+          "promptTokens": 100,
+          "completionTokens": 20,
+          "ms": 7,
+          "outcome": "success",
+          "cacheHit": false
+        }
+      ],
+      "cacheHit": false,
+      "callsIncurredHere": {
+        "calls": 3,
+        "promptTokens": 300,
+        "completionTokens": 60,
+        "ms": 21
+      }
+    }
+  },
   "hash:빈값": "44136fa355b3678a1146ad16f7e8649e",
   "hash:중첩": "0e0941707f74e0c994202e3f1bbece46",
   "hash:키순서": "c2985c5ba6f7d2a55e768f92490ca093",

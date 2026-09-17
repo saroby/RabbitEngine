@@ -1,12 +1,13 @@
 {
   "name": "rabbit-engine",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기억 층. 모델은 부르지 않는다.",
   "type": "module",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/saroby/RabbitEngine.git" },
   "engines": { "node": ">=20" },
   "main": "index.js",
+  "sideEffects": false,
   "types": "./dist-types/index.d.ts",
   "exports": {
     ".": { "types": "./dist-types/index.d.ts", "default": "./index.js" }
