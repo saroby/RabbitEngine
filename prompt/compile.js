@@ -1,5 +1,4 @@
 import {
-  SCRIPT_FORMAT,
   namesOf,
   renderCard,
   renderCast,
@@ -7,6 +6,8 @@ import {
   substitute,
   substituteCard,
 } from './parts.js'
+import { koreanPlayscript } from '../dialect/korean-playscript.js'
+import { parserVersionOf } from '../dialect/define.js'
 import { injectWorldbooksWithManifest } from '../worldbook/strategies.js'
 import { MEMORY_LABEL } from '../memory/defaults.js'
 
@@ -30,6 +31,7 @@ export function compilePrompt({
   messages = [],
   rawMessages = null,
   contextNotes = [],
+  dialect = koreanPlayscript,
   enforceFormat = true,
   userName = '유저',
 } = {}) {
@@ -64,7 +66,9 @@ export function compilePrompt({
     })
   }
   layers.push({ kind: 'user_boundary', content: `상대(유저)의 호칭: ${names.user}. 유저의 행동과 대사를 대신 쓰지 않는다.` })
-  if (enforceFormat) layers.push({ kind: 'output_contract', contract: 'script-v1', content: SCRIPT_FORMAT })
+  // 규약 텍스트와 contract 이름은 방언이 정한다. 기본 방언에서는 옛 값
+  // (SCRIPT_FORMAT · 'script-v1')과 같아서 과거 스냅샷과 구조 비교가 된다.
+  if (enforceFormat) layers.push({ kind: 'output_contract', contract: parserVersionOf(dialect), content: dialect.spec })
 
   return {
     system: layers.map((layer) => layer.content).join('\n\n'),
