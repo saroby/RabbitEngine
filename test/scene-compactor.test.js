@@ -22,6 +22,16 @@ test('요약과 핵심어를 형식에서 뽑는다', () => {
   assert.deepEqual(keywords, ['가', '나', '다'])
 })
 
+// 전각 콜론(U+FF1A)은 화면에서 ASCII 콜론과 똑같이 보인다. 문자로 쓰면 편집
+// 도구가 바꿔 버리므로 이스케이프로만 선언하고 보간해서 쓴다.
+const FW = '\uFF1A'
+
+test('전각 콜론으로 쓴 머리도 ASCII 콜론과 같게 읽는다', () => {
+  const { summary, keywords } = parseSummary(`요약${FW} 첫 줄.\n둘째 줄.\n핵심어${FW} 가, 나, 다`)
+  assert.equal(summary, '첫 줄.\n둘째 줄.')
+  assert.deepEqual(keywords, ['가', '나', '다'])
+})
+
 test('형식을 안 지켜도 본문 전체를 요약으로 삼는다', () => {
   const { summary, keywords } = parseSummary('그냥 줄글로 왔다')
   assert.equal(summary, '그냥 줄글로 왔다')

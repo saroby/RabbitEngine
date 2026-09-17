@@ -26,7 +26,10 @@ export function selectContext(messages = [], config = {}, ctx = {}) {
       // 세션과 과거 Study 의 선택이 달라진다. legacy 는 legacy 기본값을 쓴다.
       // 정규화를 boundedSize 로 유지한다. Number() 로 바꾸면 0·"2abc"·Infinity
       // 에서 선택 메시지 수가 조용히 달라진다 — 기존 동작이 parseInt 였다.
-      windowSize: config.strategy === 'full'
+      // 창 크기는 풀린 프리셋을 보고 정한다. config.strategy 를 보면 오타 난
+      // 이름이 manifest 에는 legacy-full 로 찍히면서 실제로는 12개만 나가
+      // 기록이 거짓말을 한다.
+      windowSize: preset === 'legacy-full'
         ? Number.MAX_SAFE_INTEGER
         : boundedSize(config.windowSize, LEGACY_WINDOW_SIZE),
       retrievalLimit: boundedSize(config.retrievalLimit, LEGACY_RETRIEVAL_LIMIT),

@@ -22,6 +22,15 @@ test('windowSize 를 안 주면 legacy 기본값 12 가 쓰인다', async () => 
   assert.equal(out.manifest.assembly.windowSize, 12)
 })
 
+// manifest 는 연구 기록의 근거다. 프리셋 이름은 legacy-full 이라고 찍으면서
+// 실제로는 12개만 보내면 기록이 거짓말을 한다.
+test('모르는 strategy 는 legacy-full 로 떨어지고 정말로 전부 보낸다', async () => {
+  const many = Array.from({ length: 40 }, (_, i) => ({ id: `n${i}`, role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }))
+  const out = await selectContext(many, { strategy: '오타난전략' })
+  assert.equal(out.manifest.preset, 'legacy-full')
+  assert.equal(out.messages.length, 40)
+})
+
 test('summary 와 memory 는 사용자 본문을 note 로 분리해 내보낸다', async () => {
   const summary = await selectContext(messages, { strategy: 'summary', windowSize: 2, summary: '열쇠를 찾는 중' })
   const memory = await selectContext(messages, { strategy: 'memory', windowSize: 1, memoryNote: '서윤은 비를 싫어한다' })

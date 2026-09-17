@@ -34,8 +34,10 @@ function renderChunk(chunk, texts) {
 
 export function parseSummary(text) {
   const body = String(text || '')
-  const summary = body.match(/요약\s*[::]\s*([\s\S]*?)(?=\n핵심어\s*[::]|$)/)?.[1]?.trim() || body.trim()
-  const keywordLine = body.match(/핵심어\s*[::]\s*(.+)/)?.[1] || ''
+  // 요약 모델이 전각 콜론(U+FF1A)으로 머리를 쓰는 일이 있다. ASCII 콜론만
+  // 받으면 본문 전체가 요약이 되고 핵심어가 통째로 사라진다.
+  const summary = body.match(/요약\s*[:\uFF1A]\s*([\s\S]*?)(?=\n핵심어\s*[:\uFF1A]|$)/)?.[1]?.trim() || body.trim()
+  const keywordLine = body.match(/핵심어\s*[:\uFF1A]\s*(.+)/)?.[1] || ''
   const keywords = keywordLine.split(',').map((k) => k.trim()).filter(Boolean)
   return { summary, keywords }
 }
