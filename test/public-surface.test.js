@@ -17,6 +17,10 @@ const PUBLIC = [
   'MEMORY_LABEL', 'DEFAULT_ASSEMBLY', 'LEGACY_WINDOW_SIZE', 'LEGACY_RETRIEVAL_LIMIT',
   'SCRIPT_FORMAT', 'namesOf', 'renderCard', 'renderCast', 'renderPlayerCard',
   'substitute', 'substituteCard',
+  // 호스트가 실제로 쓰는 이름들. exports 가 "." 하나뿐이라 깊은 import 가
+  // 막히므로, index.js 에 없으면 소비자가 쓸 방법이 아예 없다.
+  'PROMPT_COMPILER_VERSION', 'prebuildMemory',
+  'hashText', 'projectMessages', 'activeTextOf', 'chunkEntries',
 ]
 
 test('공개 표면이 목록과 같다', () => {

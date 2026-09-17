@@ -18,21 +18,28 @@ import { koreanPlayscript } from './dialect/korean-playscript.js'
  * @returns {Promise<import('./types.js').Turn>}
  */
 export async function buildTurn(input = {}, ctx = {}) {
-  const {
-    dialect = koreanPlayscript,
-    cards,
-    player = null,
-    instruction = '',
-    worldbooks = [],
-    worldbookOverrides = {},
-    worldbookOptions = {},
-    messages = [],
-    memory = {},
-    userName = '유저',
-  } = input
+  // 구조분해 기본값은 undefined 만 잡는다. 저장된 세션은 memory: null 을 들고
+  // 있을 법하고, 그때 날것의 TypeError 가 나면 무엇이 잘못됐는지 안 보인다.
+  const raw = input ?? {}
+  const dialect = raw.dialect ?? koreanPlayscript
+  const cards = raw.cards
+  const player = raw.player ?? null
+  const instruction = raw.instruction ?? ''
+  const worldbooks = raw.worldbooks ?? []
+  const worldbookOverrides = raw.worldbookOverrides ?? {}
+  const worldbookOptions = raw.worldbookOptions ?? {}
+  const messages = raw.messages ?? []
+  const memory = raw.memory ?? {}
+  const userName = raw.userName ?? '유저'
+  const enforceFormat = raw.enforceFormat ?? true
+  const context = ctx ?? {}
 
   if (!Array.isArray(cards) || !cards.length) {
     throw new Error('buildTurn: cards 에 캐릭터 카드가 최소 하나 필요합니다')
+  }
+  // 평범한 객체를 방언으로 받으면 parse 가 없어 청킹이 한참 뒤에서 터진다.
+  if (typeof dialect.parse !== 'function') {
+    throw new Error('buildTurn: dialect 는 defineDialect 로 만든 방언이어야 합니다')
   }
 
   // 프리셋이 있으면 그것이 이기고, 옛 전략 이름만 있으면 어댑터로 간다 —
@@ -41,10 +48,11 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 탓으로 만든다.
   const select = !memory.preset && memory.strategy ? selectContext : selectMemory
   const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'legacy-full' }
-  const selected = await select(messages, { ...config, dialect }, ctx)
+  const selected = await select(messages, { ...config, dialect }, context)
 
   const compiled = compilePrompt({
     dialect,
+    enforceFormat,
     cards,
     playerCard: player,
     instructionText: instruction,
@@ -71,6 +79,8 @@ export async function buildTurn(input = {}, ctx = {}) {
     manifest: {
       ...selected.manifest,
       injectedText,
+      // enforceFormat 이 false 여도 방언은 그대로 보고한다 — 규약 층만 빠질 뿐
+      // 청킹은 여전히 이 방언으로 씬 경계를 잡고, 그 이름이 캐시 키에 들어간다.
       dialect: { id: dialect.id, version: dialect.version },
       prompt: {
         layers: compiled.layers,

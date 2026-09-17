@@ -57,8 +57,9 @@
 /**
  * 산출물 저장소. 소비자가 자기 저장소(JSON · SQLite · 무엇이든)를 이 모양으로 감싼다.
  * @typedef {object} ArtifactStore
- * @property {(key: { scope: string, scopeId: string, recipeHash: string }) => (object | null)} find
- * @property {(record: object) => object} put id 와 contentHash 를 붙여 돌려준다
+ * 저장소가 동기든 비동기든 받는다 — 엔진이 await 한다.
+ * @property {(key: { scope: string, scopeId: string, recipeHash: string }) => (object | null | Promise<object | null>)} find
+ * @property {(record: object) => (object | Promise<object>)} put id 와 contentHash 를 붙여 돌려준다
  */
 
 /**
@@ -83,6 +84,7 @@
  * @property {object} [worldbookOptions]
  * @property {Array<{ role: string, text: string }>} [messages] 대화 이력
  * @property {object} [memory] 기억 설정. `{ preset: 'memory-books' }` 처럼. 없으면 이력을 전부 보낸다
+ * @property {boolean} [enforceFormat] false 면 대본 규약 층을 넣지 않는다. 기본 true
  * @property {string} [userName] {{user}} 에 들어갈 이름
  */
 

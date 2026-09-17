@@ -15,15 +15,28 @@ export function defineDialect(spec = {}) {
   if (!Array.isArray(spec.rules)) throw new Error(`${spec.id}: rules 는 배열이어야 합니다`)
   if (!spec.fallback) throw new Error(`${spec.id}: fallback(어느 규칙에도 안 걸린 줄의 종류)이 필요합니다`)
 
+  // g·y 가 붙은 정규식은 lastIndex 를 들고 다닌다. .test()/.match() 가 그 상태를
+  // 옮겨 다니므로 같은 텍스트의 두 번째 파싱이 다른 결과를 낸다 — 같은 이력에서
+  // 씬 경계가 흔들리고 기억 캐시가 갈린다. 등록 자체를 막는다.
+  const assertStateless = (regexp, where) => {
+    if (/[gy]/.test(regexp.flags)) {
+      throw new Error(`${spec.id}: ${where} 에 g·y 플래그를 쓸 수 없습니다 — lastIndex 가 두 번째 파싱을 바꿉니다`)
+    }
+  }
+
   for (const rule of spec.rules) {
     if (!rule.kind) throw new Error(`${spec.id}: 규칙에 kind 가 없습니다`)
     if (!(rule.match instanceof RegExp)) throw new Error(`${spec.id}: ${rule.kind} 규칙의 match 는 정규식이어야 합니다`)
     if (!Number.isInteger(rule.text)) throw new Error(`${spec.id}: ${rule.kind} 규칙의 text 는 캡처 그룹 번호여야 합니다`)
+    assertStateless(rule.match, `${rule.kind} 규칙의 match`)
+    if (rule.reject instanceof RegExp) assertStateless(rule.reject, `${rule.kind} 규칙의 reject`)
   }
   for (const block of spec.blocks || []) {
     if (!(block.open instanceof RegExp) || !(block.item instanceof RegExp)) {
       throw new Error(`${spec.id}: ${block.kind} 블록의 open·item 은 정규식이어야 합니다`)
     }
+    assertStateless(block.open, `${block.kind} 블록의 open`)
+    assertStateless(block.item, `${block.kind} 블록의 item`)
   }
 
   const dialect = {
@@ -59,6 +72,11 @@ export function verifyDialect(dialect) {
 // 한다. 다만 korean-playscript v1 은 기존 'script-v1' 을 그대로 쓴다 — 저장된
 // 기억 산출물 캐시와 과거 스냅샷이 그 문자열에 묶여 있고, 바꾸면 요약을 전부
 // 다시 사게 된다. 보기 싫은 특례지만 대안이 캐시 전량 폐기다.
+//
+// 특례는 id 와 version 만 본다 — 규칙은 보지 않는다. 그래서 koreanPlayscript 를
+// 복제해 규칙을 바꾸면서 id/version 을 그대로 두면, 문법이 달라졌는데도 같은
+// 캐시 키('script-v1')를 쓰게 되어 옛 문법으로 만든 요약을 잘못 재사용한다.
+// 방언을 포크하면 id 를 바꿔라.
 /**
  * 기억 산출물 캐시 키와 output_contract 에 들어가는 문법 이름.
  * @param {Pick<import('../types.js').ScriptDialect, 'id' | 'version'>} dialect

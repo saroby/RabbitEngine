@@ -6,7 +6,7 @@ export { defineDialect, verifyDialect, parserVersionOf } from './dialect/define.
 export { koreanPlayscript } from './dialect/korean-playscript.js'
 export { parseWith } from './dialect/parse.js'
 export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/compat.js'
-export { compilePrompt } from './prompt/compile.js'
+export { compilePrompt, PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 export { SCRIPT_FORMAT, namesOf, renderCard, renderCast, renderPlayerCard, substitute, substituteCard } from './prompt/parts.js'
 export { selectMemory } from './memory/index.js'
 export { selectContext, LEGACY_STRATEGIES } from './memory/legacy-strategies.js'
@@ -16,4 +16,9 @@ export { recipeHashOf, canonical } from './memory/recipe.js'
 export { sha256Hex } from './sha256.js'
 export { MEMORY_LABEL, DEFAULT_ASSEMBLY, LEGACY_WINDOW_SIZE, LEGACY_RETRIEVAL_LIMIT } from './memory/defaults.js'
 export { createMemoryArtifactStore, contentHashOf, indexKey, decorate } from './memory/artifact-store.js'
+export { prebuildMemory } from './memory/prebuild.js'
+// 호스트가 기억 재료를 직접 다뤄야 하는 자리들 — 골든 생성기와 씬 표지 조사가
+// 여기에 묶여 있다. exports 가 "." 하나뿐이라 깊은 import 로는 닿을 수 없다.
+export { hashText, projectMessages, activeTextOf } from './memory/projection.js'
+export { chunkEntries } from './memory/chunking.js'
 export { buildTurn } from './build-turn.js'

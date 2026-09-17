@@ -33,6 +33,13 @@ export function hashablePolicyOf(policy) {
 const closesChunk = (dialect, text) =>
   dialect.parse(text).some((segment) => segment.type === 'scene')
 
+/**
+ * 투영된 항목을 고정된 경계로 자른다. 닫힌 chunk 만 요약 대상이다.
+ * @param {object[]} [entries] projectMessages 의 결과
+ * @param {string[]} [texts] 같은 순서의 본문
+ * @param {object} [policy] policyWith 가 만든 chunk 정책
+ * @returns {{ closed: object[], open: object | null }}
+ */
 export function chunkEntries(entries = [], texts = [], policy = DEFAULT_CHUNK_POLICY) {
   const maxMessages = Math.max(1, Number(policy.maxMessages) || DEFAULT_CHUNK_POLICY.maxMessages)
   const dialect = policy.dialect || koreanPlayscript

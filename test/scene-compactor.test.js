@@ -86,6 +86,29 @@ test('같은 재료면 두 번 만들지 않는다 — 캐시가 증분을 대�
   assert.deepEqual(second.manifest.artifacts.map((a) => a.text), first.manifest.artifacts.map((a) => a.text))
 })
 
+// 소비자의 저장소는 SQLite·네트워크처럼 비동기일 수 있다. 엔진이 await 하지
+// 않으면 find 가 돌려준 Promise 가 "캐시에 있다" 로 읽혀 요약이 통째로 사라진다.
+test('find·put 이 Promise 를 돌려주는 저장소도 캐시로 쓴다', async () => {
+  let builds = 0
+  let seq = 0
+  const inner = createMemoryArtifactStore({ uid: () => `b${seq += 1}`, now: () => 'now' })
+  const store = { find: async (key) => inner.find(key), put: async (record) => inner.put(record) }
+  const llm = async () => { builds += 1; return fakeLlm() }
+  const messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }))
+  const ctx = { artifacts: store, llm, scope: 'session', scopeId: 's3' }
+
+  const first = await selectMemory(messages, { preset: 'memory-books' }, ctx)
+  assert.equal(first.manifest.cacheHit, false)
+  assert.ok(builds > 0, '비동기 저장소인데 처음부터 캐시 적중으로 읽었다')
+  const spent = builds
+  assert.deepEqual(first.manifest.artifacts.map((a) => a.kind), ['scene'])
+
+  const second = await selectMemory(messages, { preset: 'memory-books' }, ctx)
+  assert.equal(builds, spent, '비동기 저장소에서 캐시가 안 돌았다')
+  assert.equal(second.manifest.cacheHit, true)
+  assert.deepEqual(second.manifest.artifacts.map((a) => a.text), first.manifest.artifacts.map((a) => a.text))
+})
+
 test('buildIfMissing:false 면 만들지 않고 cold 로 보고한다 — freeze 가 쓰는 자리', async () => {
   let builds = 0
   const store = createMemoryArtifactStore({ uid: () => 'x', now: () => 'now' })

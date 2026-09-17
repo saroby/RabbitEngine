@@ -80,6 +80,20 @@ test('defineDialect — 필수 항목이 없으면 던진다', () => {
   assert.throws(() => defineDialect({ id: 'x', version: 1, spec: 'x', fallback: 'narration', rules: [{ kind: 'a', match: '문자열' }] }), /정규식/)
 })
 
+// g·y 가 붙은 정규식은 lastIndex 를 들고 다닌다 — 같은 텍스트를 두 번 파싱하면
+// 두 번째가 다른 결과를 낸다. 방언은 순수해야 해서 등록 자체를 막는다.
+test('defineDialect — g·y 플래그가 붙은 정규식은 거부한다', () => {
+  const base = { id: 'x', version: 1, spec: '규약', fallback: 'narration' }
+  const ok = [{ kind: 'action', match: /^\*(.+)\*$/, text: 1 }]
+  assert.throws(() => defineDialect({ ...base, rules: [{ kind: 'action', match: /^\*(.+)\*$/g, text: 1 }] }), /플래그/)
+  assert.throws(() => defineDialect({ ...base, rules: [{ kind: 'action', match: /^\*(.+)\*$/y, text: 1 }] }), /플래그/)
+  assert.throws(() => defineDialect({ ...base, rules: [{ kind: 'action', match: /^\*(.+)\*$/, text: 1, reject: /https/g }] }), /플래그/)
+  assert.throws(() => defineDialect({ ...base, rules: ok, blocks: [{ kind: 'choice', open: /^선택지$/g, item: /^- (.+)$/ }] }), /플래그/)
+  assert.throws(() => defineDialect({ ...base, rules: ok, blocks: [{ kind: 'choice', open: /^선택지$/, item: /^- (.+)$/y }] }), /플래그/)
+  // i·m 처럼 상태가 없는 플래그는 그대로 받는다.
+  assert.doesNotThrow(() => defineDialect({ ...base, rules: [{ kind: 'action', match: /^\*(.+)\*$/i, text: 1 }] }))
+})
+
 test('defineDialect — 얼어 있다', () => {
   assert.equal(Object.isFrozen(koreanPlayscript), true)
 })

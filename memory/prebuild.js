@@ -24,6 +24,12 @@ function addCost(target, calls) {
 
 // buildForCondition(condition) → { recipeHashes, calls } 또는 throw.
 // 지금 프리셋에는 LLM 부품이 없어 빈 결과를 낸다. 단계 5 가 이 자리를 채운다.
+/**
+ * 조건별 기억을 미리 만들고 비용 장부를 뽑는다. 실행 순서가 비용 결과를 바꾸지 않게 하는 자리다.
+ * @param {Array<{ conditionKey: string, condition: object }>} [cells] 실행 예정 조합. 같은 conditionKey 는 한 번만 만든다
+ * @param {{ buildForCondition?: (condition: object, conditionKey: string) => Promise<{ recipeHashes?: string[], calls?: import('../types.js').LlmCall[] }> }} [options]
+ * @returns {Promise<{ ledger: { builds: object, conditions: object, total: object }, failures: object[] }>}
+ */
 export async function prebuildMemory(cells = [], { buildForCondition } = {}) {
   const ledger = { builds: {}, conditions: {}, total: emptyCost() }
   const failures = []

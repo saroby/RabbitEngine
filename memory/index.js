@@ -47,7 +47,9 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
     })
 
     recipeHashes.push(recipeHash)
-    const cached = store ? store.find({ scope, scopeId, recipeHash }) : null
+    // await 한다 — 소비자의 저장소는 SQLite·네트워크처럼 비동기일 수 있고,
+    // 안 기다리면 Promise 가 "캐시에 있다" 로 읽혀 요약이 통째로 사라진다.
+    const cached = store ? await store.find({ scope, scopeId, recipeHash }) : null
     if (cached) { artifacts.push(cached); continue }
 
     cacheHit = false
@@ -70,7 +72,7 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
         kind: draft.kind, text: draft.text, keywords: draft.keywords || [],
         buildCalls: built.calls,
       }
-      artifacts.push(store ? store.put(record) : { ...record, id: null })
+      artifacts.push(store ? await store.put(record) : { ...record, id: null })
     }
   }
   return { artifacts, calls, cold, cacheHit, recipeHashes }

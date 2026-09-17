@@ -103,6 +103,37 @@ test('buildTurn — ctx 를 기억 층에 그대로 넘긴다', async () => {
   assert.equal(turn.manifest.preset, 'lorebook')
 })
 
+test('buildTurn — enforceFormat:false 면 대본 규약 층이 빠진다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, enforceFormat: false })
+  assert.ok(!turn.system.includes(koreanPlayscript.spec))
+  assert.notEqual(turn.manifest.prompt.layers.at(-1).kind, 'output_contract')
+  // 규약 층을 빼도 청킹은 여전히 이 방언으로 씬 경계를 잡는다 — manifest 는 그대로 보고한다.
+  assert.deepEqual(turn.manifest.dialect, { id: 'korean-playscript', version: 1 })
+})
+
+test('buildTurn — memory·ctx·dialect 가 null 이어도 견딘다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, memory: null, dialect: null }, null)
+  assert.equal(turn.manifest.preset, 'legacy-full')
+  assert.deepEqual(turn.manifest.dialect, { id: 'korean-playscript', version: 1 })
+})
+
+test('buildTurn — messages 와 로어북 인자가 null 이어도 견딘다', async () => {
+  const turn = await buildTurn({
+    cards: [card], messages: null,
+    worldbooks: null, worldbookOverrides: null, worldbookOptions: null,
+    instruction: null, userName: null,
+  })
+  assert.deepEqual(turn.messages, [])
+  assert.equal(turn.manifest.prompt.names.user, '유저')
+})
+
+test('buildTurn — defineDialect 로 만들지 않은 객체는 방언으로 받지 않는다', async () => {
+  await assert.rejects(
+    () => buildTurn({ cards: [card], messages: history, dialect: { id: '가짜', version: 1, spec: '규약' } }),
+    /defineDialect/,
+  )
+})
+
 test('buildTurn — cards 가 비면 던진다', async () => {
   await assert.rejects(() => buildTurn({ messages: history }), /cards/)
   await assert.rejects(() => buildTurn({ cards: [], messages: history }), /cards/)
