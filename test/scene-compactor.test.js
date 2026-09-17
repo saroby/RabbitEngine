@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { sceneCompactor, parseSummary } from '../memory/compactors/scene.js'
 import { selectMemory } from '../memory/index.js'
 import { MEMORY_PRESETS } from '../memory/presets.js'
+import { createMemoryArtifactStore } from '../memory/artifact-store.js'
 
 const chunk = { ordinal: 0, coversOrdinals: [0, 1], entries: [
   { ordinal: 0, role: 'user', messageId: 'm0', textHash: 'h0' },
@@ -57,12 +58,11 @@ test('memory-books 는 LLM 프리셋이고 요약 모델이 본편과 분리되�
 
 test('같은 재료면 두 번 만들지 않는다 — 캐시가 증분을 대신한다', async () => {
   let builds = 0
-  const db = { memoryArtifacts: [], memoryIndex: {} }
   let seq = 0
-  const helpers = { uid: () => `a${seq += 1}`, now: () => 'now' }
+  const store = createMemoryArtifactStore({ uid: () => `a${seq += 1}`, now: () => 'now' })
   const llm = async () => { builds += 1; return fakeLlm() }
   const messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }))
-  const ctx = { db, helpers, llm, scope: 'session', scopeId: 's1' }
+  const ctx = { artifacts: store, llm, scope: 'session', scopeId: 's1' }
 
   const first = await selectMemory(messages, { preset: 'memory-books' }, ctx)
   assert.equal(first.manifest.cacheHit, false)
@@ -78,10 +78,10 @@ test('같은 재료면 두 번 만들지 않는다 — 캐시가 증분을 대�
 
 test('buildIfMissing:false 면 만들지 않고 cold 로 보고한다 — freeze 가 쓰는 자리', async () => {
   let builds = 0
-  const db = { memoryArtifacts: [], memoryIndex: {} }
+  const store = createMemoryArtifactStore({ uid: () => 'x', now: () => 'now' })
   const messages = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }))
   const out = await selectMemory(messages, { preset: 'memory-books' }, {
-    db, helpers: { uid: () => 'x', now: () => 'now' },
+    artifacts: store,
     llm: async () => { builds += 1; return fakeLlm() },
     scope: 'session', scopeId: 's2', buildIfMissing: false,
   })

@@ -2,14 +2,13 @@
 // 부품이 없는 프리셋(legacy)은 여기서 조립만 하고 끝나므로 LLM 도 캐시도
 // 타지 않는다 — 그래서 기존 동작을 그대로 재현할 수 있다.
 import { projectMessages, activeTextOf, isReal } from './projection.js'
-import { chunkEntries, assertWindowInvariant, DEFAULT_CHUNK_POLICY, policyWith, hashablePolicyOf } from './chunking.js'
+import { chunkEntries, assertWindowInvariant, policyWith, hashablePolicyOf } from './chunking.js'
 import { koreanPlayscript } from '../dialect/korean-playscript.js'
 import { assemble, boundedSize } from './assemble.js'
 import { presetOf } from './presets.js'
 import { bigramRetrieve } from './retrievers/bigram.js'
 import { sceneCompactor } from './compactors/scene.js'
 import { recipeHashOf, withLock } from './recipe.js'
-import { findArtifact, putArtifact } from './artifacts.js'
 import { validateCalls } from './contract.js'
 import { LEGACY_RETRIEVAL_LIMIT } from './defaults.js'
 
@@ -22,7 +21,7 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
   const part = COMPACTORS[preset.compactor]
   if (!part) return { artifacts: [], calls: [], cold: [], cacheHit: true, recipeHashes: [] }
 
-  const { db, scope = 'session', scopeId = 'none', helpers, llm, buildIfMissing = true } = ctx
+  const { artifacts: store = null, scope = 'session', scopeId = 'none', llm, buildIfMissing = true } = ctx
   const builderConfig = preset.builder || {}
   const artifacts = []
   const calls = []
@@ -48,7 +47,7 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
     })
 
     recipeHashes.push(recipeHash)
-    const cached = db ? findArtifact(db, { scope, scopeId, recipeHash }) : null
+    const cached = store ? store.find({ scope, scopeId, recipeHash }) : null
     if (cached) { artifacts.push(cached); continue }
 
     cacheHit = false
@@ -71,7 +70,7 @@ async function gatherArtifacts({ preset, closed, texts, chunkPolicy, ctx }) {
         kind: draft.kind, text: draft.text, keywords: draft.keywords || [],
         buildCalls: built.calls,
       }
-      artifacts.push(db && helpers ? putArtifact(db, record, helpers) : { ...record, id: null })
+      artifacts.push(store ? store.put(record) : { ...record, id: null })
     }
   }
   return { artifacts, calls, cold, cacheHit, recipeHashes }
