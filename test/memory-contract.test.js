@@ -5,6 +5,10 @@ import { passthroughCompactor } from '../memory/parts/passthrough.js'
 
 const ok = { partId: 'x', partVersion: 1, kind: 'compactor', build: async () => ({ artifacts: [], calls: [] }) }
 
+test('인자 없이 부르면 partId 에 대한 에러를 던진다', () => {
+  assert.throws(() => definePart(), /부품에 partId/)
+})
+
 test('알 수 없는 종류의 부품은 등록을 거부한다', () => {
   assert.throws(() => definePart({ ...ok, kind: 'summarizer' }), /kind/)
 })

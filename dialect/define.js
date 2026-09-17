@@ -8,7 +8,7 @@ import { parseWith, SCRIPT_PARSER_VERSION } from './parse.js'
  * @param {Omit<import('../types.js').ScriptDialect, 'parse' | 'blocks' | 'examples'> & Partial<Pick<import('../types.js').ScriptDialect, 'blocks' | 'examples'>>} spec
  * @returns {import('../types.js').ScriptDialect}
  */
-export function defineDialect(spec) {
+export function defineDialect(spec = {}) {
   if (!spec.id) throw new Error('방언에 id 가 없습니다')
   if (!Number.isInteger(spec.version)) throw new Error(`${spec.id}: version 은 정수여야 합니다`)
   if (typeof spec.spec !== 'string' || !spec.spec) throw new Error(`${spec.id}: spec(규약 텍스트)이 필요합니다`)

@@ -72,6 +72,7 @@ test('verifyDialect — examples 가 어긋나면 던진다', () => {
 })
 
 test('defineDialect — 필수 항목이 없으면 던진다', () => {
+  assert.throws(() => defineDialect(), /방언에 id/)
   assert.throws(() => defineDialect({ version: 1, spec: 'x', rules: [], fallback: 'narration' }), /id/)
   assert.throws(() => defineDialect({ id: 'x', spec: 'x', rules: [], fallback: 'narration' }), /version/)
   assert.throws(() => defineDialect({ id: 'x', version: 1, rules: [], fallback: 'narration' }), /spec/)

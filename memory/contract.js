@@ -20,7 +20,7 @@ export const CALL_FIELDS = [
  * @param {{ partId: string, partVersion: number, kind: 'compactor' | 'reducer' | 'retriever' | 'tracker' } & Record<string, unknown>} spec
  * @returns {Readonly<object>}
  */
-export function definePart(spec) {
+export function definePart(spec = {}) {
   if (!spec.partId) throw new Error('부품에 partId 가 없습니다')
   if (!PART_KINDS.includes(spec.kind)) throw new Error(`알 수 없는 부품 kind: ${spec.kind}`)
   if (!Number.isInteger(spec.partVersion)) throw new Error(`${spec.partId}: partVersion 은 정수여야 합니다`)
