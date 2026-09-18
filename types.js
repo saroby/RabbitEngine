@@ -66,6 +66,7 @@
  * 엔진이 밖에서 받는 능력. 엔진은 네트워크도 저장소도 직접 만지지 않는다.
  * @typedef {object} EngineContext
  * @property {(request: object) => Promise<object>} [llm] 기억 부품이 쓸 LLM 호출자. 없으면 LLM 부품이 있는 프리셋을 쓸 수 없다
+ * @property {(request: { texts: string[], model?: string, provider?: string }) => Promise<{ vectors: number[][], provider?: string, model?: string, usage?: { input?: number }, latencyMs?: number }>} [embed] 임베딩 호출자. embedding 검색기를 쓰는 프리셋(semantic · semantic-books)에 필요하다. vectors 는 texts 와 같은 길이·순서
  * @property {ArtifactStore} [artifacts] 산출물 캐시. 없으면 매번 새로 만든다
  * @property {string} [scope] 캐시 범위의 종류 (예: 'session')
  * @property {string} [scopeId] 캐시 범위의 식별자

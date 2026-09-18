@@ -62,3 +62,35 @@ flowchart TB
     style R fill:#fff7e6,stroke:#d99100,color:#1a1a1a
     style L fill:#e6f7ef,stroke:#1a9e6a,color:#1a1a1a
 ```
+
+## 기억 프리셋
+
+`buildTurn({ memory: { preset: '…' } })` 로 고른다. 없으면 `legacy-full`(이력 전부).
+
+| 프리셋 | 압축 | 접기 | 검색 | 밖에서 받는 것 |
+|---|---|---|---|---|
+| `lorebook` | — | — | — | — |
+| `vector` | — | — | 글자 bigram | — |
+| `semantic` | — | — | 임베딩 코사인 | `ctx.embed` |
+| `memory-books` | 닫힌 씬 → 요약 | — | — | `ctx.llm` |
+| `memory-books-tiered` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | — | `ctx.llm` |
+| `semantic-books` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | 요약 중 닿는 것만 | `ctx.llm` · `ctx.embed` |
+| `legacy-*` | — | — | (`legacy-retrieval` 만 bigram) | — |
+
+**접기(digest)** 는 이진 카운터처럼 돈다. 최근 `keepLeaves` 개 씬 요약은 그대로 두고, 그보다 오래된 것을 앞에서부터 `fanout` 개씩 묶어 줄거리 하나로 접는다. 줄거리가 `fanout` 개 모이면 또 접는다. 묶음 경계가 0번 씬부터 고정이라 새 씬이 닫혀도 이미 만든 줄거리의 재료는 안 바뀌고, 캐시 키는 자식 요약의 `contentHash` 목록이라 옛 대사를 고치면 그 조상만 다시 만든다.
+
+**검색(embedding)** 은 창 안의 마지막 유저 발화를 질의로 삼는다. `semantic` 은 창 밖 원문을, `semantic-books` 는 요약 산출물을 후보로 본다 (줄거리는 점수와 무관하게 항상 넣는다 — `keepKinds`). 벡터는 산출물 저장소에 본문 해시로 캐시되므로 같은 대사를 두 번 임베딩하지 않는다.
+
+```js
+const turn = await buildTurn(
+  { cards, messages, memory: { preset: 'semantic-books' } },
+  {
+    artifacts: store,                       // 요약·줄거리·벡터 캐시. 없으면 매 턴 새로 만든다
+    scope: 'session', scopeId: sessionId,
+    llm: async ({ system, messages, model, maxTokens }) => { /* 요약 모델 호출 */ },
+    embed: async ({ texts, model }) => ({ vectors: /* texts 와 같은 길이 */ [], usage: { input: 0 } }),
+  },
+)
+turn.manifest.memoryCalls          // 이 턴이 산 호출 전부 — purpose: 'compact' | 'reduce' | 'embed'
+turn.manifest.retrievalScores      // 무엇을 왜 골랐는지
+```
