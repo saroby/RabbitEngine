@@ -10,25 +10,25 @@ LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기�
 
 ```mermaid
 flowchart TB
-    IN["카드 · 플레이어 · 지시문<br>로어북 · 대화 이력"]
+    IN["🧺 이야기 재료<br>주인공 카드 · 네가 한 말 · 놀이 규칙<br>세계 이야기책 · 지금까지 나눈 이야기"]
 
-    subgraph E1["rabbit-engine · buildTurn()"]
+    subgraph E1["🐰 토끼가 편지를 준비해요 · buildTurn()"]
         direction TB
-        SM["selectMemory<br><i>기억 프리셋대로 이력을 고르고 접는다</i>"] --> CP["compilePrompt<br><i>지시문 · 카드 · 로어북 · 기억 · 대본 규약</i>"]
+        SM["1️⃣ 기억 고르기<br><i>지난 이야기 중에 필요한 것만 골라서 접어요</i><br>selectMemory"] --> CP["2️⃣ 편지 쓰기<br><i>규칙 · 주인공 카드 · 이야기책 · 기억을<br>한 통의 편지로 모아요</i><br>compilePrompt"]
     end
 
-    REQ["{ system, messages }"]
-    MAN["manifest<br><i>무엇으로 만들었는지 값으로 동결</i>"]
-    LLM["당신의 LLM 호출<br><b>엔진은 관여하지 않는다</b><br>OpenAI · Anthropic · 무엇이든"]
-    SCR["모델이 쓴 대본<br>유리: 왔구나.<br>(문을 조용히 닫는다)"]
+    REQ["✉️ 완성된 편지<br>{ system, messages }"]
+    MAN["📒 요리 기록장<br><i>편지에 무엇을 넣었는지 적어둬요</i><br>manifest"]
+    LLM["🧠 똑똑한 친구에게 편지를 보내요<br><b>보내는 건 네가 해요 — 토끼는 안 해요!</b><br>OpenAI · Anthropic · 아무 친구나"]
+    SCR["📜 친구가 써 준 대본<br>유리: 왔구나.<br>(문을 조용히 닫는다)"]
 
-    subgraph E2["rabbit-engine"]
-        PARSE["dialect.parse()"]
+    subgraph E2["🐰 토끼가 대본을 잘라요"]
+        PARSE["✂️ 말하는 부분과 행동하는 부분으로 나눠요<br>dialect.parse()"]
     end
 
-    SEG["dialogue · 유리 · 왔구나.<br>action · 문을 조용히 닫는다"]
-    UI["당신의 화면이 그린다"]
-    ST["당신의 저장소"]
+    SEG["💬 말 · 유리 · 왔구나.<br>🏃 행동 · 문을 조용히 닫는다"]
+    UI["🖥️ 네 화면에 그려요"]
+    ST["🗄️ 네 서랍에 넣어 둬요"]
 
     IN --> SM
     CP --> REQ
@@ -47,17 +47,17 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    H["대화 이력"] --> P["projection<br><i>실제 메시지만 남긴다</i>"]
-    P --> C["chunking<br><i>20개마다 닫는다 · 씬 표지를 만나면 일찍 닫는다</i>"]
-    C -->|"열린 청크 — 진행 중인 부분은 원문 그대로"| A
-    C -->|"닫힌 청크 — 압축기가 있는 프리셋만"| R{"recipeHash<br>캐시에 있나?"}
-    R -->|"있다 — LLM 을 부르지 않는다"| AR
-    R -->|"없다"| K["scene 압축기"]
-    K -->|"ctx.llm — 당신이 건넨 호출자"| AR[("ctx.artifacts · 요약")]
-    K --> L["호출 장부<br><i>토큰 · ms</i>"]
-    AR --> A["assemble<br><i>요약한 원문은 숨기고 · 자리와 예산을 정한다</i>"]
-    A --> OUT["{ messages, notes }"]
-    L --> MAN["manifest"]
+    H["📚 지금까지 나눈 이야기 전부<br><i>엄청 길어요!</i>"] --> P["🧹 진짜 대화만 남겨요<br><i>낙서와 메모는 빼요</i><br>projection"]
+    P --> C["📦 20장씩 상자에 담아요<br><i>장면이 바뀌면 거기서 상자를 닫아요</i><br>chunking"]
+    C -->|"아직 안 닫힌 상자<br>지금 하는 이야기는 그대로 가져가요"| A
+    C -->|"닫힌 상자<br>줄여 주는 담당이 있을 때만"| R{"🏷️ 이 상자, 전에<br>줄여 본 적 있나?<br>recipeHash"}
+    R -->|"있다! 서랍에서 꺼내요<br>친구한테 다시 안 물어봐요"| AR
+    R -->|"없다"| K["🧠 똑똑한 친구에게<br>짧게 줄여 달라고 해요<br>scene 압축기"]
+    K -->|"전화기는 네가 빌려줘요<br>ctx.llm"| AR[("🗄️ 요약 쪽지 서랍<br>ctx.artifacts")]
+    K --> L["📝 몇 번 물어봤는지 적어요<br><i>글자 수 · 걸린 시간</i><br>호출 장부"]
+    AR --> A["🧩 다시 합쳐요<br><i>긴 원문은 숨기고 요약 쪽지를 붙여요<br>자리가 얼마나 남았는지도 재요</i><br>assemble"]
+    A --> OUT["✉️ 편지에 넣을 이야기<br>{ messages, notes }"]
+    L --> MAN["📒 요리 기록장<br>manifest"]
 
     style R fill:#fff7e6,stroke:#d99100,color:#1a1a1a
     style L fill:#e6f7ef,stroke:#1a9e6a,color:#1a1a1a
