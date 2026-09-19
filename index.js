@@ -4,6 +4,7 @@ export const VERSION = '0.0.2'
 
 export { defineDialect, verifyDialect, parserVersionOf } from './dialect/define.js'
 export { koreanPlayscript } from './dialect/korean-playscript.js'
+export { asteriskScript, ASTERISK_FORMAT } from './dialect/asterisk-script.js'
 export { parseWith } from './dialect/parse.js'
 export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/compat.js'
 export { compilePrompt, PROMPT_COMPILER_VERSION } from './prompt/compile.js'

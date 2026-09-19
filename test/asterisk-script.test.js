@@ -1,0 +1,58 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { asteriskScript } from '../dialect/asterisk-script.js'
+import { verifyDialect } from '../dialect/define.js'
+
+const NAMES = ['하윤', '서진']
+const parse = (text, options = {}) => asteriskScript.parse(text, { names: NAMES, ...options })
+
+test('asteriskScript — 예시가 규칙과 맞물린다', () => { verifyDialect(asteriskScript) })
+
+test('이름: 대사 줄은 그 화자의 대사다', () => {
+  assert.deepEqual(parse('하윤: 문 닫아요.\n서진: 어서 오세요.'), [
+    { type: 'dialogue', speaker: '하윤', text: '문 닫아요.' },
+    { type: 'dialogue', speaker: '서진', text: '어서 오세요.' },
+  ])
+})
+
+test('*지문* 한 줄은 화자 없는 action 이다', () => {
+  assert.deepEqual(parse('*바람이 분다.*'), [{ type: 'action', text: '바람이 분다.' }])
+})
+
+test('@: 줄은 화자 없는 narration 이고 화자를 초기화한다', () => {
+  assert.deepEqual(parse('하윤: 안녕.\n@: 문이 닫힌다.\n둘째 줄'), [
+    { type: 'dialogue', speaker: '하윤', text: '안녕.' },
+    { type: 'narration', text: '문이 닫힌다.' },
+    { type: 'narration', text: '둘째 줄' },
+  ])
+})
+
+test('이어지는 줄은 현재 화자의 대사에 붙는다', () => {
+  assert.deepEqual(parse('하윤: 첫 줄\n둘째 줄'), [{ type: 'dialogue', speaker: '하윤', text: '첫 줄\n둘째 줄' }])
+})
+
+test('대사 안의 *별표* 는 그대로 둔다', () => {
+  assert.deepEqual(parse('하윤: 문을 열고 *미소 짓는다.* 어서 와.'), [
+    { type: 'dialogue', speaker: '하윤', text: '문을 열고 *미소 짓는다.* 어서 와.' },
+  ])
+})
+
+test('모르는 이름의 라벨은 화자가 아니다', () => {
+  assert.deepEqual(parse('참고: 이건 대사가 아니다.'), [{ type: 'narration', text: '참고: 이건 대사가 아니다.' }])
+})
+
+test('names 를 안 주면 모든 라벨을 화자로 본다', () => {
+  assert.deepEqual(asteriskScript.parse('아무개: 안녕'), [{ type: 'dialogue', speaker: '아무개', text: '안녕' }])
+})
+
+test('[[CHOICES]] 뒤 JSON 배열은 choice 조각이 된다', () => {
+  assert.deepEqual(parse('하윤: 골라.\n[[CHOICES]] [{"title":"열기","text":"문을 연다"},{"title":"기다리기","text":"기다린다"}]'), [
+    { type: 'dialogue', speaker: '하윤', text: '골라.' },
+    { type: 'choice', text: '문을 연다', title: '열기' },
+    { type: 'choice', text: '기다린다', title: '기다리기' },
+  ])
+})
+
+test('partial 이면 마지막 줄을 버린다', () => {
+  assert.deepEqual(parse('하윤: 안녕\n서진: 반', { partial: true }), [{ type: 'dialogue', speaker: '하윤', text: '안녕' }])
+})

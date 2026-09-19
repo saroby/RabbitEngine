@@ -8,6 +8,7 @@ const PUBLIC = [
   'VERSION',
   'buildTurn',
   'defineDialect', 'verifyDialect', 'parserVersionOf', 'koreanPlayscript',
+  'asteriskScript', 'ASTERISK_FORMAT',
   'parseWith', 'parseScript', 'choicesOf', 'SCRIPT_PARSER_VERSION',
   'compilePrompt', 'selectMemory', 'selectContext', 'LEGACY_STRATEGIES',
   'definePart', 'validateCalls', 'PART_KINDS',
