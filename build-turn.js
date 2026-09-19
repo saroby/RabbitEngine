@@ -7,8 +7,20 @@
 // 된다. 조용히 틀리는 자리는 라이브러리가 닫는다.
 import { selectMemory } from './memory/index.js'
 import { selectContext } from './memory/legacy-strategies.js'
-import { compilePrompt } from './prompt/compile.js'
+import { compileBlocks } from './prompt/blocks.js'
+import { renderTurn } from './prompt/render.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
+import { assertRating, ratingInstruction } from './scene/rating.js'
+import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
+import { analyzeUserInput } from './scene/input.js'
+import { buildDirective } from './scene/directive.js'
+
+/** 응답의 호흡. normal 은 아무 문장도 넣지 않는다 — 기본값이 프롬프트를 늘리지 않게 한다. */
+export const PACING_TEXT = Object.freeze({
+  slow: '페이싱: 천천히. 한 응답에 작은 변화 하나.',
+  normal: '',
+  eventful: '페이싱: 적극적으로. 인물이 먼저 움직이고 사건을 만든다.',
+})
 
 /**
  * 한 턴의 요청을 만든다. 이 라이브러리의 권장 진입점이다.
@@ -50,40 +62,78 @@ export async function buildTurn(input = {}, ctx = {}) {
   const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'legacy-full' }
   const selected = await select(messages, { ...config, dialect }, context)
 
-  const compiled = compilePrompt({
+  const rating = assertRating(raw.rating ?? 'all')
+  const pacing = raw.pacing ?? 'normal'
+  if (!Object.hasOwn(PACING_TEXT, pacing)) throw new Error(`buildTurn: pacing 은 ${Object.keys(PACING_TEXT).join(' | ')} 중 하나여야 합니다`)
+  const indicatorDefs = validateIndicatorDefs(raw.indicatorDefs ?? [])
+  const sceneStateText = raw.sceneState ? renderSceneState(raw.sceneState, { indicatorDefs }) : ''
+  // userInput 은 messages 에 넣지 않는다 — 이력 뒤 지시(post_history)가 붙을 자리를
+  // render 가 알아야 하므로 위치 계산을 renderTurn 한곳에 맡긴다.
+  const userInput = typeof raw.userInput === 'string' ? raw.userInput : null
+  const names = cards.map((c) => c.name)
+  const analysis = userInput !== null ? analyzeUserInput(dialect, userInput, { names }) : { actions: [], speech: [] }
+  const directive = buildDirective({
+    rating,
+    actions: analysis.actions,
+    hasState: Boolean(sceneStateText),
+    continuing: Boolean(raw.continuing),
+  })
+
+  const compiled = compileBlocks({
     dialect,
     enforceFormat,
     cards,
     playerCard: player,
     instructionText: instruction,
+    ratingInstruction: ratingInstruction(rating),
+    pacingText: PACING_TEXT[pacing],
     worldbooks,
     worldbookOverrides,
     // 로어북 스캔 설정은 기억 프리셋이 정한다. 호출자가 준 값이 그 위를 덮는다.
     worldbookOptions: { ...selected.manifest.worldbook, ...worldbookOptions },
+    worldbookDepth: raw.worldbookDepth ?? null,
     messages: selected.messages,
     rawMessages: messages,
     contextNotes: selected.notes,
+    memoryNotes: raw.memoryNotes ?? [],
+    sceneStateText,
+    events: raw.events ?? [],
+    directive,
     userName,
   })
+  const systemBlocks = compiled.blocks.filter((block) => block.slot === 'system')
 
   // 기억 층이 실제로 모델에 보낸 최종 문자열. 치환과 라벨을 거친 뒤의 값이라
-  // selectMemory 혼자서는 알 수 없다.
-  const injectedText = compiled.layers
-    .filter((layer) => layer.kind.startsWith('context_'))
-    .map((layer) => layer.content)
+  // selectMemory 혼자서는 알 수 없다. memoryNotes 로 온 것은 depth 슬롯이라
+  // system 문자열 안에는 없다 — 그래도 "기억으로 보낸 것" 의 증거는 여기 모은다.
+  const injectedText = compiled.blocks
+    .filter((block) => block.kind.startsWith('context_') || block.kind === 'memory')
+    .map((block) => block.content)
     .join('\n\n') || null
 
   return {
-    system: compiled.system,
+    system: systemBlocks.map((block) => block.content).join('\n\n'),
+    blocks: compiled.blocks,
     messages: selected.messages,
+    directive,
+    render: (options = {}) => renderTurn(compiled.blocks, selected.messages, { userInput, ...options }),
     manifest: {
       ...selected.manifest,
       injectedText,
       // enforceFormat 이 false 여도 방언은 그대로 보고한다 — 규약 층만 빠질 뿐
       // 청킹은 여전히 이 방언으로 씬 경계를 잡고, 그 이름이 캐시 키에 들어간다.
       dialect: { id: dialect.id, version: dialect.version },
+      // post_history 는 system 권한이 아니라 마지막 user 메시지에 붙는다. 그 사실을 값으로 남긴다.
+      scene: {
+        rating,
+        pacing,
+        hasState: Boolean(sceneStateText),
+        actions: analysis.actions,
+        renderedAs: { midRole: 'user', postHistory: 'appended-to-user' },
+      },
       prompt: {
-        layers: compiled.layers,
+        layers: systemBlocks.map(({ role, slot, trust, ...layer }) => layer),
+        blocks: compiled.blocks,
         names: compiled.names,
         compilerVersion: compiled.compilerVersion,
         worldbookManifest: compiled.worldbookManifest,

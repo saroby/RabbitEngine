@@ -6,6 +6,8 @@ import { defineDialect } from '../dialect/define.js'
 import { koreanPlayscript } from '../dialect/korean-playscript.js'
 import { createMemoryArtifactStore } from '../memory/artifact-store.js'
 import { MEMORY_LABEL } from '../memory/defaults.js'
+import { asteriskScript } from '../dialect/asterisk-script.js'
+import { emptySceneState, applySceneDelta } from '../scene/state.js'
 
 const card = { name: '유리', description: '도서관 사서' }
 const history = [
@@ -90,7 +92,7 @@ test('buildTurn — {{char}} 와 {{user}} 를 치환한다', async () => {
 test('buildTurn — manifest.prompt 에 층과 컴파일러 버전이 남는다', async () => {
   const turn = await buildTurn({ cards: [card], instruction: '장면을 전진시킨다.', messages: history })
   assert.equal(turn.manifest.prompt.layers[0].kind, 'instruction')
-  assert.match(turn.manifest.prompt.compilerVersion, /^prompt-v/)
+  assert.match(turn.manifest.prompt.compilerVersion, /^blocks-v/)
   assert.deepEqual(turn.manifest.prompt.names, { char: '유리', user: '유저' })
 })
 
@@ -152,4 +154,58 @@ test('buildTurn — defineDialect 로 만들지 않은 객체는 방언으로 �
 test('buildTurn — cards 가 비면 던진다', async () => {
   await assert.rejects(() => buildTurn({ messages: history }), /cards/)
   await assert.rejects(() => buildTurn({ cards: [], messages: history }), /cards/)
+})
+
+test('buildTurn — rating 없이도 돌고 all 로 기록된다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history })
+  assert.equal(turn.manifest.scene.rating, 'all')
+  assert.ok(Array.isArray(turn.blocks))
+})
+
+test('buildTurn — userInput 의 행동이 디렉티브에 들어가고 render 가 마지막 user 에 붙인다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, dialect: asteriskScript, rating: 'adult', userInput: '*밀친다*\n비켜' })
+  assert.match(turn.directive, /행동 시도: 「밀친다」/)
+  const rendered = turn.render()
+  assert.equal(rendered.messages.at(-1).role, 'user')
+  assert.match(rendered.messages.at(-1).text, /^\*밀친다\*\n비켜\n\n/)
+})
+
+test('buildTurn — sceneState 가 있으면 depth 2 블록으로 들어가고 hasState 가 참이다', async () => {
+  const { state } = applySceneDelta(emptySceneState(), { place: '현관', tension: 'hostile' }, { messageId: 'm1' })
+  const turn = await buildTurn({ cards: [card], messages: history, sceneState: state, userInput: '뭐야' })
+  const block = turn.blocks.find((b) => b.kind === 'scene_state')
+  assert.deepEqual(block.slot, { depth: 2 })
+  assert.match(block.content, /현관/)
+  assert.equal(turn.manifest.scene.hasState, true)
+})
+
+test('buildTurn — memoryNotes 는 depth 4, events 는 depth 0, pacing 은 system', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, memoryNotes: [{ kind: 'summary', text: '지난 일' }], events: ['정전'], pacing: 'eventful' })
+  const slot = (kind) => turn.blocks.find((b) => b.kind === kind).slot
+  assert.deepEqual(slot('memory'), { depth: 4 })
+  assert.deepEqual(slot('event'), { depth: 0 })
+  assert.equal(slot('pacing'), 'system')
+  assert.ok(turn.system.includes('적극적으로'))
+})
+
+test('buildTurn — 모르는 rating·pacing 은 던진다', async () => {
+  await assert.rejects(() => buildTurn({ cards: [card], messages: history, rating: 'nsfw' }), /rating/)
+  await assert.rejects(() => buildTurn({ cards: [card], messages: history, pacing: 'fast' }), /pacing/)
+  // `in` 은 프로토타입까지 본다 — Object.hasOwn 이 아니면 여기가 통과한다.
+  await assert.rejects(() => buildTurn({ cards: [card], messages: history, pacing: 'toString' }), /pacing/)
+})
+
+test('buildTurn — system 문자열에는 depth·post_history 블록이 없다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, userInput: '*친다*' })
+  assert.ok(!turn.system.includes('행동 시도'))
+})
+
+test('buildTurn — 모든 블록에 trust 가 있고 카드의 behavior 가 렌더된다', async () => {
+  const turn = await buildTurn({ cards: [{ ...card, behavior: '위협받으면 물러선다' }], messages: history, userInput: '뭐야' })
+  assert.ok(turn.blocks.every((b) => ['engine', 'curated', 'external'].includes(b.trust)))
+  assert.equal(turn.blocks.find((b) => b.kind === 'directive').trust, 'engine')
+  assert.equal(turn.blocks.find((b) => b.kind === 'character').trust, 'curated')
+  assert.match(turn.system, /행동 기준: 위협받으면 물러선다/)
+  assert.ok(!('trust' in turn.manifest.prompt.layers[0]))
+  assert.deepEqual(turn.manifest.scene.renderedAs, { midRole: 'user', postHistory: 'appended-to-user' })
 })

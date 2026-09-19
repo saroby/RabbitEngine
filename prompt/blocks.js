@@ -10,8 +10,12 @@ import { MEMORY_LABEL } from '../memory/defaults.js'
 export const BLOCK_COMPILER_VERSION = 'blocks-v1'
 export const DEFAULT_DEPTHS = Object.freeze({ memory: 4, scene_state: 2, event: 0 })
 
-const sys = (kind, content, extra = {}) => ({ kind, role: 'system', slot: 'system', content, ...extra })
-const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: { depth }, content, ...extra })
+// 블록의 출처 신뢰도. 'engine' 은 엔진이 쓴 문장, 'curated' 는 사람이 쓴 카드·로어북·기억이다.
+// 프롬프트 주입 방어의 근거라 값으로 남긴다 — 분류가 아니라 증거다.
+const ENGINE_KINDS = new Set(['instruction', 'rating', 'pacing', 'user_boundary', 'output_contract', 'scene_state', 'event', 'directive'])
+const trustOf = (kind) => (ENGINE_KINDS.has(kind) ? 'engine' : 'curated')
+const sys = (kind, content, extra = {}) => ({ kind, role: 'system', slot: 'system', trust: trustOf(kind), content, ...extra })
+const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: { depth }, trust: trustOf(kind), content, ...extra })
 
 export function compileBlocks({
   cards, card, playerCard, instructionText, ratingInstruction, pacingText,
@@ -57,7 +61,7 @@ export function compileBlocks({
   if (memoryText) blocks.push(at('memory', DEFAULT_DEPTHS.memory, `${MEMORY_LABEL}\n${memoryText}`))
   if (String(sceneStateText || '').trim()) blocks.push(at('scene_state', DEFAULT_DEPTHS.scene_state, `[장면 상태]\n${sceneStateText.trim()}`))
   for (const event of events) if (String(event || '').trim()) blocks.push(at('event', DEFAULT_DEPTHS.event, `[사건]\n${String(event).trim()}`))
-  if (String(directive || '').trim()) blocks.push({ kind: 'directive', role: 'system', slot: 'post_history', content: directive.trim() })
+  if (String(directive || '').trim()) blocks.push({ kind: 'directive', role: 'system', slot: 'post_history', trust: 'engine', content: directive.trim() })
 
   return {
     blocks, names, compilerVersion: BLOCK_COMPILER_VERSION,

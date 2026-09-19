@@ -21,6 +21,13 @@ const PUBLIC = [
   // 호스트가 실제로 쓰는 이름들. exports 가 "." 하나뿐이라 깊은 import 가
   // 막히므로, index.js 에 없으면 소비자가 쓸 방법이 아예 없다.
   'PROMPT_COMPILER_VERSION', 'prebuildMemory',
+  'compileBlocks', 'BLOCK_COMPILER_VERSION', 'DEFAULT_DEPTHS', 'renderTurn',
+  'emptySceneState', 'renderSceneState', 'applySceneDelta', 'validateIndicatorDefs',
+  'initialIndicators', 'TENSIONS',
+  'RATINGS', 'RATING_TEXT', 'assertRating', 'ratingInstruction', 'ratingDirective',
+  'analyzeUserInput', 'buildDirective', 'DIRECTIVE_MAX_CHARS',
+  'extractionRecipe', 'applyExtraction', 'parseExtractionOutput', 'EXTRACTION_VERSION',
+  'PACING_TEXT',
   'hashText', 'projectMessages', 'activeTextOf', 'chunkEntries',
 ]
 

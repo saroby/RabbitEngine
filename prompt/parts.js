@@ -19,7 +19,7 @@ export function substitute(text, { char = '', user = '' } = {}) {
   return text.replace(SUBST, (_, key) => (key.toLowerCase() === 'char' ? char : user))
 }
 
-const CARD_TEXT_FIELDS = ['description', 'personality', 'scenario', 'first_mes', 'mes_example']
+const CARD_TEXT_FIELDS = ['description', 'personality', 'scenario', 'first_mes', 'mes_example', 'behavior']
 export function substituteCard(card, names) {
   if (!card) return card
   const output = { ...card }
@@ -32,7 +32,8 @@ export function namesOf({ card, playerCard, userName }) {
   return { char: card?.name || '캐릭터', user: user || '유저' }
 }
 
-const LEGACY_CARD_FIELDS = [['personality', '성격'], ['scenario', '상황'], ['mes_example', '예시 대화']]
+// behavior 는 카드 작성자가 목표·위협 대응·접촉 경계·분노 표현·회복 조건을 적는 자리다.
+const LEGACY_CARD_FIELDS = [['personality', '성격'], ['scenario', '상황'], ['behavior', '행동 기준'], ['mes_example', '예시 대화']]
 export function renderCard(card) {
   if (!card) return ''
   const lines = ['[캐릭터]', `이름: ${card.name}`]

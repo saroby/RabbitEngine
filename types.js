@@ -74,6 +74,52 @@
  */
 
 /**
+ * 프롬프트 조각 하나와 그것이 놓일 자리. system 한 문자열 대신 이 목록이 정본이다.
+ * @typedef {object} Block
+ * @property {string} kind instruction · rating · pacing · character · cast · player · context_* · worldbook · user_boundary · output_contract · memory · scene_state · event · directive
+ * @property {string} role 공급자에 넣을 역할. 지금은 모두 'system'
+ * @property {'system' | 'post_history' | { depth: number }} slot 놓일 자리. depth N 은 이력 끝에서 N 번째 앞
+ * @property {'engine' | 'curated'} trust 문장의 출처. engine 은 엔진이 쓴 것, curated 는 사람이 쓴 카드·로어북·기억
+ * @property {string} content
+ * @property {string} [sourceId] 카드·로어북 원본 식별자
+ * @property {string} [revisionId]
+ * @property {string} [contract] output_contract 층의 파서 버전
+ * @property {string} [strategy] worldbook 층의 주입 전략
+ */
+
+/**
+ * 장면 상태. 저장·복원은 호스트 몫이고 엔진은 값만 다룬다.
+ * @typedef {object} SceneState
+ * @property {number} version
+ * @property {number} revision 적용 횟수. 낡은 추출 결과를 거르는 데 쓴다
+ * @property {string | null} place
+ * @property {string | null} time
+ * @property {string} tension calm · playful · tense · hostile · intimate · grief
+ * @property {Record<string, { body: string[], emotion: string, toward: Record<string, string> }>} characters
+ * @property {string[]} threads 미해결 갈래
+ * @property {Record<string, number | string | boolean>} indicators
+ * @property {{ messageId: string } | null} updatedAt
+ */
+
+/**
+ * 호스트가 정의하는 지표. 호감도·체력처럼 작품마다 다른 수치를 스키마로 못박는다.
+ * @typedef {object} IndicatorDef
+ * @property {string} key
+ * @property {'number' | 'string' | 'boolean'} type
+ * @property {number | string | boolean} initial type 과 같은 종류여야 한다
+ * @property {string} [label] 프롬프트에 쓸 이름. 없으면 key
+ * @property {boolean} [inferred] false 면 추출기가 바꿀 수 없다. 기본 true
+ * @property {boolean} [visible] 기본 true
+ * @property {number} [min] type 이 number 일 때의 하한
+ * @property {number} [max] type 이 number 일 때의 상한
+ */
+
+/**
+ * 묘사 수위. 누가 어떤 등급을 볼 수 있는지는 호스트가 정한다.
+ * @typedef {'all' | 'teen' | 'adult'} Rating
+ */
+
+/**
  * buildTurn 의 입력.
  * @typedef {object} TurnInput
  * @property {ScriptDialect} [dialect] 출력 문법. 기본은 koreanPlayscript
@@ -87,13 +133,25 @@
  * @property {object} [memory] 기억 설정. `{ preset: 'memory-books' }` 처럼. 없으면 이력을 전부 보낸다
  * @property {boolean} [enforceFormat] false 면 대본 규약 층을 넣지 않는다. 기본 true
  * @property {string} [userName] {{user}} 에 들어갈 이름
+ * @property {Rating} [rating] 묘사 수위. 기본 'all'
+ * @property {SceneState | null} [sceneState] 있으면 depth 슬롯 블록으로 들어간다
+ * @property {IndicatorDef[]} [indicatorDefs] 지표 정의. sceneState 의 indicators 를 사람이 읽는 줄로 만든다
+ * @property {string | null} [userInput] 이번 턴의 사용자 입력. messages 에는 넣지 않고 render 가 마지막 user 로 붙인다
+ * @property {Array<{ kind: string, text: string }>} [memoryNotes] 호스트가 고른 기억 노트. depth 슬롯으로 들어간다
+ * @property {string[]} [events] 이번 턴에 일어난 사건. 이력 끝(depth 0)에 붙는다
+ * @property {'slow' | 'normal' | 'eventful'} [pacing] 응답의 호흡. 기본 'normal'
+ * @property {boolean} [continuing] 이어쓰기면 true — 사용자 행동 지시를 디렉티브에 넣지 않는다
+ * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
  */
 
 /**
  * buildTurn 의 출력. system 과 messages 를 당신의 LLM 호출에 그대로 넣는다.
  * @typedef {object} Turn
- * @property {string} system
+ * @property {string} system system 슬롯 블록만 이어 붙인 하위 호환 문자열
+ * @property {Block[]} blocks 위치를 가진 전체 블록 목록. render 의 입력이다
  * @property {Array<{ role: string, text: string }>} messages
+ * @property {string} directive 이력 뒤에 붙는 짧은 지시
+ * @property {(options?: { midRole?: string, userFirst?: boolean, openingTurn?: string, userInput?: string | null }) => { system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number }} render 블록과 이력을 공급자에 넣을 모양으로 편다
  * @property {object} manifest 이 턴을 무엇으로 만들었는지. ID 가 아니라 값으로 동결돼 있다
  */
 

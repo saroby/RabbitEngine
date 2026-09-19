@@ -12,7 +12,8 @@ export const PROMPT_COMPILER_VERSION = 'prompt-v3'
 export function compilePrompt(options = {}) {
   const out = compileBlocks(options)
   const systemBlocks = out.blocks.filter((block) => block.slot === 'system')
-  const layers = systemBlocks.map(({ role, slot, ...layer }) => layer)
+  // role·slot·trust 는 블록 모델의 위치 정보다. 하위 호환 layers 뷰는 이전과 같은 모양을 유지한다.
+  const layers = systemBlocks.map(({ role, slot, trust, ...layer }) => layer)
   return {
     system: systemBlocks.map((b) => b.content).join('\n\n'),
     layers,

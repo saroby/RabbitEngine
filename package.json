@@ -12,7 +12,7 @@
   "exports": {
     ".": { "types": "./dist-types/index.d.ts", "default": "./index.js" }
   },
-  "files": ["index.js", "types.js", "sha256.js", "build-turn.js", "dialect", "prompt", "memory", "worldbook", "dist-types"],
+  "files": ["index.js", "types.js", "sha256.js", "build-turn.js", "dialect", "prompt", "scene", "memory", "worldbook", "dist-types"],
   "scripts": {
     "test": "node --test",
     "types": "tsc -p tsconfig.json",
