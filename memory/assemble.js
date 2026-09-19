@@ -39,7 +39,7 @@ function fitBudget(items, budgetChars, placement) {
 
 export function assemble({
   messages = [], entries = [], closed = [],
-  artifacts = [], retrieved = [], trackerState = null,
+  artifacts = [], retrieved = [], retrievedArtifacts = null, trackerState = null,
   assembly = DEFAULT_ASSEMBLY,
 } = {}) {
   // entries 와 messages 는 같은 predicate 로 걸러진 같은 길이의 배열이다.
@@ -72,9 +72,17 @@ export function assemble({
   // 이미 원문으로 남았다. 여기서 또 넣으면 같은 대사가 두 번 들어간다
   // (기존 retrieval 전략은 note 를 만들지 않았다).
   // 검색으로 끌어온 **산출물**은 artifacts 로 들어와 기억 층이 된다.
+  //
+  // retrievedArtifacts 가 배열이면 검색기가 산출물을 골랐다는 뜻이다 — 그것만
+  // 시간 순서로 넣는다. null 은 "고르지 않았다" 라 전부 들어간다. 빈 배열은
+  // "골랐는데 닿는 것이 없다" 라 아무것도 안 들어간다. 둘을 섞으면 검색이
+  // 0개를 찾은 턴에 요약이 전부 쏟아져 예산이 터진다.
+  const chosen = Array.isArray(retrievedArtifacts)
+    ? [...retrievedArtifacts].sort((a, b) => a.index - b.index).map((pick) => artifacts[pick.index]).filter(Boolean)
+    : artifacts
   const memoryItems = [
     ...(trackerState ? [{ source: 'tracker', text: trackerState.text ?? JSON.stringify(trackerState) }] : []),
-    ...artifacts.map((artifact) => ({ source: 'artifact', id: artifact.id ?? null, text: artifact.text })),
+    ...chosen.map((artifact) => ({ source: 'artifact', id: artifact.id ?? null, text: artifact.text })),
   ].map((item) => ({ ...item, rendered: renderMemory(item.text) }))
 
   const { kept: fitted, truncated, usedChars } = fitBudget(memoryItems, assembly.budgetChars, assembly.placement)

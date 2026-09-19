@@ -54,6 +54,37 @@ export const MEMORY_PRESETS = {
     retriever: 'bigram',
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: false, placement: 'both', windowMode: 'cut', retain: 5 },
   }),
+  // 씬 요약을 계층으로 접는다. 최근 keepLeaves 개 씬은 요약 그대로(단기), 그보다
+  // 오래된 것은 fanout 개씩 묶어 줄거리로(장기). SupaMemory·Memory Books 의
+  // "요약의 요약" 을 캐시 가능한 고정 경계 위에 올린 것이다.
+  'memory-books-tiered': modern('memory-books-tiered', {
+    compactor: 'scene',
+    reducer: 'digest',
+    usesLlm: true,
+    builder: { provider: 'openai', model: 'gpt-5.4-mini', maxTokens: 500 },
+    reducerBuilder: { provider: 'openai', model: 'gpt-5.4-mini', maxTokens: 700, fanout: 4, keepLeaves: 4 },
+    assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: true, placement: 'note' },
+  }),
+  // vector 의 의미판. 글자 겹침 대신 임베딩 코사인 유사도로 옛 원문을 끌어온다.
+  // 임베딩 호출자는 호스트가 ctx.embed 로 준다 — 엔진은 부르지 않는다.
+  semantic: modern('semantic', {
+    retriever: 'embedding',
+    usesLlm: true,
+    embedder: { provider: 'openai', model: 'text-embedding-3-small', minScore: 0.35, targets: ['messages'] },
+    assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: false, placement: 'both', windowMode: 'cut', retain: 5 },
+  }),
+  // HypaMemory V3 와 같은 발상. 씬 요약을 계층으로 접고, 줄거리(digest)는 항상
+  // 넣되 씬 요약은 지금 상황과 닿는 것만 임베딩으로 고른다.
+  'semantic-books': modern('semantic-books', {
+    compactor: 'scene',
+    reducer: 'digest',
+    retriever: 'embedding',
+    usesLlm: true,
+    builder: { provider: 'openai', model: 'gpt-5.4-mini', maxTokens: 500 },
+    reducerBuilder: { provider: 'openai', model: 'gpt-5.4-mini', maxTokens: 700, fanout: 4, keepLeaves: 4 },
+    embedder: { provider: 'openai', model: 'text-embedding-3-small', minScore: 0.35, targets: ['artifacts'], keepKinds: ['digest'] },
+    assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: true, placement: 'note' },
+  }),
   'legacy-full': legacy('legacy-full', { assembly: legacyAssembly({ windowSize: Number.MAX_SAFE_INTEGER }) }),
   'legacy-window': legacy('legacy-window'),
   'legacy-summary': legacy('legacy-summary', { userNote: 'summary' }),
