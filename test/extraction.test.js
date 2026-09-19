@@ -25,6 +25,16 @@ test('extractionRecipe — 상태가 다르면 recipeHash 가 다르다', () => 
   assert.notEqual(a.recipeHash, b.recipeHash)
 })
 
+test('extractionRecipe — names·playerName·지표 정의가 다르면 recipeHash 가 다르다', () => {
+  const base = extractionRecipe({ state: emptySceneState(), exchanges, names: ['유리'] })
+  const differentNames = extractionRecipe({ state: emptySceneState(), exchanges, names: ['유리', '민준'] })
+  const differentPlayer = extractionRecipe({ state: emptySceneState(), exchanges, names: ['유리'], playerName: '플레이어' })
+  const differentIndicators = extractionRecipe({ state: emptySceneState(), exchanges, names: ['유리'], indicatorDefs: [{ key: '호감도', type: 'number', min: 0, max: 100, initial: 50 }] })
+  assert.notEqual(base.recipeHash, differentNames.recipeHash)
+  assert.notEqual(base.recipeHash, differentPlayer.recipeHash)
+  assert.notEqual(base.recipeHash, differentIndicators.recipeHash)
+})
+
 test('applyExtraction — expectedRevision 이 다르면 stale 로 거부한다', () => {
   const before = emptySceneState()
   const out = applyExtraction(before, JSON.stringify({ tension: 'hostile', beat: 'x' }), { names: ['유리'], messageId: 'm2', expectedRevision: 3 })

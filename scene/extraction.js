@@ -1,5 +1,5 @@
 // 응답 뒤 백그라운드 1회 호출의 레시피. 엔진은 프롬프트·스키마·검증만 갖고 호출은 호스트가 한다.
-import { recipeHashOf } from '../memory/recipe.js'
+import { recipeHashOf, canonical } from '../memory/recipe.js'
 import { sha256Hex } from '../sha256.js'
 import { applySceneDelta, renderSceneState, validateIndicatorDefs, TENSIONS } from './state.js'
 
@@ -34,7 +34,7 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
     '당신은 롤플레이 대화의 기록 담당이다. 방금 오간 교환을 읽고 장면 상태에서 바뀐 것만 JSON 으로 낸다.',
     `등장인물: ${names.join(', ') || '(없음)'}. 플레이어는 "${playerName}" 로 부른다. 목록에 없는 인물은 쓰지 않는다.`,
     `긴장도(tension)는 ${TENSIONS.join(' | ')} 중 하나다. 극적 사건이 있었으면 즉시 바꾼다.`,
-    '사실만 기록한다. 시도와 실제 발생을 구분하고, 발생하지 않은 것은 기록하지 않는다. 묘사 수위를 꾸미거나 약화하지 않는다.',
+    '사실만 기록한다. 시도와 실제 발생을 구분하고, 발생하지 않은 것은 기록하지 않는다. 사실을 꾸미거나 축소하지 않는다.',
     `${playerName}(플레이어)에 대해서는 명시적으로 말했거나 밖에서 관찰되는 것만 기록한다. 속마음을 추정하지 않는다.`,
     indicatorLines.length ? `바꿀 수 있는 지표:\n${indicatorLines.join('\n')}` : '',
     '규칙: 바뀌지 않은 필드는 쓰지 않는다. body 는 현재 몸 상태(부상·옷·자세)만, emotion 은 한 단어, toward 는 상대별 태도 한 구절. beat 는 이 교환을 한 줄로 요약한 사실 문장이다. JSON 외의 텍스트를 쓰지 않는다.',
@@ -43,9 +43,10 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
   const body = exchanges.map((x) => `[${playerName}]\n${x.user}\n\n[응답]\n${x.assistant}`).join('\n\n---\n\n')
   const recipeHash = recipeHashOf({
     partId: 'scene-extractor', partVersion: EXTRACTION_VERSION,
-    stateHash: sha256Hex(JSON.stringify(state ?? null)),
+    stateHash: sha256Hex(canonical(state ?? null)),
     exchangeHashes: exchanges.map((x) => sha256Hex(`${x.user}\u0000${x.assistant}`)),
-    indicatorKeys: defs.map((d) => d.key),
+    names, playerName,
+    indicators: defs.map((d) => ({ key: d.key, type: d.type, min: d.min ?? null, max: d.max ?? null, inferred: d.inferred })),
   })
   return { system, messages: [{ role: 'user', text: body }], schema: schemaFor(names, defs), recipeHash, purpose: 'extract' }
 }
