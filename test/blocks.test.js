@@ -37,15 +37,26 @@ test('compileBlocks — worldbookDepth 를 주면 로어북 블록이 그 depth 
   assert.deepEqual(blocks.find((b) => b.kind === 'worldbook').slot, { depth: 3 })
 })
 
-test('compilePrompt — system 은 system 슬롯 블록만 잇는다 (depth·post_history 는 빠진다)', () => {
-  const out = compilePrompt({ cards: [card], sceneStateText: '지금: 현관.', directive: '결과.' })
-  assert.ok(!out.system.includes('지금: 현관.'))
-  assert.ok(!out.system.includes('결과.'))
-  assert.ok(out.system.includes('유리'))
+test('compilePrompt — system 슬롯 밖 블록이 생기는 입력은 조용히 버리지 않고 던진다', () => {
+  assert.throws(() => compilePrompt({ cards: [card], sceneStateText: '지금: 현관.' }), /compileBlocks/)
+  assert.throws(() => compilePrompt({ cards: [card], directive: '결과.' }), /compileBlocks/)
+  assert.throws(() => compilePrompt({ cards: [card], events: ['정전'] }), /compileBlocks/)
+  assert.ok(compilePrompt({ cards: [card] }).system.includes('유리'))
 })
 
 test('compilePrompt — 기존 layers 계약이 유지된다', () => {
   const out = compilePrompt({ cards: [card], contextNotes: [{ kind: 'summary', text: '지난 일' }] })
   assert.ok(out.layers.some((l) => l.kind === 'context_summary'))
   assert.equal(out.layers.at(-1).kind, 'output_contract')
+})
+
+test('compileBlocks — 항목별 depth 가 전역 worldbookDepth 를 이긴다', () => {
+  const worldbooks = [
+    { id: 'w1', name: '왕국', content: '왕은 죽었다', strategy: 'always', depth: 1 },
+    { id: 'w2', name: '기후', content: '겨울이 길다', strategy: 'always' },
+  ]
+  const { blocks } = compileBlocks({ cards: [card], worldbooks, worldbookDepth: null })
+  const found = blocks.filter((b) => b.kind === 'worldbook')
+  assert.deepEqual(found[0].slot, { depth: 1 })
+  assert.equal(found[1].slot, 'system')
 })

@@ -256,3 +256,20 @@ test('buildTurn — userInput 이 있어도 창 크기만큼의 이력이 남는
   assert.equal(preset.messages.length, 6)
   assert.equal(preset.manifest.assembly.windowSize, 7)
 })
+
+test('buildTurn — rating 을 생략했는지 여부가 manifest 에 남는다', async () => {
+  const omitted = await buildTurn({ cards: [card], messages: history })
+  assert.equal(omitted.manifest.scene.rating, 'all')
+  assert.equal(omitted.manifest.scene.ratingDefaulted, true)
+  const explicit = await buildTurn({ cards: [card], messages: history, rating: 'all' })
+  assert.equal(explicit.manifest.scene.ratingDefaulted, false)
+})
+
+test('buildTurn — 창 크기가 숫자 아닌 문자열이어도 보정이 빠지지 않는다', async () => {
+  const long = Array.from({ length: 40 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
+  // 기억 층은 parseInt 로 6 으로 읽는다. 보정이 Number() 였다면 NaN 이라 건너뛰고 5 개만 남는다.
+  const preset = await buildTurn({ cards: [card], messages: long, memory: { preset: 'lorebook', assembly: { windowSize: '6abc', windowMode: 'cut' } }, userInput: '정전이야?' })
+  assert.equal(preset.messages.length, 6)
+  const legacy = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window', windowSize: '6abc' }, userInput: '정전이야?' })
+  assert.equal(legacy.messages.length, 6)
+})

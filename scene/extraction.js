@@ -4,6 +4,9 @@ import { sha256Hex } from '../sha256.js'
 import { applySceneDelta, renderSceneState, validateIndicatorDefs, TENSIONS } from './state.js'
 
 export const EXTRACTION_VERSION = 'extract-v1'
+// 따라잡기(밀린 교환을 한 번에 추출) 상한. 이보다 길면 한 번의 호출로 사실을
+// 가려내지 못하고 델타가 뭉개진다 — 조용히 자르지 말고 호스트가 나눠 부르게 한다.
+export const MAX_EXTRACTION_EXCHANGES = 5
 
 function schemaFor(names, defs) {
   const characterPatch = {
@@ -27,6 +30,9 @@ function schemaFor(names, defs) {
 }
 
 export function extractionRecipe({ state, exchanges = [], names = [], playerName = '유저', indicatorDefs = [] }) {
+  if (exchanges.length > MAX_EXTRACTION_EXCHANGES) {
+    throw new Error(`extractionRecipe: 한 번에 추출할 교환은 ${MAX_EXTRACTION_EXCHANGES}개까지입니다 (${exchanges.length}개) — 나눠서 부르세요`)
+  }
   const defs = validateIndicatorDefs(indicatorDefs)
   const current = renderSceneState(state, { indicatorDefs: defs }) || '(아직 기록 없음)'
   const indicatorLines = defs.filter((d) => d.inferred).map((d) => `- ${d.key}: ${d.type}${d.type === 'number' ? ` ${d.min ?? '-∞'}~${d.max ?? '∞'}` : ''}`)
@@ -51,8 +57,15 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
   return { system, messages: [{ role: 'user', text: body }], schema: schemaFor(names, defs), recipeHash, purpose: 'extract' }
 }
 
-export function parseExtractionOutput(text) {
-  const raw = String(text || '')
+/**
+ * 추출 응답에서 JSON 델타를 꺼낸다. ctx.llm 이 돌려주는 `{ text, provider, usage, latencyMs }`
+ * 객체도 그대로 받는다 — 문자열만 받으면 호스트가 넘긴 결과가 "[object Object]" 가 돼
+ * 조용히 null 이 되고, 델타가 통째로 사라진 것을 아무도 모른다.
+ * @param {string | { text?: string } | null} output
+ * @returns {object | null}
+ */
+export function parseExtractionOutput(output) {
+  const raw = typeof output === 'string' ? output : (typeof output?.text === 'string' ? output.text : '')
   const start = raw.indexOf('{'); const end = raw.lastIndexOf('}')
   if (start < 0 || end <= start) return null
   try { const value = JSON.parse(raw.slice(start, end + 1)); return value && typeof value === 'object' ? value : null } catch { return null }
@@ -60,12 +73,17 @@ export function parseExtractionOutput(text) {
 
 export function applyExtraction(state, rawText, { indicatorDefs = [], names = null, messageId = null, expectedRevision = null } = {}) {
   // 늦게 도착한 추출 결과가 그 사이 갱신된 상태를 덮어쓰면 안 된다. 호스트는 저장 시 revision CAS 를 함께 건다.
+  // 무엇이 실제로 바뀌었는지의 증거. 적용하지 않은 경로에서는 after 가 before 와 같다.
+  const before = sha256Hex(canonical(state ?? null))
   if (expectedRevision !== null && (state?.revision ?? 0) !== expectedRevision) {
-    return { state, beat: '', rejected: [`stale: revision 불일치 (기대 ${expectedRevision}, 현재 ${state?.revision ?? 0})`], parsed: false, stale: true }
+    return { state, beat: '', rejected: [`stale: revision 불일치 (기대 ${expectedRevision}, 현재 ${state?.revision ?? 0})`], parsed: false, stale: true, stateHash: { before, after: before } }
   }
   const parsed = parseExtractionOutput(rawText)
-  if (!parsed) return { state, beat: '', rejected: ['output: JSON 파싱 실패'], parsed: false, stale: false }
+  if (!parsed) return { state, beat: '', rejected: ['output: JSON 파싱 실패'], parsed: false, stale: false, stateHash: { before, after: before } }
   const { beat, ...delta } = parsed
   const applied = applySceneDelta(state, delta, { indicatorDefs, names, messageId })
-  return { state: applied.state, beat: typeof beat === 'string' ? beat.trim() : '', rejected: applied.rejected, parsed: true, stale: false }
+  return {
+    state: applied.state, beat: typeof beat === 'string' ? beat.trim() : '', rejected: applied.rejected,
+    parsed: true, stale: false, stateHash: { before, after: sha256Hex(canonical(applied.state)) },
+  }
 }

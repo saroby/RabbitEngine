@@ -17,6 +17,31 @@ const trustOf = (kind) => (ENGINE_KINDS.has(kind) ? 'engine' : 'curated')
 const sys = (kind, content, extra = {}) => ({ kind, role: 'system', slot: 'system', trust: trustOf(kind), content, ...extra })
 const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: { depth }, trust: trustOf(kind), content, ...extra })
 
+/**
+ * 프롬프트를 위치가 있는 블록 목록으로 조립한다.
+ * @param {object} [options]
+ * @param {object[]} [options.cards] 캐릭터 카드 목록. 첫 장이 주인공이다
+ * @param {object} [options.card] 카드 한 장만 줄 때의 하위 호환 입력
+ * @param {object} [options.playerCard] 플레이어(유저) 카드
+ * @param {string} [options.instructionText] 시스템 지시문
+ * @param {string} [options.ratingInstruction] 등급 문장 (scene/rating.js)
+ * @param {string} [options.pacingText] 호흡 문장
+ * @param {object[]} [options.worldbooks] 로어북. 항목에 정수 depth 가 있으면 그 항목만 그 자리로 간다
+ * @param {object} [options.worldbookOverrides] 항목별 전략 덮어쓰기
+ * @param {object} [options.worldbookOptions] 스캔 설정 (scanSource·budgetChars)
+ * @param {number | null} [options.worldbookDepth] 항목별 depth 가 없을 때 쓰는 전역 depth
+ * @param {Array<{ role: string, text: string }>} [options.messages] 기억 층이 고른 이력
+ * @param {Array<{ role: string, text: string }> | null} [options.rawMessages] 로어북 raw 스캔용 원본 이력
+ * @param {Array<{ kind: string, text: string }>} [options.contextNotes] 기억 층 노트 (system 슬롯 context_*)
+ * @param {Array<{ kind: string, text: string }> | null} [options.memoryNotes] 호스트 기억 노트 (depth 슬롯)
+ * @param {string} [options.sceneStateText] 렌더된 장면 상태
+ * @param {string[]} [options.events] 히든 사건
+ * @param {string} [options.directive] 이력 뒤에 붙는 짧은 지시
+ * @param {object} [options.dialect] 대본 방언
+ * @param {boolean} [options.enforceFormat] false 면 규약 블록을 넣지 않는다
+ * @param {string} [options.userName] {{user}} 에 들어갈 이름
+ * @returns {{ blocks: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object }}
+ */
 export function compileBlocks({
   cards, card, playerCard, instructionText, ratingInstruction, pacingText,
   worldbooks = [], worldbookOverrides = {}, worldbookOptions = {}, worldbookDepth = null,
@@ -47,10 +72,17 @@ export function compileBlocks({
   }
 
   const injected = injectWorldbooksWithManifest(worldbooks, messages, worldbookOverrides, { ...worldbookOptions, rawMessages: rawMessages || messages })
-  for (const entry of injected.manifest.filter((item) => item.injected)) {
+  // manifest 는 worldbooks 와 1:1 로 같은 순서로 쌓이므로 색인으로 원본 항목을 찾는다.
+  // manifest 에 depth 를 얹지 않는 이유는 그것이 증거 스냅샷의 모양을 바꾸기 때문이다.
+  for (const [index, entry] of injected.manifest.entries()) {
+    if (!entry.injected) continue
     const content = substitute(entry.injectedText, names)
     const extra = { sourceId: entry.id, revisionId: entry.revisionId, strategy: entry.strategy }
-    blocks.push(Number.isInteger(worldbookDepth) ? at('worldbook', worldbookDepth, content, extra) : sys('worldbook', content, extra))
+    // 항목별 depth 가 전역 worldbookDepth 를 이긴다 — "이 설정만 최근 대화 옆에" 가
+    // 로어북의 실제 쓰임이라, 전부 같은 자리로 보내면 손잡이가 무의미해진다.
+    const own = worldbooks[index]?.depth
+    const depth = Number.isInteger(own) && own >= 0 ? own : worldbookDepth
+    blocks.push(Number.isInteger(depth) ? at('worldbook', depth, content, extra) : sys('worldbook', content, extra))
   }
 
   blocks.push(sys('user_boundary', `상대(유저)의 호칭: ${names.user}. 유저의 행동과 대사를 대신 쓰지 않는다.`))

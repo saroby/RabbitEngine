@@ -27,6 +27,7 @@ const PUBLIC = [
   'RATINGS', 'RATING_TEXT', 'assertRating', 'ratingInstruction', 'ratingDirective',
   'analyzeUserInput', 'buildDirective', 'DIRECTIVE_MAX_CHARS',
   'extractionRecipe', 'applyExtraction', 'parseExtractionOutput', 'EXTRACTION_VERSION',
+  'MAX_EXTRACTION_EXCHANGES',
   'PACING_TEXT',
   'hashText', 'projectMessages', 'activeTextOf', 'chunkEntries',
 ]

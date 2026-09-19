@@ -12,6 +12,8 @@ node scripts/eval-judge.js --provider anthropic --model claude-sonnet-5 --varian
 node scripts/eval-judge.js --model gpt-4o --baseline eval/results/2026-09-19-gpt-4o.json
 ```
 
+**레포 루트에서 실행한다** — `--out` 과 기본 결과 경로(`eval/results/…`) 모두 실행 위치 기준으로 풀린다. 시나리오 하나가 끝날 때마다 결과 파일을 통째로 다시 쓰므로, 뒤에서 한 건이 터져도 앞에서 산 호출은 남는다. 심사 모델이 JSON 을 안 내면 그 시나리오만 `scores: null` · `judgeError` 로 남고 평균은 채점된 것만으로 낸다.
+
 키가 없으면(`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`) 종료 코드 2 로 멈춘다. 수동 실행 전용이며 `npm test` 에는 포함하지 않는다. `--variant full|no-directive|no-state` 는 post_history(디렉티브) 또는 scene_state 블록을 빼고 렌더해 절제 실험을 한다. 결과는 `eval/results/`(git 밖)에 JSON 으로 남는다.
 
 ## 시나리오 형식

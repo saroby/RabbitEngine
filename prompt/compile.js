@@ -12,6 +12,12 @@ export const PROMPT_COMPILER_VERSION = 'prompt-v3'
 export function compilePrompt(options = {}) {
   const out = compileBlocks(options)
   const systemBlocks = out.blocks.filter((block) => block.slot === 'system')
+  // 이 뷰는 system 슬롯만 낸다. depth·post_history 블록이 생기는 입력을 받으면
+  // 장면 상태와 디렉티브가 조용히 사라진 프롬프트가 나간다 — 버리지 말고 막는다.
+  const dropped = out.blocks.filter((block) => block.slot !== 'system')
+  if (dropped.length) {
+    throw new Error(`compilePrompt: system 슬롯 밖 블록(${[...new Set(dropped.map((b) => b.kind))].join(', ')})은 이 하위 호환 뷰로 낼 수 없습니다 — compileBlocks 와 renderTurn 을 쓰세요`)
+  }
   // role·slot·trust 는 블록 모델의 위치 정보다. 하위 호환 layers 뷰는 이전과 같은 모양을 유지한다.
   const layers = systemBlocks.map(({ role, slot, trust, ...layer }) => layer)
   return {

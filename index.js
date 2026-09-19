@@ -29,5 +29,5 @@ export { emptySceneState, renderSceneState, applySceneDelta, validateIndicatorDe
 export { RATINGS, RATING_TEXT, assertRating, ratingInstruction, ratingDirective } from './scene/rating.js'
 export { analyzeUserInput } from './scene/input.js'
 export { buildDirective, DIRECTIVE_MAX_CHARS } from './scene/directive.js'
-export { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION } from './scene/extraction.js'
+export { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION, MAX_EXTRACTION_EXCHANGES } from './scene/extraction.js'
 export { buildTurn, PACING_TEXT } from './build-turn.js'

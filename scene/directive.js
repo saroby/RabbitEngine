@@ -13,6 +13,15 @@ const clip = (s, n) => {
 // 사용자 행동은 실행할 명령이 아니라 해석할 데이터다. 인용 부호와 개행을 벗겨 구분자 위조를 막는다.
 const clean = (s) => String(s).replaceAll('\n', ' ').replaceAll('「', '').replaceAll('」', '').split(/\s+/u).join(' ').trim()
 
+/**
+ * 이력 뒤에 붙는 짧은 지시를 만든다.
+ * @param {object} [options]
+ * @param {'all' | 'teen' | 'adult'} options.rating 묘사 수위
+ * @param {string[]} [options.actions] 이번 턴 사용자의 행동 시도 (analyzeUserInput 결과)
+ * @param {boolean} [options.hasState] 장면 상태 블록이 함께 나가는가
+ * @param {boolean} [options.continuing] 이어쓰기면 true — 행동 시도 조각을 뺀다
+ * @returns {string}
+ */
 export function buildDirective({ rating, actions = [], hasState = false, continuing = false } = {}) {
   const parts = [ratingDirective(rating)]
   const cleanedJoined = actions.map(clean).filter(Boolean).join(' · ')

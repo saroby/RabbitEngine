@@ -34,7 +34,10 @@ export const PACING_TEXT = Object.freeze({
 // 생략한 호출(기본 12)이 보정에서 빠져 11 개만 남는다.
 function widenWindow(config, legacy) {
   if (legacy) return { ...config, windowSize: boundedSize(config.windowSize, LEGACY_WINDOW_SIZE) + 1 }
-  const current = Number(config.assembly?.windowSize ?? presetOf(config.preset).assembly.windowSize)
+  const fallback = presetOf(config.preset).assembly.windowSize
+  // 프리셋 경로도 assemble 과 같은 정규화를 쓴다. Number() 면 "6abc" 가 NaN 이라
+  // 보정이 통째로 빠지는데, 정작 기억 층은 parseInt 로 6 을 읽어 한 칸을 잃는다.
+  const current = boundedSize(config.assembly?.windowSize, fallback)
   // legacy-full 의 MAX_SAFE_INTEGER 처럼 "창이 없음" 을 뜻하는 값은 건드리지 않는다.
   if (!Number.isFinite(current) || current >= Number.MAX_SAFE_INTEGER) return config
   return { ...config, assembly: { ...config.assembly, windowSize: current + 1 } }
@@ -43,6 +46,8 @@ function widenWindow(config, legacy) {
 /**
  * 한 턴의 요청을 만든다. 이 라이브러리의 권장 진입점이다.
  * 모델은 부르지 않는다 — 돌려받은 system 과 messages 를 당신의 LLM 호출에 넣는다.
+ * render() 가 주는 cachePrefixLength 는 system 전체가 아니라 첫 동적 블록
+ * (worldbook · context_*) 앞까지의 길이다 — 그 뒤는 턴마다 달라져 캐시가 안 된다.
  * @param {import('./types.js').TurnInput} input
  * @param {import('./types.js').EngineContext} [ctx]
  * @returns {Promise<import('./types.js').Turn>}
@@ -93,6 +98,9 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 참조 동일성이 아니라 표식으로 거른다 — 기억 층이 객체를 복사해도 살아남게.
   const visibleMessages = transient ? selected.messages.filter((m) => m?.transient !== true) : selected.messages
 
+  // 등급을 생략하면 가장 좁은 'all' 로 닫는다. 그 사실을 증거에 남긴다 — 호스트가
+  // 등급을 안 넘긴 버그와 실제로 'all' 을 고른 것은 기록에서 구분돼야 한다.
+  const ratingDefaulted = (raw.rating ?? null) === null
   const rating = assertRating(raw.rating ?? 'all')
   const pacing = raw.pacing ?? 'normal'
   if (!Object.hasOwn(PACING_TEXT, pacing)) throw new Error(`buildTurn: pacing 은 ${Object.keys(PACING_TEXT).join(' | ')} 중 하나여야 합니다`)
@@ -169,6 +177,7 @@ export async function buildTurn(input = {}, ctx = {}) {
       // post_history 는 system 권한이 아니라 마지막 user 메시지에 붙는다. 그 사실을 값으로 남긴다.
       scene: {
         rating,
+        ratingDefaulted,
         pacing,
         hasState: Boolean(sceneStateText),
         actions: analysis.actions,

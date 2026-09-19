@@ -59,7 +59,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    SYS["system (캐시 접두)<br>instruction · character · cast · player<br>worldbook(고정) · user_boundary · output_contract"]
+    SYS["system<br>instruction · character · cast · player<br>worldbook(고정) · user_boundary · output_contract<br><i>캐시 접두는 첫 동적 블록(worldbook · context_*) 앞까지</i>"]
     H1["이력 (오래된 쪽)"]
     M["depth 4 · memory<br>요약 노트"]
     W["depth N · worldbook<br>항목별 depth"]
@@ -101,9 +101,10 @@ const replyText = await callYourLLM({ system, messages: rendered })   // 호출�
 const segments = asteriskScript.parse(replyText)                      // 대사 / 행동 세그먼트
 await saveToUI(segments)
 
+const names = cards.map((c) => c.name)                                // 카드 이름 — 모르는 인물을 거르는 근거다
 const recipe = extractionRecipe({ state: sceneState, exchanges: [{ user: userInput, assistant: replyText }], names, indicatorDefs })
-const raw = await ctx.llm(recipe)                                     // 작은 모델로 사실만 추출
-const next = applyExtraction(sceneState, raw, { indicatorDefs, expectedRevision: sceneState.revision })
+const raw = await ctx.llm(recipe)                                     // { text, usage, … } 를 그대로 넘겨도 된다
+const next = applyExtraction(sceneState, raw, { indicatorDefs, names, expectedRevision: sceneState.revision })
 if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
 

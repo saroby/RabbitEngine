@@ -154,7 +154,7 @@
  * @property {Block[]} blocks 위치를 가진 전체 블록 목록. render 의 입력이다
  * @property {Array<{ role: string, text: string }>} messages
  * @property {string} directive 이력 뒤에 붙는 짧은 지시
- * @property {(options?: { midRole?: string, userFirst?: boolean, openingTurn?: string, userInput?: string | null }) => { system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number }} render 블록과 이력을 공급자에 넣을 모양으로 편다
+ * @property {(options?: { midRole?: string, userFirst?: boolean, openingTurn?: string, userInput?: string | null, mergeSameRole?: boolean }) => { system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number, cachePrefixKinds: string[] }} render 블록과 이력을 공급자에 넣을 모양으로 편다. cachePrefixLength 는 첫 동적 블록(worldbook·context_*) 앞까지의 길이다
  * @property {object} manifest 이 턴을 무엇으로 만들었는지. ID 가 아니라 값으로 동결돼 있다
  */
 

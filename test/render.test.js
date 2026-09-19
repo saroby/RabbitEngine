@@ -62,3 +62,35 @@ test('renderTurn — 음수·비정수 depth 는 던진다', () => {
   assert.throws(() => renderTurn([at('s', -1, 'S')], history, { userInput: '입력' }), /depth/)
   assert.throws(() => renderTurn([at('s', 1.5, 'S')], history, { userInput: '입력' }), /depth/)
 })
+
+test('renderTurn — 캐시 접두는 첫 동적 system 블록 앞까지다', () => {
+  const blocks = [sys('instruction', 'A'), sys('character', 'B'), sys('worldbook', 'W'), sys('user_boundary', 'U'), sys('output_contract', 'O')]
+  const out = renderTurn(blocks, history, { userInput: '입력' })
+  assert.equal(out.cachePrefixLength, 'A\n\nB'.length)
+  assert.deepEqual(out.cachePrefixKinds, ['instruction', 'character'])
+  assert.equal(out.system.slice(0, out.cachePrefixLength), 'A\n\nB')
+})
+
+test('renderTurn — 동적 블록이 없으면 system 전체가 캐시 접두다', () => {
+  const out = renderTurn([sys('instruction', 'A'), sys('character', 'B')], history, { userInput: '입력' })
+  assert.equal(out.cachePrefixLength, out.system.length)
+  assert.deepEqual(out.cachePrefixKinds, ['instruction', 'character'])
+})
+
+test('renderTurn — context_* 도 동적 블록이라 접두를 끊는다', () => {
+  const out = renderTurn([sys('instruction', 'A'), sys('context_summary', 'C'), sys('output_contract', 'O')], history, {})
+  assert.equal(out.cachePrefixLength, 'A'.length)
+  assert.deepEqual(out.cachePrefixKinds, ['instruction'])
+})
+
+test('renderTurn — mergeSameRole 은 이웃한 같은 역할을 한 메시지로 합친다', () => {
+  const blocks = [at('scene_state', 2, 'S')]
+  const plain = renderTurn(blocks, history, { userInput: '입력' })
+  const roles = plain.messages.map((m) => m.role)
+  assert.ok(roles.some((role, i) => i > 0 && role === roles[i - 1]), '기본값에서는 같은 역할이 이어진다')
+
+  const merged = renderTurn(blocks, history, { userInput: '입력', mergeSameRole: true })
+  const mergedRoles = merged.messages.map((m) => m.role)
+  assert.ok(mergedRoles.every((role, i) => i === 0 || role !== mergedRoles[i - 1]), '합친 뒤에는 역할이 번갈아 나온다')
+  assert.ok(merged.messages.some((m) => m.text === 'S\n\nu2'), '합친 본문은 순서를 지킨다')
+})

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION } from '../scene/extraction.js'
+import { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION, MAX_EXTRACTION_EXCHANGES } from '../scene/extraction.js'
 import { emptySceneState } from '../scene/state.js'
 
 const exchanges = [{ messageId: 'm2', user: '*주먹으로 때린다* 뭘 봐', assistant: '*유리가 뺨을 감싸 쥔다.*\n유리: …미쳤어?' }]
@@ -68,3 +68,30 @@ test('applyExtraction — 파싱 실패면 상태를 건드리지 않는다', ()
 })
 
 test('EXTRACTION_VERSION 이 문자열이다', () => { assert.equal(typeof EXTRACTION_VERSION, 'string') })
+
+test('applyExtraction — ctx.llm 이 준 { text } 객체도 그대로 받는다', () => {
+  const raw = { text: JSON.stringify({ tension: 'hostile', beat: '때렸다' }), provider: 'openai', usage: { input: 1, output: 1 }, latencyMs: 3 }
+  const out = applyExtraction(emptySceneState(), raw, { names: ['유리'], messageId: 'm2' })
+  assert.equal(out.parsed, true)
+  assert.equal(out.state.tension, 'hostile')
+  assert.equal(out.beat, '때렸다')
+})
+
+test('applyExtraction — stateHash 로 적용 전후를 비교할 수 있다', () => {
+  const before = emptySceneState()
+  const applied = applyExtraction(before, JSON.stringify({ tension: 'hostile', beat: 'x' }), { names: ['유리'] })
+  assert.equal(typeof applied.stateHash.before, 'string')
+  assert.notEqual(applied.stateHash.after, applied.stateHash.before)
+
+  const failed = applyExtraction(before, '못 알아듣겠다', { names: ['유리'] })
+  assert.equal(failed.stateHash.after, failed.stateHash.before)
+  const stale = applyExtraction(before, JSON.stringify({ beat: 'x' }), { expectedRevision: 9 })
+  assert.equal(stale.stateHash.after, stale.stateHash.before)
+})
+
+test('extractionRecipe — 따라잡기 상한을 넘는 교환은 던진다', () => {
+  const many = Array.from({ length: MAX_EXTRACTION_EXCHANGES + 1 }, (_, i) => ({ user: `u${i}`, assistant: `a${i}` }))
+  assert.equal(MAX_EXTRACTION_EXCHANGES, 5)
+  assert.throws(() => extractionRecipe({ state: emptySceneState(), exchanges: many, names: ['유리'] }), /교환/)
+  assert.ok(extractionRecipe({ state: emptySceneState(), exchanges: many.slice(0, MAX_EXTRACTION_EXCHANGES), names: ['유리'] }).recipeHash)
+})
