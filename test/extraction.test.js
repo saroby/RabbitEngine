@@ -95,3 +95,13 @@ test('extractionRecipe — 따라잡기 상한을 넘는 교환은 던진다', (
   assert.throws(() => extractionRecipe({ state: emptySceneState(), exchanges: many, names: ['유리'] }), /교환/)
   assert.ok(extractionRecipe({ state: emptySceneState(), exchanges: many.slice(0, MAX_EXTRACTION_EXCHANGES), names: ['유리'] }).recipeHash)
 })
+
+test('applyExtraction — version 이 다른 상태는 던지지 않고 거부한다', () => {
+  const before = { ...emptySceneState(), version: 2 }
+  const out = applyExtraction(before, JSON.stringify({ tension: 'hostile', beat: 'x' }), { names: ['유리'], messageId: 'm2' })
+  assert.equal(out.parsed, false)
+  assert.equal(out.stale, false)
+  assert.match(out.rejected.join(), /version/)
+  assert.deepEqual(out.state, before)
+  assert.equal(out.stateHash.after, out.stateHash.before)
+})

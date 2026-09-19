@@ -78,6 +78,12 @@ export function applyExtraction(state, rawText, { indicatorDefs = [], names = nu
   if (expectedRevision !== null && (state?.revision ?? 0) !== expectedRevision) {
     return { state, beat: '', rejected: [`stale: revision 불일치 (기대 ${expectedRevision}, 현재 ${state?.revision ?? 0})`], parsed: false, stale: true, stateHash: { before, after: before } }
   }
+  // applySceneDelta 는 낯선 version 에 던지지만, 이 함수는 백그라운드 추출의
+  // 종착점이라 거부 객체로 돌려준다 — 호스트가 저장을 건너뛰면 되는 일이
+  // 대화 전체를 죽이는 예외가 되면 안 된다.
+  if (state && state.version !== 1) {
+    return { state, beat: '', rejected: [`state: version 이 1 이 아님 (${state.version})`], parsed: false, stale: false, stateHash: { before, after: before } }
+  }
   const parsed = parseExtractionOutput(rawText)
   if (!parsed) return { state, beat: '', rejected: ['output: JSON 파싱 실패'], parsed: false, stale: false, stateHash: { before, after: before } }
   const { beat, ...delta } = parsed
