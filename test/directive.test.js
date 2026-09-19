@@ -40,3 +40,16 @@ test('buildDirective — 긴 행동도 300자를 넘지 않는다', () => {
   const d = buildDirective({ rating: 'adult', actions: ['아'.repeat(200), '어'.repeat(200)], hasState: true })
   assert.ok(d.length <= DIRECTIVE_MAX_CHARS, `${d.length}자`)
 })
+
+test('buildDirective — 정제 후 비면 행동 조각을 붙이지 않는다', () => {
+  const d = buildDirective({ rating: 'all', actions: ['「」', '  \n '] })
+  assert.doesNotMatch(d, /행동 시도/)
+})
+
+test('buildDirective — 긴 행동을 잘라도 서로게이트 페어를 깨지 않는다', () => {
+  const action = '아'.repeat(58) + '😀😀'
+  const d = buildDirective({ rating: 'adult', actions: [action], hasState: true })
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u
+  assert.doesNotMatch(d, lone)
+  assert.match(d, /(?:😀|…)」/)
+})
