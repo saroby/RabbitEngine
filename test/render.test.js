@@ -57,3 +57,8 @@ test('renderTurn — 여러 depth 가 모두 클램프돼도 큰 depth 가 앞�
   const out = renderTurn([at('a', 4, 'D4'), at('b', 6, 'D6')], [{ role: 'assistant', text: 'm0' }], { userInput: '입력' })
   assert.deepEqual(out.messages.map((m) => m.text), ['D6', 'D4', 'm0', '입력'])
 })
+
+test('renderTurn — 음수·비정수 depth 는 던진다', () => {
+  assert.throws(() => renderTurn([at('s', -1, 'S')], history, { userInput: '입력' }), /depth/)
+  assert.throws(() => renderTurn([at('s', 1.5, 'S')], history, { userInput: '입력' }), /depth/)
+})

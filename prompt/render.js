@@ -10,10 +10,13 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
   // depth 별로 모아 한 메시지로. 큰 depth 부터 끼워야 앞서 끼운 것이 색인을 안 밀어낸다.
   const byDepth = new Map()
   for (const b of blocks) {
-    if (typeof b.slot !== 'object' || !Number.isInteger(b.slot.depth)) continue
-    const key = b.slot.depth
-    if (!byDepth.has(key)) byDepth.set(key, [])
-    byDepth.get(key).push(b.content)
+    if (typeof b.slot !== 'object' || b.slot === null) continue
+    const depth = b.slot.depth
+    // 상류(compileBlocks 의 worldbookDepth 등)가 depth 를 검증하지 않으므로 여기가 마지막
+    // 방어선이다. 음수·비정수를 조용히 버리면 anchor 뒤로 삽입되거나 위치가 뒤틀린다.
+    if (!Number.isInteger(depth) || depth < 0) throw new Error(`renderTurn: depth 는 0 이상의 정수여야 합니다 (${depth})`)
+    if (!byDepth.has(depth)) byDepth.set(depth, [])
+    byDepth.get(depth).push(b.content)
   }
   const out = base.slice()
   let anchor = typeof userInput === 'string' ? out.length - 1 : out.length
