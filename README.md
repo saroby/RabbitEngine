@@ -160,6 +160,7 @@ const turn = await buildTurn(
 )
 turn.manifest.memoryCalls          // 이 턴이 산 호출 전부 — purpose: 'compact' | 'reduce' | 'embed'
 turn.manifest.retrievalScores      // 무엇을 왜 골랐는지
+turn.manifest.prompt.blocks        // 블록 본문까지 값으로 들어 있다 — 턴마다 저장하면 프롬프트 한 벌만큼 커진다
 ```
 
 ## 평가

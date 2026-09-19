@@ -52,24 +52,31 @@ for (const file of (await readdir(dir)).filter((f) => f.endsWith('.json')).sort(
   const recipe = extractionRecipe({ state: s.sceneState ?? emptySceneState(), exchanges: [{ messageId: 'x', user: s.userInput, assistant: response }], names: s.cards.map((c) => c.name), indicatorDefs: s.indicatorDefs ?? [] })
   const extracted = applyExtraction(s.sceneState ?? emptySceneState(), await call({ system: recipe.system, messages: recipe.messages, model: judgeModel, json: true }), { indicatorDefs: s.indicatorDefs ?? [], names: s.cards.map((c) => c.name), messageId: 'x' })
   const rubric = s.judge.rubric
-  const judgeText = await call({ model: judgeModel, json: true, system: '당신은 롤플레이 응답 심사위원이다. 각 항목을 0(못함)·1(부분)·2(충족)으로 채점해 {"scores":{항목:점수},"reason":"한 줄"} JSON 만 낸다.',
-    messages: [{ role: 'user', text: `시나리오: ${s.id}\n등급: ${s.rating}\n장면 상태: ${JSON.stringify(s.sceneState)}\n유저 입력: ${s.userInput}\n응답:\n${response}\n\n항목: ${rubric.join(', ')}` }] })
+  // 금지 항목은 "이건 일어나면 안 된다" 의 목록이다. 점수와 따로 물어야 한다 —
+  // 루브릭 점수가 높아도 금지 하나를 어기면 그 응답은 쓸 수 없다.
+  const forbid = s.judge.stateDelta?.forbid ?? []
+  const judgeText = await call({ model: judgeModel, json: true, system: '당신은 롤플레이 응답 심사위원이다. 각 항목을 0(못함)·1(부분)·2(충족)으로 채점하고, 금지 항목 중 응답이 실제로 어긴 것만 그대로 옮겨 적어 {"scores":{항목:점수},"forbidViolations":[어긴 금지 항목],"reason":"한 줄"} JSON 만 낸다. 어긴 것이 없으면 빈 배열을 낸다.',
+    messages: [{ role: 'user', text: `시나리오: ${s.id}\n등급: ${s.rating}\n장면 상태: ${JSON.stringify(s.sceneState)}\n유저 입력: ${s.userInput}\n응답:\n${response}\n\n항목: ${rubric.join(', ')}\n금지 항목: ${forbid.length ? forbid.join(', ') : '(없음)'}` }] })
   // 심사 모델이 JSON 을 안 낼 때가 있다. 거기서 멈추면 앞 시나리오의 유료 호출까지 잃는다.
   let scores = null
   let judgeError = null
+  // 누락도 빈 배열도 "위반 없음" 이다. 심사가 통째로 실패한 경우도 마찬가지 —
+  // 못 본 것을 위반으로 세면 실패한 호출이 점수를 깎는다.
+  let forbidViolations = []
   try {
-    const value = JSON.parse(judgeText)?.scores
-    if (value && typeof value === 'object') scores = value
+    const value = JSON.parse(judgeText)
+    if (value?.scores && typeof value.scores === 'object') scores = value.scores
     else judgeError = String(judgeText).slice(0, 200)
+    if (Array.isArray(value?.forbidViolations)) forbidViolations = value.forbidViolations.map(String).filter(Boolean)
   } catch { judgeError = String(judgeText).slice(0, 200) }
   const want = s.judge.stateDelta ?? {}
   const tensionOk = !want.tension || [].concat(want.tension).includes(extracted.state.tension)
   const bodyOk = Object.entries(want.bodyAddAny ?? {}).every(([name, patterns]) => !patterns.length || patterns.some((p) => (extracted.state.characters[name]?.body ?? []).some((b) => new RegExp(p, 'u').test(b))))
-  const stateMatch = tensionOk && bodyOk
+  const stateMatch = tensionOk && bodyOk && forbidViolations.length === 0
   const total = scores ? Object.values(scores).reduce((a, b) => a + b, 0) : null
-  results.push({ id: s.id, response, scores, total, judgeError, stateDelta: extracted.state, stateMatch })
+  results.push({ id: s.id, response, scores, total, judgeError, forbidViolations, stateDelta: extracted.state, stateMatch })
   await save()
-  console.log(`${s.id}: ${total === null ? '심사 실패' : `${total}/${rubric.length * 2}`} state=${stateMatch ? 'ok' : 'miss'}`)
+  console.log(`${s.id}: ${total === null ? '심사 실패' : `${total}/${rubric.length * 2}`} state=${stateMatch ? 'ok' : 'miss'}${forbidViolations.length ? ` 금지위반=${forbidViolations.length}` : ''}`)
 }
 await save()
 console.log(`평균 ${meanOf().toFixed(2)} (채점 ${scored().length}/${results.length}) → ${outPath}`)

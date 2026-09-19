@@ -76,3 +76,28 @@ test('applySceneDelta — __proto__ 같은 키는 거부한다', () => {
   assert.equal(rejected.length, 2)
   assert.match(rejected.join('\n'), /허용되지 않는 키/)
 })
+
+test('validateIndicatorDefs — 명시적 undefined 가 기본값을 덮지 않는다', () => {
+  const [def] = validateIndicatorDefs([{ key: '호감도', type: 'number', min: 0, max: 100, initial: 50, inferred: undefined, visible: undefined, label: undefined }])
+  assert.equal(def.inferred, true)
+  assert.equal(def.visible, true)
+  assert.equal(def.label, '호감도')
+  // 명시적으로 false 를 주면 그 값이 남는다.
+  const [off] = validateIndicatorDefs([{ key: '체력', type: 'number', initial: 10, inferred: false, visible: false, label: 'HP' }])
+  assert.equal(off.inferred, false)
+  assert.equal(off.visible, false)
+  assert.equal(off.label, 'HP')
+})
+
+test('validateIndicatorDefs — 숫자 지표의 initial 이 범위 밖이면 던진다', () => {
+  assert.throws(() => validateIndicatorDefs([{ key: '호감도', type: 'number', min: 0, max: 100, initial: 120 }]), /범위/)
+  assert.throws(() => validateIndicatorDefs([{ key: '호감도', type: 'number', min: 10, initial: 5 }]), /범위/)
+  assert.ok(validateIndicatorDefs([{ key: '호감도', type: 'number', min: 0, max: 100, initial: 0 }]))
+})
+
+test('applySceneDelta — 모르는 version 의 장면 상태는 던진다', () => {
+  assert.throws(() => applySceneDelta({ ...emptySceneState(), version: 2 }, { tension: 'tense' }), /version/)
+  assert.ok(applySceneDelta(emptySceneState(), { tension: 'tense' }).state)
+  // 상태가 아예 없으면 빈 상태로 시작한다 — 기존 동작이다.
+  assert.ok(applySceneDelta(null, { tension: 'tense' }).state)
+})

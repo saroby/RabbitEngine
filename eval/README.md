@@ -28,4 +28,6 @@ node scripts/eval-judge.js --model gpt-4o --baseline eval/results/2026-09-19-gpt
   "judge": { "stateDelta": { "tension": ["hostile", "tense"], "bodyAddAny": { "유리": ["멍|뺨|아픔"] }, "forbid": [] }, "rubric": ["…5항목"] } }
 ```
 
+`stateDelta.forbid` 는 심사 프롬프트에 금지 항목으로 들어가고, 심사 모델이 `forbidViolations` 로 돌려준 것이 결과에 남는다 — 하나라도 있으면 루브릭 점수와 무관하게 `stateMatch` 가 false 다(누락·빈 배열은 위반 없음).
+
 `stateDelta.tension` 은 허용 목록이고 `bodyAddAny` 는 이름별 정규식 중 하나라도 맞으면 통과다 — 단일 정답이 아니라 허용 결과와 금지 모순을 평가한다. `sceneState` 가 있으면 `scene/state.js` 의 전체 스키마(`version`·`revision`·`characters` 등)를 채운다.

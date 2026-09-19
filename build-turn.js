@@ -48,6 +48,9 @@ function widenWindow(config, legacy) {
  * 모델은 부르지 않는다 — 돌려받은 system 과 messages 를 당신의 LLM 호출에 넣는다.
  * render() 가 주는 cachePrefixLength 는 system 전체가 아니라 첫 동적 블록
  * (worldbook · context_*) 앞까지의 길이다 — 그 뒤는 턴마다 달라져 캐시가 안 된다.
+ * manifest.prompt.blocks 는 블록 본문을 값으로 복사해 담는다(근거를 나중에
+ * 바뀔 수 있는 ID 로 남기지 않는다). 턴마다 통째로 저장한다면 프롬프트 한 벌
+ * 크기가 그대로 더해지므로 보관 기간이나 저장 대상을 정해 두는 편이 좋다.
  * @param {import('./types.js').TurnInput} input
  * @param {import('./types.js').EngineContext} [ctx]
  * @returns {Promise<import('./types.js').Turn>}

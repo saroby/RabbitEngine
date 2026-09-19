@@ -19,7 +19,13 @@ export function validateIndicatorDefs(defs = []) {
     seen.add(def.key)
     if (!INDICATOR_TYPES.has(def.type)) throw new Error(`지표 ${def.key} 의 type 이 잘못됐습니다: ${def.type}`)
     if (typeof def.initial !== def.type) throw new Error(`지표 ${def.key} 의 initial 이 type 과 다릅니다`)
-    return { label: def.key, inferred: true, visible: true, ...def }
+    // 초기값이 자기 범위 밖이면 첫 렌더부터 스키마와 어긋난 값이 프롬프트에 나간다.
+    if (def.type === 'number' && ((def.min !== undefined && def.initial < def.min) || (def.max !== undefined && def.initial > def.max))) {
+      throw new Error(`지표 ${def.key} 의 initial 이 범위 밖입니다 (${def.initial})`)
+    }
+    // 스프레드를 뒤에 두면 명시적 undefined 가 기본값을 덮는다 — 호스트가 폼에서
+    // 비운 칸을 그대로 넘기면 inferred 가 undefined 가 돼 추출기가 지표를 못 바꾼다.
+    return { ...def, label: def.label ?? def.key, inferred: def.inferred ?? true, visible: def.visible ?? true }
   })
 }
 
@@ -31,6 +37,9 @@ const text = (value) => (typeof value === 'string' ? value.trim() : '')
 const list = (value) => (Array.isArray(value) ? value.map(text).filter(Boolean) : [])
 
 export function applySceneDelta(state, delta = {}, { indicatorDefs = [], messageId = null, names = null } = {}) {
+  // 스키마가 바뀌면 필드 의미도 바뀐다. 모르는 version 위에 델타를 얹으면 조용히
+  // 어긋난 상태가 저장되므로 여기서 멈춘다.
+  if (state && state.version !== 1) throw new Error(`장면 상태 version 이 1 이 아닙니다 (${state.version})`)
   const next = structuredClone(state ?? emptySceneState())
   const rejected = []
   const known = Array.isArray(names) ? new Set(names) : null
