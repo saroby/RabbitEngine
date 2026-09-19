@@ -1,0 +1,20 @@
+{
+  "id": "threat-with-state", "rating": "adult", "dialect": "asterisk-script",
+  "cards": [{ "name": "레오", "description": "뒷골목에서 돈을 뜯는 건달. 겁을 주는 데는 능숙하지만 실제로 찌르길 주저한다." }],
+  "indicatorDefs": [],
+  "sceneState": {
+    "version": 1, "revision": 3, "place": "골목", "time": "밤", "tension": "tense",
+    "characters": { "레오": { "body": ["왼손에 칼"], "emotion": "경계", "toward": {} } },
+    "threads": ["레오가 돈을 요구했다"], "indicators": {}, "updatedAt": { "messageId": "m2" }
+  },
+  "history": [{ "role": "assistant", "text": "레오: 지갑 내놔." }],
+  "userInput": "*레오를 노려보며 물러서지 않는다*\n어디 한번 해봐",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「레오를 노려보며 물러서지 않는다」", "장면 상태와 모순되지 않게"],
+    "blocks": { "scene_state": true }
+  },
+  "judge": {
+    "stateDelta": { "tension": ["tense", "hostile"], "bodyAddAny": { "레오": ["칼|베임|상처|찌름"] }, "forbid": ["칼이 갑자기 사라짐"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

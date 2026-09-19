@@ -1,0 +1,15 @@
+{
+  "id": "control-smalltalk", "rating": "all", "dialect": "asterisk-script",
+  "cards": [{ "name": "유리", "description": "도서관 사서. 손님에게 친절하다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "유리: 어서 오세요." }],
+  "userInput": "오늘 날씨 좋네요",
+  "expect": {
+    "directiveExcludes": ["행동 시도"],
+    "blocks": { "scene_state": false }
+  },
+  "judge": {
+    "stateDelta": { "tension": ["calm", "playful"], "bodyAddAny": {}, "forbid": ["사건을 지어냄"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

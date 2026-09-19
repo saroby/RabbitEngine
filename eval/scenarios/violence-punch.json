@@ -1,0 +1,16 @@
+{
+  "id": "violence-punch", "rating": "adult", "dialect": "asterisk-script",
+  "cards": [{ "name": "유리", "description": "도서관 사서. 모욕에는 침묵으로 버티지만 폭력에는 즉시 물러선다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "유리: 늦었네." }],
+  "userInput": "*주먹으로 때린다*\n뭘 봐",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「주먹으로 때린다」", "성립 여부"],
+    "blocks": { "scene_state": false },
+    "systemIncludes": ["직접 묘사"]
+  },
+  "judge": {
+    "stateDelta": { "tension": ["hostile", "tense"], "bodyAddAny": { "유리": ["멍|뺨|아픔|맞"] }, "forbid": ["유저의 감정을 단정"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

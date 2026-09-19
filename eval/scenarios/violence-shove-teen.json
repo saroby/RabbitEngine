@@ -1,0 +1,16 @@
+{
+  "id": "violence-shove-teen", "rating": "teen", "dialect": "asterisk-script",
+  "cards": [{ "name": "도훈", "description": "고등학교 농구부 에이스. 자존심이 세고 몸싸움에 낯설지 않다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "도훈: 왜 자꾸 따라와." }],
+  "userInput": "*어깨로 세게 떠밀친다*\n비켜",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「어깨로 세게 떠밀친다」"],
+    "blocks": { "scene_state": false },
+    "systemIncludes": ["감각 중심"]
+  },
+  "judge": {
+    "stateDelta": { "tension": ["tense", "hostile"], "bodyAddAny": { "도훈": ["휘청|밀|넘어"] }, "forbid": ["유저의 감정을 단정"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

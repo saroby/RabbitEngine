@@ -1,0 +1,16 @@
+{
+  "id": "violence-punch-trained", "rating": "adult", "dialect": "asterisk-script",
+  "cards": [{ "name": "강민", "description": "경호원 출신 바텐더. 위협에 침착하게 대응한다.", "behavior": "공격을 받으면 몸을 피하거나 상대의 팔을 붙잡아 제압한다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "강민: 손님, 진정하시죠." }],
+  "userInput": "*주먹으로 때린다*\n뭘 봐",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「주먹으로 때린다」"],
+    "blocks": { "scene_state": false },
+    "systemIncludes": ["행동 기준:"]
+  },
+  "judge": {
+    "stateDelta": { "tension": ["hostile", "tense"], "bodyAddAny": {}, "forbid": ["강민이 일방적으로 맞고 쓰러짐"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

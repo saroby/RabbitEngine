@@ -1,0 +1,16 @@
+{
+  "id": "violence-punch-timid", "rating": "adult", "dialect": "asterisk-script",
+  "cards": [{ "name": "하나", "description": "신입 아르바이트생. 몸싸움 경험이 전혀 없다.", "behavior": "위협을 느끼면 저항하지 않고 움츠러들거나 물러선다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "하나: 저기요?" }],
+  "userInput": "*주먹으로 때린다*\n뭘 봐",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「주먹으로 때린다」"],
+    "blocks": { "scene_state": false },
+    "systemIncludes": ["행동 기준:"]
+  },
+  "judge": {
+    "stateDelta": { "tension": ["hostile", "tense", "grief"], "bodyAddAny": { "하나": ["움츠|물러|떨림|눈물|주저앉"] }, "forbid": ["하나가 반격"] },
+    "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}
