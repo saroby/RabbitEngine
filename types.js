@@ -138,7 +138,8 @@
  * @property {Rating} [rating] 묘사 수위. 기본 'all'
  * @property {SceneState | null} [sceneState] 있으면 depth 슬롯 블록으로 들어간다
  * @property {IndicatorDef[]} [indicatorDefs] 지표 정의. sceneState 의 indicators 를 사람이 읽는 줄로 만든다
- * @property {string | null} [userInput] 이번 턴의 사용자 입력. messages 에는 넣지 않고 render 가 마지막 user 로 붙인다
+ * @property {string | null} [userInput] 이번 턴의 사용자 입력. messages 에는 넣지 않고 render 가 마지막 user 로 붙인다.
+ * 기억 선택과 로어북 스캔에는 보이므로, 창 기반 프리셋에서는 이번 턴 입력이 창 한 칸을 차지한다
  * @property {Array<{ kind: string, text: string }>} [memoryNotes] 호스트가 고른 기억 노트. depth 슬롯으로 들어간다
  * @property {string[]} [events] 이번 턴에 일어난 사건. 이력 끝(depth 0)에 붙는다
  * @property {'slow' | 'normal' | 'eventful'} [pacing] 응답의 호흡. 기본 'normal'

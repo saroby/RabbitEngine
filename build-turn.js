@@ -10,6 +10,7 @@ import { selectContext } from './memory/legacy-strategies.js'
 import { compileBlocks } from './prompt/blocks.js'
 import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 import { renderTurn } from './prompt/render.js'
+import { isReal } from './memory/projection.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
 import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
@@ -68,6 +69,9 @@ export async function buildTurn(input = {}, ctx = {}) {
   const userInput = typeof raw.userInput === 'string' ? raw.userInput : null
   const transient = userInput !== null ? { role: 'user', text: userInput, transient: true } : null
   const scanMessages = transient ? [...messages, transient] : messages
+  // manifest 의 ordinal 계열은 스캔 배열 기준이라 임시 턴이 유령으로 남는다. 그 번호를
+  // projection 과 같은 방식(isReal 로 거른 뒤의 길이)으로 구해 두고 아래에서 걷어낸다.
+  const transientOrdinal = transient ? messages.filter(isReal).length : null
   const selected = await select(scanMessages, { ...config, dialect }, context)
   // 참조 동일성이 아니라 표식으로 거른다 — 기억 층이 객체를 복사해도 살아남게.
   const visibleMessages = transient ? selected.messages.filter((m) => m?.transient !== true) : selected.messages
@@ -110,6 +114,21 @@ export async function buildTurn(input = {}, ctx = {}) {
   })
   const systemBlocks = compiled.blocks.filter((block) => block.slot === 'system')
 
+  // 임시 턴은 스캔에만 있었던 것이라 증거에 남기면 "있지도 않은 5번째 메시지를 골랐다" 가 된다.
+  // 지운 사실 자체는 scene.userInputOrdinal 로 추적할 수 있게 남긴다.
+  const dropTransient = (list) => (Array.isArray(list) ? list.filter((ordinal) => ordinal !== transientOrdinal) : list)
+  const memoryManifest = transientOrdinal === null ? selected.manifest : {
+    ...selected.manifest,
+    chunkBoundaries: dropTransient(selected.manifest.chunkBoundaries),
+    openChunkOrdinals: dropTransient(selected.manifest.openChunkOrdinals),
+    selectedOrdinals: dropTransient(selected.manifest.selectedOrdinals),
+    retrievedOrdinals: dropTransient(selected.manifest.retrievedOrdinals),
+    hiddenOrdinals: dropTransient(selected.manifest.hiddenOrdinals),
+    retrievalScores: Array.isArray(selected.manifest.retrievalScores)
+      ? selected.manifest.retrievalScores.filter((score) => score.ordinal !== transientOrdinal)
+      : selected.manifest.retrievalScores,
+  }
+
   // 기억 층이 실제로 모델에 보낸 최종 문자열. 치환과 라벨을 거친 뒤의 값이라
   // selectMemory 혼자서는 알 수 없다. memoryNotes 로 온 것은 depth 슬롯이라
   // system 문자열 안에는 없다 — 그래도 "기억으로 보낸 것" 의 증거는 여기 모은다.
@@ -125,7 +144,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     directive,
     render: (options = {}) => renderTurn(compiled.blocks, visibleMessages, { userInput, ...options }),
     manifest: {
-      ...selected.manifest,
+      ...memoryManifest,
       injectedText,
       // enforceFormat 이 false 여도 방언은 그대로 보고한다 — 규약 층만 빠질 뿐
       // 청킹은 여전히 이 방언으로 씬 경계를 잡고, 그 이름이 캐시 키에 들어간다.
@@ -137,6 +156,7 @@ export async function buildTurn(input = {}, ctx = {}) {
         hasState: Boolean(sceneStateText),
         actions: analysis.actions,
         userInputScanned: transient !== null,
+        userInputOrdinal: transientOrdinal,
         renderedAs: { midRole: 'user', postHistory: 'appended-to-user' },
       },
       prompt: {

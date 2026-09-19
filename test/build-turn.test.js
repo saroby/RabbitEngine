@@ -230,3 +230,16 @@ test('buildTurn — 모든 블록에 trust 가 있고 카드의 behavior 가 렌
   assert.ok(!('trust' in turn.manifest.prompt.layers[0]))
   assert.deepEqual(turn.manifest.scene.renderedAs, { midRole: 'user', postHistory: 'appended-to-user' })
 })
+
+test('buildTurn — userInput 의 임시 턴은 manifest ordinal 에 남지 않는다', async () => {
+  const four = Array.from({ length: 4 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
+  const turn = await buildTurn({ cards: [card], messages: four, userInput: '정전이야?' })
+  const { selectedOrdinals, openChunkOrdinals } = turn.manifest
+  assert.equal(Math.max(...selectedOrdinals), 3)
+  assert.equal(Math.max(...openChunkOrdinals), 3)
+  assert.equal(turn.manifest.scene.userInputOrdinal, 4)
+
+  const plain = await buildTurn({ cards: [card], messages: four })
+  assert.equal(plain.manifest.scene.userInputOrdinal, null)
+  assert.deepEqual(plain.manifest.selectedOrdinals, selectedOrdinals)
+})
