@@ -55,3 +55,24 @@ test('validateIndicatorDefs — 키 중복·타입 오류를 던지고 initialIn
 })
 
 test('TENSIONS 가 여섯 가지다', () => { assert.equal(TENSIONS.length, 6) })
+
+test('applySceneDelta — NaN·Infinity 지표는 거부한다', () => {
+  const { state: s1, rejected: r1 } = applySceneDelta(emptySceneState(), { indicators: { 호감도: NaN } }, { indicatorDefs: defs, messageId: 'm1' })
+  assert.deepEqual(s1.indicators, {})
+  assert.equal(r1.length, 1)
+  assert.match(r1.join('\n'), /유한한 숫자/)
+
+  const { state: s2, rejected: r2 } = applySceneDelta(emptySceneState(), { indicators: { 호감도: Infinity } }, { indicatorDefs: defs, messageId: 'm2' })
+  assert.deepEqual(s2.indicators, {})
+  assert.equal(r2.length, 1)
+  assert.match(r2.join('\n'), /유한한 숫자/)
+})
+
+test('applySceneDelta — __proto__ 같은 키는 거부한다', () => {
+  const delta = JSON.parse('{"characters":{"__proto__":{"emotion":"위험"}},"indicators":{"constructor":1}}')
+  const { state, rejected } = applySceneDelta(emptySceneState(), delta, { indicatorDefs: defs, messageId: 'm1' })
+  assert.deepEqual(Object.keys(state.characters), [])
+  assert.equal(Object.getPrototypeOf(state.characters), Object.prototype)
+  assert.equal(rejected.length, 2)
+  assert.match(rejected.join('\n'), /허용되지 않는 키/)
+})

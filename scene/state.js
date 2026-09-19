@@ -3,6 +3,8 @@
 export const TENSIONS = Object.freeze(['calm', 'playful', 'tense', 'hostile', 'intimate', 'grief'])
 const TENSION_KO = { calm: '평온', playful: '장난스러움', tense: '긴장', hostile: '적대적', intimate: '친밀', grief: '비탄' }
 const INDICATOR_TYPES = new Set(['number', 'string', 'boolean'])
+// 프로토타입 오염 방지: characters 이름·toward 상대 이름·indicators 키에 공통 적용.
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 export function emptySceneState() {
   // revision 은 적용 횟수다. 호스트가 CAS 저장에 쓰고, 추출기는 expectedRevision 으로 낡은 결과를 거른다.
@@ -39,6 +41,7 @@ export function applySceneDelta(state, delta = {}, { indicatorDefs = [], message
   if (delta.tension !== undefined) { if (TENSIONS.includes(delta.tension)) next.tension = delta.tension; else rejected.push(`tension: 허용값 아님 (${delta.tension})`) }
 
   for (const [name, patch] of Object.entries(delta.characters || {})) {
+    if (UNSAFE_KEYS.has(name)) { rejected.push(`characters.${name}: 허용되지 않는 키`); continue }
     if (known && !known.has(name)) { rejected.push(`characters.${name}: 모르는 인물`); continue }
     const current = next.characters[name] || { body: [], emotion: '', toward: {} }
     if (patch?.body) {
@@ -47,6 +50,7 @@ export function applySceneDelta(state, delta = {}, { indicatorDefs = [], message
     }
     if (patch?.emotion !== undefined) { if (text(patch.emotion)) current.emotion = text(patch.emotion); else rejected.push(`characters.${name}.emotion: 문자열이 아님`) }
     for (const [other, attitude] of Object.entries(patch?.toward || {})) {
+      if (UNSAFE_KEYS.has(other)) { rejected.push(`characters.${name}.toward.${other}: 허용되지 않는 키`); continue }
       if (text(attitude)) current.toward[other] = text(attitude); else rejected.push(`characters.${name}.toward.${other}: 문자열이 아님`)
     }
     next.characters[name] = current
@@ -58,10 +62,12 @@ export function applySceneDelta(state, delta = {}, { indicatorDefs = [], message
   }
 
   for (const [key, value] of Object.entries(delta.indicators || {})) {
+    if (UNSAFE_KEYS.has(key)) { rejected.push(`indicators.${key}: 허용되지 않는 키`); continue }
     const def = defs.get(key)
     if (!def) { rejected.push(`indicators.${key}: 정의되지 않은 지표`); continue }
     if (!def.inferred) { rejected.push(`indicators.${key}: 추출기가 바꿀 수 없는 지표`); continue }
     if (typeof value !== def.type) { rejected.push(`indicators.${key}: 타입 불일치 (${typeof value})`); continue }
+    if (def.type === 'number' && !Number.isFinite(value)) { rejected.push(`indicators.${key}: 유한한 숫자가 아님`); continue }
     if (def.type === 'number' && ((def.min !== undefined && value < def.min) || (def.max !== undefined && value > def.max))) {
       rejected.push(`indicators.${key}: 범위 밖 (${value})`); continue
     }
