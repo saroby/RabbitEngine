@@ -16,7 +16,8 @@
   "scripts": {
     "test": "node --test",
     "types": "tsc -p tsconfig.json",
-    "prepack": "npm run types"
+    "prepack": "npm run types",
+    "prepare": "npm run types"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
