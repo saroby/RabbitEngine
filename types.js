@@ -79,7 +79,9 @@
  * @property {string} kind instruction · rating · pacing · character · cast · player · context_* · worldbook · user_boundary · output_contract · memory · scene_state · event · directive
  * @property {string} role 공급자에 넣을 역할. 지금은 모두 'system'
  * @property {'system' | 'post_history' | { depth: number }} slot 놓일 자리. depth N 은 이력 끝에서 N 번째 앞
- * @property {'engine' | 'curated'} trust 문장의 출처. engine 은 엔진이 쓴 것, curated 는 사람이 쓴 카드·로어북·기억
+ * @property {'engine' | 'curated' | 'external'} trust 문장의 출처. engine 은 엔진이 쓴 것,
+ * curated 는 사람이 쓴 카드·로어북·기억, external 은 검증되지 않은 바깥 텍스트다.
+ * 지금 compileBlocks 는 external 을 내지 않는다 — 호스트가 그런 블록을 붙일 때를 위한 자리다
  * @property {string} content
  * @property {string} [sourceId] 카드·로어북 원본 식별자
  * @property {string} [revisionId]
