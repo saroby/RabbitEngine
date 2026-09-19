@@ -197,8 +197,28 @@ test('buildTurn — 모르는 rating·pacing 은 던진다', async () => {
 })
 
 test('buildTurn — system 문자열에는 depth·post_history 블록이 없다', async () => {
-  const turn = await buildTurn({ cards: [card], messages: history, userInput: '*친다*' })
+  const turn = await buildTurn({ cards: [card], messages: history, dialect: asteriskScript, userInput: '*친다*' })
+  // 디렉티브가 실제로 생겼는지 먼저 본다 — 안 그러면 "행동이 안 잡혀서" 통과한다.
+  assert.match(turn.directive, /행동 시도/)
   assert.ok(!turn.system.includes('행동 시도'))
+})
+
+test('buildTurn — userInput 이 로어북 키워드 스캔에 보인다', async () => {
+  const worldbooks = [{ id: 'w1', name: '정전', keywords: ['정전'], content: '건물 전체가 정전이다', strategy: 'keyword' }]
+  const without = await buildTurn({ cards: [card], messages: history, worldbooks })
+  assert.equal(without.blocks.find((b) => b.kind === 'worldbook'), undefined)
+  const turn = await buildTurn({ cards: [card], messages: history, worldbooks, userInput: '정전이야?' })
+  assert.match(turn.blocks.find((b) => b.kind === 'worldbook').content, /건물 전체가 정전이다/)
+  assert.equal(turn.manifest.scene.userInputScanned, true)
+  assert.equal(without.manifest.scene.userInputScanned, false)
+})
+
+test('buildTurn — userInput 은 messages 와 render 에 한 번만 들어간다', async () => {
+  const turn = await buildTurn({ cards: [card], messages: history, userInput: '정전이야?' })
+  assert.notEqual(turn.messages.at(-1).text, '정전이야?')
+  assert.equal(turn.messages.length, history.length)
+  const seen = turn.render().messages.filter((m) => m.text.startsWith('정전이야?'))
+  assert.equal(seen.length, 1)
 })
 
 test('buildTurn — 모든 블록에 trust 가 있고 카드의 behavior 가 렌더된다', async () => {

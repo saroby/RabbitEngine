@@ -61,16 +61,22 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 탓으로 만든다.
   const select = !memory.preset && memory.strategy ? selectContext : selectMemory
   const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'legacy-full' }
-  const selected = await select(messages, { ...config, dialect }, context)
+
+  // 이번 턴 입력은 기억 선택과 로어북 스캔에는 보여야 한다 — 안 보이면 "정전이야?" 가
+  // 정전 로어북을 못 깨우고 검색 질의가 직전 턴이 된다. 다만 돌려주는 messages 와
+  // render() 에는 한 번만 들어가야 하므로 transient 표식을 달아 뒤에서 걷어낸다.
+  const userInput = typeof raw.userInput === 'string' ? raw.userInput : null
+  const transient = userInput !== null ? { role: 'user', text: userInput, transient: true } : null
+  const scanMessages = transient ? [...messages, transient] : messages
+  const selected = await select(scanMessages, { ...config, dialect }, context)
+  // 참조 동일성이 아니라 표식으로 거른다 — 기억 층이 객체를 복사해도 살아남게.
+  const visibleMessages = transient ? selected.messages.filter((m) => m?.transient !== true) : selected.messages
 
   const rating = assertRating(raw.rating ?? 'all')
   const pacing = raw.pacing ?? 'normal'
   if (!Object.hasOwn(PACING_TEXT, pacing)) throw new Error(`buildTurn: pacing 은 ${Object.keys(PACING_TEXT).join(' | ')} 중 하나여야 합니다`)
   const indicatorDefs = validateIndicatorDefs(raw.indicatorDefs ?? [])
   const sceneStateText = raw.sceneState ? renderSceneState(raw.sceneState, { indicatorDefs }) : ''
-  // userInput 은 messages 에 넣지 않는다 — 이력 뒤 지시(post_history)가 붙을 자리를
-  // render 가 알아야 하므로 위치 계산을 renderTurn 한곳에 맡긴다.
-  const userInput = typeof raw.userInput === 'string' ? raw.userInput : null
   const names = cards.map((c) => c.name)
   const analysis = userInput !== null ? analyzeUserInput(dialect, userInput, { names }) : { actions: [], speech: [] }
   const directive = buildDirective({
@@ -94,7 +100,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     worldbookOptions: { ...selected.manifest.worldbook, ...worldbookOptions },
     worldbookDepth: raw.worldbookDepth ?? null,
     messages: selected.messages,
-    rawMessages: messages,
+    rawMessages: scanMessages,
     contextNotes: selected.notes,
     memoryNotes: raw.memoryNotes ?? [],
     sceneStateText,
@@ -115,9 +121,9 @@ export async function buildTurn(input = {}, ctx = {}) {
   return {
     system: systemBlocks.map((block) => block.content).join('\n\n'),
     blocks: compiled.blocks,
-    messages: selected.messages,
+    messages: visibleMessages,
     directive,
-    render: (options = {}) => renderTurn(compiled.blocks, selected.messages, { userInput, ...options }),
+    render: (options = {}) => renderTurn(compiled.blocks, visibleMessages, { userInput, ...options }),
     manifest: {
       ...selected.manifest,
       injectedText,
@@ -130,6 +136,7 @@ export async function buildTurn(input = {}, ctx = {}) {
         pacing,
         hasState: Boolean(sceneStateText),
         actions: analysis.actions,
+        userInputScanned: transient !== null,
         renderedAs: { midRole: 'user', postHistory: 'appended-to-user' },
       },
       prompt: {
