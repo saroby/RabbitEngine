@@ -80,7 +80,7 @@ flowchart LR
 | `userInput` | 이번 턴 사용자 입력. 기억 선택·로어북 스캔엔 보이고, 행동/대사 분석과 디렉티브의 재료가 된다 |
 | `memoryNotes` | 기억 층이 고른 요약 노트. depth 4 `memory` 블록으로 들어간다 |
 | `events` | 당신의 코드가 넣는 히든 사건. depth 0 `event` 블록으로 들어간다 |
-| `pacing` | `'slow' \| 'normal' \| 'eventful'`. instruction 블록에 한 문장 붙는다 |
+| `pacing` | `'slow' \| 'normal' \| 'eventful'`. instruction 블록 뒤에 별도 system 블록으로 붙는다 |
 | `continuing` | `true` 면 디렉티브의 "행동 시도" 조각을 뺀다 (재생성 등, 이미 처리한 턴) |
 | `worldbookDepth` | 로어북 항목이 발동했을 때 넣을 depth. 없으면 system 접두에 들어간다 |
 
@@ -89,9 +89,11 @@ flowchart LR
 ```js
 import { buildTurn, asteriskScript, extractionRecipe, applyExtraction } from 'rabbit-engine'
 
+const ctx = { artifacts: store, llm: yourSummaryLlm }                 // 기억 요약·추출에 쓸 호출자
+
 const turn = await buildTurn(
   { cards, messages, rating: 'teen', sceneState, indicatorDefs, userInput, memoryNotes, dialect: asteriskScript },
-  { artifacts: store, llm: yourSummaryLlm },
+  ctx,
 )
 const { system, messages: rendered } = turn.render({ userFirst: true })
 const replyText = await callYourLLM({ system, messages: rendered })   // 호출은 당신이 한다
