@@ -12,6 +12,7 @@ const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => (a.star
 const provider = args.provider ?? 'openai'
 const model = args.model ?? 'gpt-4o'
 const judgeModel = args['judge-model'] ?? model
+if (args.variant && !['full', 'no-directive', 'no-state'].includes(args.variant)) { console.error(`--variant 는 full | no-directive | no-state 중 하나여야 합니다: ${args.variant}`); process.exit(2) }
 const key = provider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY
 if (!key) { console.error(`${provider} 키가 없습니다.`); process.exit(2) }
 

@@ -6,39 +6,103 @@ LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기�
 
 ## 한 턴의 흐름
 
-엔진은 LLM 호출의 앞과 뒤에만 관여한다. 앞에서는 `buildTurn()` 이 요청을 만들고, 뒤에서는 방언이 모델이 쓴 대본을 조각으로 나눈다. 호출 자체는 당신의 코드가 한다.
+엔진은 LLM 호출의 앞과 뒤에만 관여한다. 앞에서는 `buildTurn()` 이 위치가 있는 블록 목록(`{ blocks, messages, manifest }`)을 만들고, `render()`(=`renderTurn`)가 그걸 공급자에 넣을 `{ system, messages }` 로 펼친다. 뒤에서는 방언이 모델이 쓴 대본을 조각으로 나누고, 응답이 끝난 뒤 한 번 더 작은 모델을 불러 장면 상태를 갱신한다. 모델 호출 자체는 항상 당신의 코드가 한다.
 
 ```mermaid
 flowchart TB
-    IN["🧺 이야기 재료<br>주인공 카드 · 네가 한 말 · 놀이 규칙<br>세계 이야기책 · 지금까지 나눈 이야기"]
+    subgraph HOST_IN["당신의 코드 — 입력 준비"]
+        U["사용자 입력<br>*주먹으로 때린다* 뭘 봐"]
+        DB[("당신의 저장소: messages · sceneState<br>memoryContext · lorebookState")]
+        CAT["당신의 설정 저장소: 카드 · 로어북 · 등급 · 지표 정의"]
+    end
 
-    subgraph E1["🐰 토끼가 편지를 준비해요 · buildTurn()"]
+    subgraph ENGINE["RabbitEngine — buildTurn()"]
         direction TB
-        SM["1️⃣ 기억 고르기<br><i>지난 이야기 중에 필요한 것만 골라서 접어요</i><br>selectMemory"] --> CP["2️⃣ 편지 쓰기<br><i>규칙 · 주인공 카드 · 이야기책 · 기억을<br>한 통의 편지로 모아요</i><br>compilePrompt"]
+        P1["1. 입력 파싱 (방언)<br>행동 세그먼트 / 대사 세그먼트"]
+        P2["2. 기억 선택<br>프리셋 · recipeHash 캐시"]
+        P3["3. 로어북 발동<br>만료 · FIFO · depth"]
+        P4["4. 블록 조립<br>system / depth N / post_history"]
+        P5["5. 디렉티브 조립<br>등급 조각 + 행동 반응 조각 + 일관성 조각"]
+        P1 --> P5
+        P2 --> P4
+        P3 --> P4
+        P5 --> P4
     end
 
-    REQ["✉️ 완성된 편지<br>{ system, messages }"]
-    MAN["📒 요리 기록장<br><i>편지에 무엇을 넣었는지 적어둬요</i><br>manifest"]
-    LLM["🧠 똑똑한 친구에게 편지를 보내요<br><b>보내는 건 네가 해요 — 토끼는 안 해요!</b><br>OpenAI · Anthropic · 아무 친구나"]
-    SCR["📜 친구가 써 준 대본<br>유리: 왔구나.<br>(문을 조용히 닫는다)"]
+    OUT["{ blocks, messages, manifest }"]
+    R["renderTurn(blocks, messages)<br>system 병합 · depth 삽입 · post_history 부착<br>user-first · 캐시 지점"]
+    LLM["본 응답 호출 (스트리밍)<br>당신의 코드가 부른다"]
+    PARSE["응답 파싱 (방언)<br>이름: 대사 / *지문* → 세그먼트"]
+    UI["화면 · 저장"]
 
-    subgraph E2["🐰 토끼가 대본을 잘라요"]
-        PARSE["✂️ 말하는 부분과 행동하는 부분으로 나눠요<br>dialect.parse()"]
+    subgraph BG["백그라운드 (응답 뒤, 1회)"]
+        X["추출 호출<br>요약 + 장면 상태 + 감정 + 지표"]
+        S[("당신의 저장소 갱신: sceneState · room_memory")]
+        X --> S
     end
 
-    SEG["💬 말 · 유리 · 왔구나.<br>🏃 행동 · 문을 조용히 닫는다"]
-    UI["🖥️ 네 화면에 그려요"]
-    ST["🗄️ 네 서랍에 넣어 둬요"]
+    U --> P1
+    DB --> P2
+    DB --> P3
+    CAT --> P4
+    DB --> P4
+    ENGINE --> OUT --> R --> LLM --> PARSE --> UI
+    PARSE --> X
+    S -. 다음 턴 .-> DB
 
-    IN --> SM
-    CP --> REQ
-    CP --> MAN
-    REQ --> LLM --> SCR --> PARSE --> SEG --> UI
-    MAN --> ST
-
-    style E1 fill:#f5f0ff,stroke:#7c5cff,color:#1a1a1a
-    style E2 fill:#f5f0ff,stroke:#7c5cff,color:#1a1a1a
+    style ENGINE fill:#f5f0ff,stroke:#7c5cff,color:#1a1a1a
+    style BG fill:#e6f7ef,stroke:#1a9e6a,color:#1a1a1a
     style LLM fill:#fff7e6,stroke:#d99100,color:#1a1a1a
+```
+
+프롬프트에 실리는 순서(기본 배치):
+
+```mermaid
+flowchart LR
+    SYS["system (캐시 접두)<br>instruction · character · cast · player<br>worldbook(고정) · user_boundary · output_contract"]
+    H1["이력 (오래된 쪽)"]
+    M["depth 4 · memory<br>요약 노트"]
+    W["depth N · worldbook<br>항목별 depth"]
+    ST["depth 2 · scene_state<br>지금: 현관, 자정. 긴장: 적대적 …"]
+    EV["depth 0 · event<br>히든 사건 (있을 때만)"]
+    H2["최근 이력 · 사용자 입력"]
+    D["post_history · directive<br>등급 + 행동 반응 + 일관성 (≤300자)"]
+    SYS --> H1 --> M --> W --> ST --> EV --> H2 --> D
+```
+
+### buildTurn 입력
+
+| 입력 | 의미 |
+|---|---|
+| `rating` | `'all' \| 'teen' \| 'adult'`. 묘사 수위 — instruction·directive 문구를 바꾼다 |
+| `sceneState` | 장면 상태 객체(`scene/state.js`). 있으면 depth 2 에 산문으로 렌더돼 들어간다 |
+| `indicatorDefs` | 작품별 지표 정의. `sceneState` 렌더와 추출 스키마 둘 다에 쓰인다 |
+| `userInput` | 이번 턴 사용자 입력. 기억 선택·로어북 스캔엔 보이고, 행동/대사 분석과 디렉티브의 재료가 된다 |
+| `memoryNotes` | 기억 층이 고른 요약 노트. depth 4 `memory` 블록으로 들어간다 |
+| `events` | 당신의 코드가 넣는 히든 사건. depth 0 `event` 블록으로 들어간다 |
+| `pacing` | `'slow' \| 'normal' \| 'eventful'`. instruction 블록에 한 문장 붙는다 |
+| `continuing` | `true` 면 디렉티브의 "행동 시도" 조각을 뺀다 (재생성 등, 이미 처리한 턴) |
+| `worldbookDepth` | 로어북 항목이 발동했을 때 넣을 depth. 없으면 system 접두에 들어간다 |
+
+### 사용 예
+
+```js
+import { buildTurn, asteriskScript, extractionRecipe, applyExtraction } from 'rabbit-engine'
+
+const turn = await buildTurn(
+  { cards, messages, rating: 'teen', sceneState, indicatorDefs, userInput, memoryNotes, dialect: asteriskScript },
+  { artifacts: store, llm: yourSummaryLlm },
+)
+const { system, messages: rendered } = turn.render({ userFirst: true })
+const replyText = await callYourLLM({ system, messages: rendered })   // 호출은 당신이 한다
+
+const segments = asteriskScript.parse(replyText)                      // 대사 / 행동 세그먼트
+await saveToUI(segments)
+
+const recipe = extractionRecipe({ state: sceneState, exchanges: [{ user: userInput, assistant: replyText }], names, indicatorDefs })
+const raw = await ctx.llm(recipe)                                     // 작은 모델로 사실만 추출
+const next = applyExtraction(sceneState, raw, { indicatorDefs, expectedRevision: sceneState.revision })
+if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
 
 ## 기억 층
@@ -94,3 +158,7 @@ const turn = await buildTurn(
 turn.manifest.memoryCalls          // 이 턴이 산 호출 전부 — purpose: 'compact' | 'reduce' | 'embed'
 turn.manifest.retrievalScores      // 무엇을 왜 골랐는지
 ```
+
+## 평가
+
+`eval/README.md` 를 봐라. `eval/scenarios/*.json` 의 결정론 검사(블록·디렉티브·system 조립)는 `npm test` 에 포함된다. 실제 응답 품질은 `node scripts/eval-judge.js --variant full|no-directive|no-state` 로 수동 실행한다 — 모델 키(`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`)가 필요하고 `npm test` 에는 없다.

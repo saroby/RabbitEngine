@@ -1,6 +1,6 @@
 {
   "name": "rabbit-engine",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기억 층. 모델은 부르지 않는다.",
   "type": "module",
   "license": "MIT",

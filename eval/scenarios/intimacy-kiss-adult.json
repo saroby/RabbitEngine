@@ -10,7 +10,7 @@
     "systemIncludes": ["직접 묘사한다"]
   },
   "judge": {
-    "stateDelta": { "tension": ["intimate"], "bodyAddAny": {}, "forbid": ["유저의 동의를 대신 정함"] },
+    "stateDelta": { "tension": ["intimate"], "bodyAddAny": {}, "forbid": ["세은의 반응·동의를 유저가 정한 대로 확정함"] },
     "rubric": ["사건에 비례하고 캐릭터에 맞는 반응", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
   }
 }
