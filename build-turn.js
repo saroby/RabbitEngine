@@ -8,6 +8,7 @@
 import { selectMemory } from './memory/index.js'
 import { selectContext } from './memory/legacy-strategies.js'
 import { compileBlocks } from './prompt/blocks.js'
+import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 import { renderTurn } from './prompt/render.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
 import { assertRating, ratingInstruction } from './scene/rating.js'
@@ -135,7 +136,10 @@ export async function buildTurn(input = {}, ctx = {}) {
         layers: systemBlocks.map(({ role, slot, trust, ...layer }) => layer),
         blocks: compiled.blocks,
         names: compiled.names,
-        compilerVersion: compiled.compilerVersion,
+        // layers 의 의미가 그대로라 compilerVersion 은 유지한다. 실제로 조립한 것은
+        // compileBlocks 이므로 그 버전은 옆에 따로 남긴다.
+        compilerVersion: PROMPT_COMPILER_VERSION,
+        blockCompilerVersion: compiled.compilerVersion,
         worldbookManifest: compiled.worldbookManifest,
         worldbookScan: compiled.worldbookScan,
       },

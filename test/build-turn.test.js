@@ -92,7 +92,8 @@ test('buildTurn — {{char}} 와 {{user}} 를 치환한다', async () => {
 test('buildTurn — manifest.prompt 에 층과 컴파일러 버전이 남는다', async () => {
   const turn = await buildTurn({ cards: [card], instruction: '장면을 전진시킨다.', messages: history })
   assert.equal(turn.manifest.prompt.layers[0].kind, 'instruction')
-  assert.match(turn.manifest.prompt.compilerVersion, /^blocks-v/)
+  assert.match(turn.manifest.prompt.compilerVersion, /^prompt-v/)
+  assert.match(turn.manifest.prompt.blockCompilerVersion, /^blocks-v/)
   assert.deepEqual(turn.manifest.prompt.names, { char: '유리', user: '유저' })
 })
 
