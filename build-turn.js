@@ -11,6 +11,9 @@ import { compileBlocks } from './prompt/blocks.js'
 import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 import { renderTurn } from './prompt/render.js'
 import { isReal } from './memory/projection.js'
+import { presetOf } from './memory/presets.js'
+import { boundedSize } from './memory/assemble.js'
+import { LEGACY_WINDOW_SIZE } from './memory/defaults.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
 import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
@@ -23,6 +26,19 @@ export const PACING_TEXT = Object.freeze({
   normal: '',
   eventful: '페이싱: 적극적으로. 인물이 먼저 움직이고 사건을 만든다.',
 })
+
+// 이번 턴 입력은 스캔 목록에 임시 턴으로 들어가므로 창 한 칸을 먹는다. 창 크기를
+// 1 늘려 이력이 한 칸 밀려나지 않게 한다 — 안 그러면 userInput 을 주는 것만으로
+// 창이 조용히 줄어드는 off-by-one 이 남는다.
+// legacy 는 selectContext 와 같은 정규화(boundedSize)를 쓴다. 안 그러면 창 크기를
+// 생략한 호출(기본 12)이 보정에서 빠져 11 개만 남는다.
+function widenWindow(config, legacy) {
+  if (legacy) return { ...config, windowSize: boundedSize(config.windowSize, LEGACY_WINDOW_SIZE) + 1 }
+  const current = Number(config.assembly?.windowSize ?? presetOf(config.preset).assembly.windowSize)
+  // legacy-full 의 MAX_SAFE_INTEGER 처럼 "창이 없음" 을 뜻하는 값은 건드리지 않는다.
+  if (!Number.isFinite(current) || current >= Number.MAX_SAFE_INTEGER) return config
+  return { ...config, assembly: { ...config.assembly, windowSize: current + 1 } }
+}
 
 /**
  * 한 턴의 요청을 만든다. 이 라이브러리의 권장 진입점이다.
@@ -72,7 +88,8 @@ export async function buildTurn(input = {}, ctx = {}) {
   // manifest 의 ordinal 계열은 스캔 배열 기준이라 임시 턴이 유령으로 남는다. 그 번호를
   // projection 과 같은 방식(isReal 로 거른 뒤의 길이)으로 구해 두고 아래에서 걷어낸다.
   const transientOrdinal = transient ? messages.filter(isReal).length : null
-  const selected = await select(scanMessages, { ...config, dialect }, context)
+  const scanConfig = transient ? widenWindow(config, select === selectContext) : config
+  const selected = await select(scanMessages, { ...scanConfig, dialect }, context)
   // 참조 동일성이 아니라 표식으로 거른다 — 기억 층이 객체를 복사해도 살아남게.
   const visibleMessages = transient ? selected.messages.filter((m) => m?.transient !== true) : selected.messages
 

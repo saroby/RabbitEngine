@@ -243,3 +243,16 @@ test('buildTurn — userInput 의 임시 턴은 manifest ordinal 에 남지 않�
   assert.equal(plain.manifest.scene.userInputOrdinal, null)
   assert.deepEqual(plain.manifest.selectedOrdinals, selectedOrdinals)
 })
+
+test('buildTurn — userInput 이 있어도 창 크기만큼의 이력이 남는다', async () => {
+  const long = Array.from({ length: 40 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
+  const legacy = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window', windowSize: 6 }, userInput: '정전이야?' })
+  assert.equal(legacy.messages.length, 6)
+  // 창 크기를 안 주면 legacy 기본값 12 다 — 그 경우에도 한 칸을 뺏기지 않는다.
+  const defaulted = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window' }, userInput: '정전이야?' })
+  assert.equal(defaulted.messages.length, 12)
+  // 프리셋 경로. lorebook 은 압축기·검색기가 없어 창 크기가 그대로 남는 수가 된다.
+  const preset = await buildTurn({ cards: [card], messages: long, memory: { preset: 'lorebook', assembly: { windowSize: 6, windowMode: 'cut' } }, userInput: '정전이야?' })
+  assert.equal(preset.messages.length, 6)
+  assert.equal(preset.manifest.assembly.windowSize, 7)
+})
