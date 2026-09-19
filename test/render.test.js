@@ -52,3 +52,8 @@ test('renderTurn — userFirst 면 assistant 로 시작하는 이력 앞에 여�
   const out = renderTurn([], history, { userInput: '입력', userFirst: true })
   assert.deepEqual(out.messages[0], { role: 'user', text: '*(이야기 시작)*' })
 })
+
+test('renderTurn — 여러 depth 가 모두 클램프돼도 큰 depth 가 앞에 온다', () => {
+  const out = renderTurn([at('a', 4, 'D4'), at('b', 6, 'D6')], [{ role: 'assistant', text: 'm0' }], { userInput: '입력' })
+  assert.deepEqual(out.messages.map((m) => m.text), ['D6', 'D4', 'm0', '입력'])
+})

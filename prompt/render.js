@@ -17,10 +17,16 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
   }
   const out = base.slice()
   let anchor = typeof userInput === 'string' ? out.length - 1 : out.length
+  // 이력이 depth 보다 짧아 index 0 으로 클램프되는 depth 가 둘 이상이면, floor 를 하나씩
+  // 밀어 먼저 처리한(더 큰) depth 가 더 앞자리를 지키게 한다 — 안 그러면 나중 삽입이 항상
+  // index 0 을 차지해 순서가 뒤집힌다.
+  let floor = 0
   for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
-    const index = Math.max(0, anchor - depth)
+    const raw = anchor - depth
+    const index = Math.max(floor, raw)
     out.splice(index, 0, { role: midRole, text: byDepth.get(depth).join('\n\n') })
     anchor += 1
+    if (raw < floor) floor += 1
   }
 
   const post = blocks.filter((b) => b.slot === 'post_history').map((b) => b.content).join('\n\n')
