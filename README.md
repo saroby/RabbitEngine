@@ -22,7 +22,7 @@ flowchart TB
         P2["2. 기억 선택<br>프리셋 · recipeHash 캐시"]
         P3["3. 로어북 발동<br>만료 · FIFO · depth"]
         P4["4. 블록 조립<br>system / depth N / post_history"]
-        P5["5. 디렉티브 조립<br>등급 조각 + 행동 반응 조각 + 일관성 조각"]
+        P5["5. 디렉티브 조립<br>행동 판정 조각 + 일관성 조각 (등급은 system 에만)"]
         P1 --> P5
         P2 --> P4
         P3 --> P4
@@ -66,7 +66,7 @@ flowchart LR
     ST["depth 2 · scene_state<br>지금: 현관, 자정. 긴장: 적대적 …"]
     EV["depth 0 · event<br>히든 사건 (있을 때만)"]
     H2["최근 이력 · 사용자 입력"]
-    D["post_history · directive<br>등급 + 행동 반응 + 일관성 (≤300자)"]
+    D["post_history · directive<br>행동 판정 + 일관성 (≤300자, 등급 문장 없음)"]
     SYS --> H1 --> M --> W --> ST --> EV --> H2 --> D
 ```
 

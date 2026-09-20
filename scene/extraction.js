@@ -3,7 +3,7 @@ import { recipeHashOf, canonical } from '../memory/recipe.js'
 import { sha256Hex } from '../sha256.js'
 import { applySceneDelta, renderSceneState, validateIndicatorDefs, TENSIONS } from './state.js'
 
-export const EXTRACTION_VERSION = 'extract-v1'
+export const EXTRACTION_VERSION = 'extract-v2'
 // 따라잡기(밀린 교환을 한 번에 추출) 상한. 이보다 길면 한 번의 호출로 사실을
 // 가려내지 못하고 델타가 뭉개진다 — 조용히 자르지 말고 호스트가 나눠 부르게 한다.
 export const MAX_EXTRACTION_EXCHANGES = 5
@@ -44,6 +44,13 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
     `${playerName}(플레이어)에 대해서는 명시적으로 말했거나 밖에서 관찰되는 것만 기록한다. 속마음을 추정하지 않는다.`,
     indicatorLines.length ? `바꿀 수 있는 지표:\n${indicatorLines.join('\n')}` : '',
     '규칙: 바뀌지 않은 필드는 쓰지 않는다. body 는 현재 몸 상태(부상·옷·자세)만, emotion 은 한 단어, toward 는 상대별 태도 한 구절. beat 는 이 교환을 한 줄로 요약한 사실 문장이다. JSON 외의 텍스트를 쓰지 않는다.',
+    // 형태를 보여 주지 않으면 모델이 body·emotion·toward 를 최상위에 평평하게 낸다(gpt-4o 실측).
+    // 인물 상태는 반드시 characters.<이름> 아래에 있어야 applySceneDelta 가 읽는다.
+    [
+      '출력 형태 예시(값은 예시일 뿐 복사하지 않는다):',
+      '{"tension":"tense","place":"복도","characters":{"<인물명>":{"body":{"add":["왼쪽 뺨이 부음"],"remove":["양손을 든 자세"]},"emotion":"당황","toward":{"<상대명>":"경계함"}}},"threads":{"add":["열쇠를 찾는다"],"resolve":[]},"beat":"…"}',
+      '<인물명>·<상대명> 은 등장인물 목록의 실제 이름(플레이어는 "' + playerName + '")으로 바꾼다. body.add 는 새로 성립한 몸 상태, body.remove 는 기존 기록 중 더는 성립하지 않는 항목의 문자열 그대로다. emotion·toward 는 characters 안에만 쓰고 최상위에 쓰지 않는다. 전체 상태를 다시 내지 않고 바뀐 필드만 낸다.',
+    ].join('\n'),
     `현재 장면 상태:\n${current}`,
   ].filter(Boolean).join('\n\n')
   const body = exchanges.map((x) => `[${playerName}]\n${x.user}\n\n[응답]\n${x.assistant}`).join('\n\n---\n\n')
