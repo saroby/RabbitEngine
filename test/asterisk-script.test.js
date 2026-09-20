@@ -80,4 +80,6 @@ test('대사에 붙인 메모 조각은 지우고, 라벨만 남으면 조각을
   assert.deepEqual(asteriskScript.parse('[진행 메모: 전부 메모]', { names: [] }), [])
   // 원래부터 빈 라벨은 이전과 같다 — 다음 줄이 그 화자의 대사가 된다.
   assert.deepEqual(asteriskScript.parse('하윤:\n바로 다음 줄', { names: ['하윤'] }), [{ type: 'dialogue', speaker: '하윤', text: '바로 다음 줄' }])
+  // 홀로 남은 * 도 이전과 같이 앞 대사에 붙는다 — 찌꺼기 규칙은 메모를 지운 줄에만 든다.
+  assert.deepEqual(asteriskScript.parse('서진: 어서 와\n*', { names: ['서진'] }), [{ type: 'dialogue', speaker: '서진', text: '어서 와\n*' }])
 })

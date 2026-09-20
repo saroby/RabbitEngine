@@ -19,5 +19,6 @@ const REMNANT = new RegExp(`^(?:@:)?${WRAP}$`, 'u')
 export const stripMeta = (line) => {
   if (isMetaLine(line)) return ''
   const rest = line.replace(META_INLINE, '').trim()
-  return REMNANT.test(rest) ? '' : rest
+  // 찌꺼기 판정은 메모를 실제로 지운 줄에만 한다. 원래 "*" 한 글자였던 줄은 이야기다(이전 파서와 같다).
+  return rest !== line && REMNANT.test(rest) ? '' : rest
 }
