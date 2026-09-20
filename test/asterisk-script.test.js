@@ -62,3 +62,12 @@ test('엔진 메모를 흉내 낸 [진행 메모: …]·[장면 상태] 줄은 �
   assert.deepEqual(out.map((s) => s.type), ['dialogue', 'action'])
   assert.equal(out[0].text, '뭐, 괜찮아.')
 })
+
+test('감싸거나 접두를 붙인 메모 줄도 버린다 — *…*, **…**, 「…」, 제로폭, @:', () => {
+  for (const raw of ['*[진행 메모: x]*', '**[진행 메모: x]**', '「[진행 메모: x]」', '\u200b[진행 메모: x]', '@: **[진행 메모: x]**', '[장면 상태]', '*[장면 상태] 긴장*']) {
+    const out = asteriskScript.parse(`${raw}\n하윤: 아니.`, { names: ['하윤'] })
+    assert.deepEqual(out.map((s) => s.type), ['dialogue'], raw)
+  }
+  // 이야기 속 대괄호는 살아 있다.
+  assert.equal(asteriskScript.parse('@: [문이 닫힌다]', { names: [] })[0].text, '[문이 닫힌다]')
+})
