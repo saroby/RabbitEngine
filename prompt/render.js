@@ -12,8 +12,8 @@ const isDynamicSystem = (kind) => kind === 'worldbook' || String(kind ?? '').sta
  * @param {{ userInput?: string | null, midRole?: string, userFirst?: boolean, openingTurn?: string, mergeSameRole?: boolean }} [options]
  * @returns {{ system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number, cachePrefixKinds: string[] }}
  */
-/** post_history 메모의 라벨. 방언 spec 의 문구와 같아야 한다. */
-export const NOTE_LABEL = '진행 메모'
+import { NOTE_LABEL } from './note.js'
+export { NOTE_LABEL }
 
 export function renderTurn(blocks = [], messages = [], { userInput = null, midRole = 'user', userFirst = false, openingTurn = '*(이야기 시작)*', mergeSameRole = false } = {}) {
   const systemBlocks = blocks.filter((b) => b.slot === 'system')
