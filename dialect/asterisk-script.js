@@ -1,6 +1,6 @@
 // ai-chat-lab 의 화면 형식. services/chat/src/llm/parser.ts 와 같은 규칙이다 —
 // 이 파일이 정본이 되면 chat 쪽 parser 는 이 방언을 감싸기만 한다.
-import { isMetaLine } from '../prompt/note.js'
+import { stripMeta } from '../prompt/note.js'
 import { defineDialect } from './define.js'
 
 export const ASTERISK_FORMAT = `[출력 형식 — 반드시 지킬 것]
@@ -32,18 +32,19 @@ function parseAsterisk(text, { partial = false, names = null } = {}) {
   let speaker = null
 
   for (const raw of lines) {
-    const line = raw.trim()
+    // 모델이 엔진 메모 형식을 흉내 낸 조각은 걷어낸다(prompt/note.js). 메모만 있던 줄은 사라지고,
+    // "@: [진행 메모: …]"·"하윤: [진행 메모: …]" 처럼 접두에 붙인 것은 접두만 남아 아래에서 빈 조각이 된다.
+    const line = stripMeta(raw.trim())
     if (!line) continue
-    // 모델이 엔진 메모 형식을 흉내 낸 줄. 이야기가 아니므로 버린다(prompt/note.js).
-    // `@: [진행 메모: …]` 처럼 나레이션 접두를 붙여 쓰기도 한다(gpt-4o 실측) — 접두 뒤 본문도 본다.
-    if (isMetaLine(line) || (line.startsWith('@:') && isMetaLine(line.slice(2).trim()))) { speaker = null; continue }
     if (line.startsWith('@:')) { segments.push({ type: 'narration', text: line.slice(2).trim() }); speaker = null; continue }
     const starred = STARRED.exec(line)
     if (starred) { segments.push({ type: 'action', text: starred[1].trim() }); speaker = null; continue }
     const labelled = LABEL.exec(line)
     if (labelled && (!known || known.has(labelled[1].trim()))) {
       speaker = labelled[1].trim()
-      segments.push({ type: 'dialogue', speaker, text: (labelled[2] ?? '').trim() })
+      const text = (labelled[2] ?? '').trim()
+      // 메모를 걷어낸 뒤 라벨만 남은 대사는 조각을 만들지 않는다. 이어지는 줄은 여전히 이 화자에게 붙는다.
+      if (text) segments.push({ type: 'dialogue', speaker, text })
       continue
     }
     const last = segments.at(-1)

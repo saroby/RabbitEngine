@@ -64,10 +64,18 @@ test('엔진 메모를 흉내 낸 [진행 메모: …]·[장면 상태] 줄은 �
 })
 
 test('감싸거나 접두를 붙인 메모 줄도 버린다 — *…*, **…**, 「…」, 제로폭, @:', () => {
-  for (const raw of ['*[진행 메모: x]*', '**[진행 메모: x]**', '「[진행 메모: x]」', '\u200b[진행 메모: x]', '@: **[진행 메모: x]**', '[장면 상태]', '*[장면 상태] 긴장*']) {
+  for (const raw of ['*[진행 메모: x]*', '**[진행 메모: x]**', '「[진행 메모: x]」', '\u200b[진행 메모: x]', '@: **[진행 메모: x]**', '[장면 상태]', '*[장면 상태]*']) {
     const out = asteriskScript.parse(`${raw}\n하윤: 아니.`, { names: ['하윤'] })
     assert.deepEqual(out.map((s) => s.type), ['dialogue'], raw)
   }
-  // 이야기 속 대괄호는 살아 있다.
+  // 이야기 속 대괄호는 살아 있다. 라벨이 있어도 줄이 메모만으로 끝나지 않으면 이야기다.
   assert.equal(asteriskScript.parse('@: [문이 닫힌다]', { names: [] })[0].text, '[문이 닫힌다]')
+  assert.deepEqual(asteriskScript.parse('*[장면 상태: 위급] 계기판의 경고등이 붉게 깜박인다.*', { names: [] }), [{ type: 'action', text: '[장면 상태: 위급] 계기판의 경고등이 붉게 깜박인다.' }])
+  assert.equal(asteriskScript.parse('[장면 상태가 이상하다]', { names: [] })[0].text, '[장면 상태가 이상하다]')
+})
+
+test('대사에 붙인 메모 조각은 지우고, 라벨만 남으면 조각을 만들지 않는다', () => {
+  const out = asteriskScript.parse('하윤: [진행 메모: 대사를 더하지 않는다.]\n하윤: 그래서?\n하윤: 알겠어 [진행 메모: x] 갈게', { names: ['하윤'] })
+  assert.deepEqual(out, [{ type: 'dialogue', speaker: '하윤', text: '그래서?' }, { type: 'dialogue', speaker: '하윤', text: '알겠어  갈게' }])
+  assert.deepEqual(asteriskScript.parse('[진행 메모: 전부 메모]', { names: [] }), [])
 })

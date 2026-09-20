@@ -47,9 +47,9 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
     // 형태를 보여 주지 않으면 모델이 body·emotion·toward 를 최상위에 평평하게 낸다(gpt-4o 실측).
     // 인물 상태는 반드시 characters.<이름> 아래에 있어야 applySceneDelta 가 읽는다.
     [
-      '출력 형태 예시(값은 예시일 뿐 복사하지 않는다):',
-      '{"tension":"tense","place":"복도","characters":{"<인물명>":{"body":{"add":["왼쪽 뺨이 부음"],"remove":["양손을 든 자세"]},"emotion":"당황","toward":{"<상대명>":"경계함"}}},"threads":{"add":["열쇠를 찾는다"],"resolve":[]},"beat":"…"}',
-      '<인물명>·<상대명> 은 등장인물 목록의 실제 이름(플레이어는 "' + playerName + '")으로 바꾼다. body.add 는 새로 성립한 몸 상태, body.remove 는 기존 기록 중 더는 성립하지 않는 항목의 문자열 그대로다. emotion·toward 는 characters 안에만 쓰고 최상위에 쓰지 않는다. 전체 상태를 다시 내지 않고 바뀐 필드만 낸다.',
+      '출력 형태(<…> 는 자리표시이며 값이 아니다. 교환에 근거가 없는 것은 쓰지 않는다):',
+      '{"tension":"<tension 값>","place":"<바뀐 장소>","time":"<바뀐 시간>","characters":{"<인물명>":{"body":{"add":["<새로 성립한 몸 상태>"],"remove":["<더는 성립하지 않는 기존 항목 그대로>"]},"emotion":"<한 단어>","toward":{"<상대명>":"<태도 한 구절>"}}},"threads":{"add":["<새 실마리>"],"resolve":["<끝난 실마리>"]},"beat":"<한 줄 사실>"}',
+      '<인물명>·<상대명> 은 등장인물 목록의 실제 이름(플레이어는 "' + playerName + '")으로 바꾼다. emotion·toward 는 characters 안에만 쓰고 최상위에 쓰지 않는다. 전체 상태를 다시 내지 않고 바뀐 필드만 낸다. 바뀐 것이 없으면 {"beat":"<한 줄 사실>"} 만 낸다.',
     ].join('\n'),
     `현재 장면 상태:\n${current}`,
   ].filter(Boolean).join('\n\n')
