@@ -58,7 +58,7 @@ test('partial 이면 마지막 줄을 버린다', () => {
 })
 
 test('엔진 메모를 흉내 낸 [진행 메모: …]·[장면 상태] 줄은 버린다', () => {
-  const out = asteriskScript.parse('[진행 메모: 직접적인 폭력 묘사를 피합니다.]\n하윤: 뭐, 괜찮아.\n[장면 상태]\n*고개를 돌린다*', { names: ['하윤'] })
+  const out = asteriskScript.parse('[진행 메모: 직접적인 폭력 묘사를 피합니다.]\n@: [진행 메모: 결과에 초점을 맞춥니다.]\n하윤: 뭐, 괜찮아.\n[장면 상태]\n*고개를 돌린다*', { names: ['하윤'] })
   assert.deepEqual(out.map((s) => s.type), ['dialogue', 'action'])
   assert.equal(out[0].text, '뭐, 괜찮아.')
 })

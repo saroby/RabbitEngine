@@ -35,7 +35,8 @@ function parseAsterisk(text, { partial = false, names = null } = {}) {
     const line = raw.trim()
     if (!line) continue
     // 모델이 엔진 메모 형식을 흉내 낸 줄. 이야기가 아니므로 버린다(prompt/note.js).
-    if (isMetaLine(line)) { speaker = null; continue }
+    // `@: [진행 메모: …]` 처럼 나레이션 접두를 붙여 쓰기도 한다(gpt-4o 실측) — 접두 뒤 본문도 본다.
+    if (isMetaLine(line) || (line.startsWith('@:') && isMetaLine(line.slice(2).trim()))) { speaker = null; continue }
     if (line.startsWith('@:')) { segments.push({ type: 'narration', text: line.slice(2).trim() }); speaker = null; continue }
     const starred = STARRED.exec(line)
     if (starred) { segments.push({ type: 'action', text: starred[1].trim() }); speaker = null; continue }
