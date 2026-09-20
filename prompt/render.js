@@ -12,6 +12,9 @@ const isDynamicSystem = (kind) => kind === 'worldbook' || String(kind ?? '').sta
  * @param {{ userInput?: string | null, midRole?: string, userFirst?: boolean, openingTurn?: string, mergeSameRole?: boolean }} [options]
  * @returns {{ system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number, cachePrefixKinds: string[] }}
  */
+/** post_history 메모의 라벨. 방언 spec 의 문구와 같아야 한다. */
+export const NOTE_LABEL = '진행 메모'
+
 export function renderTurn(blocks = [], messages = [], { userInput = null, midRole = 'user', userFirst = false, openingTurn = '*(이야기 시작)*', mergeSameRole = false } = {}) {
   const systemBlocks = blocks.filter((b) => b.slot === 'system')
   const system = systemBlocks.map((b) => b.content).join('\n\n')
@@ -50,10 +53,13 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
     if (raw < floor) floor += 1
   }
 
+  // 유저 턴 끝에 맨몸으로 이어 붙이면 모델이 유저의 말로 인용한다("…라고 했지", 실측).
+  // 대괄호 메모로 감싸고, 방언 spec 이 "대괄호 메모는 인용·언급하지 않는다" 를 지시한다.
   const post = blocks.filter((b) => b.slot === 'post_history').map((b) => b.content).join('\n\n')
   if (post) {
-    if (typeof userInput === 'string') { const last = out.at(-1); last.text = last.text ? `${last.text}\n\n${post}` : post }
-    else out.push({ role: midRole, text: post })
+    const note = `[${NOTE_LABEL}: ${post}]`
+    if (typeof userInput === 'string') { const last = out.at(-1); last.text = last.text ? `${last.text}\n\n${note}` : note }
+    else out.push({ role: midRole, text: note })
   }
   // 같은 역할이 연달아 나오는 것을 막는 공급자(Anthropic 등)가 있다. 기본값은
   // 그대로 두고 — 자리(depth)를 바꾸면 골든이 흔들린다 — 필요할 때만 켠다.

@@ -35,12 +35,12 @@ test('renderTurn — midRole 로 중간 블록의 역할을 정한다', () => {
 
 test('renderTurn — post_history 는 사용자 입력 본문 뒤에 붙는다', () => {
   const out = renderTurn([post('D')], history, { userInput: '입력' })
-  assert.deepEqual(out.messages.at(-1), { role: 'user', text: '입력\n\nD' })
+  assert.deepEqual(out.messages.at(-1), { role: 'user', text: '입력\n\n[진행 메모: D]' })
 })
 
 test('renderTurn — userInput 이 없으면 post_history 는 별도 메시지다', () => {
   const out = renderTurn([post('D')], history, {})
-  assert.deepEqual(out.messages.at(-1), { role: 'user', text: 'D' })
+  assert.deepEqual(out.messages.at(-1), { role: 'user', text: '[진행 메모: D]' })
 })
 
 test('renderTurn — 이력이 depth 보다 짧으면 맨 앞에 둔다', () => {

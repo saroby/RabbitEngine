@@ -30,7 +30,7 @@ flowchart TB
     end
 
     OUT["{ blocks, messages, manifest }"]
-    R["renderTurn(blocks, messages)<br>system 병합 · depth 삽입 · post_history 부착<br>user-first · 캐시 지점"]
+    R["renderTurn(blocks, messages)<br>system 병합 · depth 삽입 · post_history 를 [진행 메모: …] 로 부착<br>user-first · 캐시 지점"]
     LLM["본 응답 호출 (스트리밍)<br>당신의 코드가 부른다"]
     PARSE["응답 파싱 (방언)<br>이름: 대사 / *지문* → 세그먼트"]
     UI["화면 · 저장"]
