@@ -48,7 +48,7 @@ export function extractionRecipe({ state, exchanges = [], names = [], playerName
     // 인물 상태는 반드시 characters.<이름> 아래에 있어야 applySceneDelta 가 읽는다.
     [
       '출력 형태(<…> 는 자리표시이며 값이 아니다. 교환에 근거가 없는 것은 쓰지 않는다):',
-      '{"tension":"<tension 값>","place":"<바뀐 장소>","time":"<바뀐 시간>","characters":{"<인물명>":{"body":{"add":["<새로 성립한 몸 상태>"],"remove":["<더는 성립하지 않는 기존 항목 그대로>"]},"emotion":"<한 단어>","toward":{"<상대명>":"<태도 한 구절>"}}},"threads":{"add":["<새 실마리>"],"resolve":["<끝난 실마리>"]},"beat":"<한 줄 사실>"}',
+      '{"tension":"<tension 값>","place":"<바뀐 장소>","time":"<바뀐 시간>","characters":{"<인물명>":{"body":{"add":["<새로 성립한 몸 상태, 한국어>"],"remove":["<더는 성립하지 않는 기존 항목 그대로>"]},"emotion":"<감정 한 단어, 한국어>","toward":{"<상대명>":"<태도 한 구절, 한국어>"}}},"threads":{"add":["<새 실마리>"],"resolve":["<끝난 실마리>"]},"beat":"<한 줄 사실>"}',
       '<인물명>·<상대명> 은 등장인물 목록의 실제 이름(플레이어는 "' + playerName + '")으로 바꾼다. emotion·toward 는 characters 안에만 쓰고 최상위에 쓰지 않는다. 전체 상태를 다시 내지 않고 바뀐 필드만 낸다. 바뀐 것이 없으면 {"beat":"<한 줄 사실>"} 만 낸다.',
     ].join('\n'),
     `현재 장면 상태:\n${current}`,
