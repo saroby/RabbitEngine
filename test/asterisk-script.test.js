@@ -78,4 +78,6 @@ test('대사에 붙인 메모 조각은 지우고, 라벨만 남으면 조각을
   const out = asteriskScript.parse('하윤: [진행 메모: 대사를 더하지 않는다.]\n하윤: 그래서?\n하윤: 알겠어 [진행 메모: x] 갈게', { names: ['하윤'] })
   assert.deepEqual(out, [{ type: 'dialogue', speaker: '하윤', text: '그래서?' }, { type: 'dialogue', speaker: '하윤', text: '알겠어  갈게' }])
   assert.deepEqual(asteriskScript.parse('[진행 메모: 전부 메모]', { names: [] }), [])
+  // 원래부터 빈 라벨은 이전과 같다 — 다음 줄이 그 화자의 대사가 된다.
+  assert.deepEqual(asteriskScript.parse('하윤:\n바로 다음 줄', { names: ['하윤'] }), [{ type: 'dialogue', speaker: '하윤', text: '바로 다음 줄' }])
 })

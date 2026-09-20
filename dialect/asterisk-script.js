@@ -34,8 +34,10 @@ function parseAsterisk(text, { partial = false, names = null } = {}) {
   for (const raw of lines) {
     // 모델이 엔진 메모 형식을 흉내 낸 조각은 걷어낸다(prompt/note.js). 메모만 있던 줄은 사라지고,
     // "@: [진행 메모: …]"·"하윤: [진행 메모: …]" 처럼 접두에 붙인 것은 접두만 남아 아래에서 빈 조각이 된다.
-    const line = stripMeta(raw.trim())
+    const trimmed = raw.trim()
+    const line = stripMeta(trimmed)
     if (!line) continue
+    const metaStripped = line !== trimmed
     if (line.startsWith('@:')) { segments.push({ type: 'narration', text: line.slice(2).trim() }); speaker = null; continue }
     const starred = STARRED.exec(line)
     if (starred) { segments.push({ type: 'action', text: starred[1].trim() }); speaker = null; continue }
@@ -43,8 +45,9 @@ function parseAsterisk(text, { partial = false, names = null } = {}) {
     if (labelled && (!known || known.has(labelled[1].trim()))) {
       speaker = labelled[1].trim()
       const text = (labelled[2] ?? '').trim()
-      // 메모를 걷어낸 뒤 라벨만 남은 대사는 조각을 만들지 않는다. 이어지는 줄은 여전히 이 화자에게 붙는다.
-      if (text) segments.push({ type: 'dialogue', speaker, text })
+      // 메모를 걷어내서 라벨만 남은 대사는 조각을 만들지 않는다. 원래부터 빈 라벨("하윤:" 뒤 개행)은
+      // 이전 구현과 같이 빈 대사 조각이 되어 다음 줄이 그 화자에게 붙는다(chat 차등 테스트가 고정).
+      if (text || !metaStripped) segments.push({ type: 'dialogue', speaker, text })
       continue
     }
     const last = segments.at(-1)
