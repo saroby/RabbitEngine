@@ -30,7 +30,8 @@ function fitBudget(items, budgetChars, placement) {
   let used = perItemLabel ? 0 : MEMORY_LABEL.length
   for (const item of items) {
     const size = perItemLabel ? item.rendered.length : item.text.length + 1
-    if (used + size > budgetChars) break
+    // 큰 항목 하나가 뒤의 짧은 기억까지 막지 않게 한다. 들어가는 항목의 순서는 유지한다.
+    if (used + size > budgetChars) continue
     kept.push(item)
     used += size
   }

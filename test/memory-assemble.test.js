@@ -54,6 +54,31 @@ test('budgetChars 를 넘으면 잘리고 잘린 수가 기록된다', () => {
   assert.equal(out.truncated, 3)
 })
 
+test('예산을 넘는 기억은 건너뛰고 뒤의 들어갈 수 있는 기억을 순서대로 보존한다', () => {
+  const mixed = [
+    { id: 'oversized-first', text: 'x'.repeat(100) },
+    { id: 'short-first', text: '열쇠는 서랍 안' },
+    { id: 'oversized-middle', text: 'x'.repeat(100) },
+    { id: 'short-last', text: '문은 잠겨 있음' },
+  ]
+  for (const placement of ['note', 'front', 'back', 'both']) {
+    const expected = [mixed[1], mixed[3]]
+    const budgetChars = expected.reduce((sum, item) => sum + item.text.length + 1, 0)
+      + MEMORY_LABEL.length * (placement === 'note' ? 1 : 2)
+    const out = assemble({
+      messages, entries, artifacts: mixed,
+      assembly: { ...base, hideCompacted: false, placement, budgetChars },
+    })
+    assert.deepEqual(out.injectedItems.map((item) => item.id), expected.map((item) => item.id), placement)
+    assert.equal(out.truncated, 2, placement)
+    assert.equal(out.usedChars, budgetChars, placement)
+    assert.deepEqual(out.messages.filter((m) => !m.memoryInjected), messages, placement)
+    const text = placement === 'note' ? out.notes[0].text : out.messages.filter((m) => m.memoryInjected).map((m) => m.text).join('\n')
+    for (const item of expected) assert.ok(text.includes(item.text), placement)
+    assert.ok(!text.includes('x'.repeat(100)), placement)
+  }
+})
+
 test('산출물 종류나 출처가 달라도 note 모양이 같다', () => {
   const a = assemble({ messages, entries, closed, open, artifacts, assembly: { ...base, placement: 'note' } })
   const b = assemble({ messages, entries, closed, open, artifacts: [{ ...artifacts[0], kind: 'event', origin: 'user' }], assembly: { ...base, placement: 'note' } })
