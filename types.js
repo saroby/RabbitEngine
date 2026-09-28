@@ -176,4 +176,5 @@ export {}
  * @typedef {object} PromptProfile
  * @property {1} version
  * @property {PromptProfileBlock[]} blocks 모든 블록 종류가 한 번씩 들어간 순서 있는 목록
+ * @property {string} [systemTemplate] 시스템 문구와 {{block:kind}}·{{user}}·{{char}} 태그. 생략하면 기존 블록 순서를 사용한다
  */

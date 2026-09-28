@@ -171,4 +171,4 @@ turn.manifest.prompt.blocks        // 블록 본문까지 값으로 들어 있�
 
 `buildTurn({ ...input, promptProfile })`로 캐릭터/작품마다 다른 블록 문구·순서·위치를 적용할 수 있다. `defaultPromptProfile()`과 `validatePromptProfile()`이 엔진 설정 계약을 제공한다. 설정 저장과 캐릭터 연결은 호스트 몫이다.
 
-`rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 여러 설정을 브라우저에 저장하고 실제 조립 결과를 미리 본다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.
+`rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 시스템 프롬프트 문장 사이에 태그 캡슐을 넣고, 여러 설정을 브라우저에 저장하며 실제 조립 결과를 미리 본다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.

@@ -1,4 +1,5 @@
 import { compileBlocks } from './blocks.js'
+import { systemTextOf } from './render.js'
 
 export const PROMPT_COMPILER_VERSION = 'prompt-v3'
 
@@ -21,7 +22,7 @@ export function compilePrompt(options = {}) {
   // role·slot·trust 는 블록 모델의 위치 정보다. 하위 호환 layers 뷰는 이전과 같은 모양을 유지한다.
   const layers = systemBlocks.map(({ role, slot, trust, ...layer }) => layer)
   return {
-    system: systemBlocks.map((b) => b.content).join('\n\n'),
+    system: systemTextOf(systemBlocks),
     layers,
     names: out.names,
     compilerVersion: PROMPT_COMPILER_VERSION,

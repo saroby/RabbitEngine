@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildTurn, compileBlocks, defaultPromptProfile, validatePromptProfile, promptProfileHash, asteriskScript, MEMORY_LABEL } from '../index.js'
+import { buildTurn, compileBlocks, compilePrompt, defaultPromptProfile, validatePromptProfile, promptProfileHash, asteriskScript, MEMORY_LABEL } from '../index.js'
+import { parseSystemTemplate } from '../prompt/profile.js'
 import { mountPromptEditor, promptEditorSampleInput } from '../editor/index.js'
 
 const sample = () => ({ ...promptEditorSampleInput(), dialect: asteriskScript })
@@ -112,4 +113,78 @@ test('invalid profile fails before calling a host LLM for memory selection', asy
   rule(profile, 'output_contract').enabled = false
   await assert.rejects(() => buildTurn({ ...sample(), memory: { preset: 'memory-books' }, promptProfile: profile }, { llm: async () => { calls += 1; throw new Error('should not run') } }), /출력 규약/)
   assert.equal(calls, 0)
+})
+
+test('system document expands inline text, names and repeated source blocks without changing message slots', async () => {
+  const profile = defaultPromptProfile()
+  profile.systemTemplate = '시작 {{user}}/{{char}}:{{block:character}}{{block:memory}}|{{block:output_contract}} 끝'
+  rule(profile, 'memory').slot = { depth: 1 }
+  const turn = await buildTurn({ cards: [{ name: '가' }, { name: '나' }], userName: '손님', memoryNotes: [{ text: '기억' }], promptProfile: profile })
+  const characters = turn.blocks.filter((block) => block.kind === 'character')
+  const contract = turn.blocks.find((block) => block.kind === 'output_contract')
+  assert.equal(turn.system, `시작 손님/가:${characters.map((block) => block.content).join('\n\n')}|${contract.content} 끝`)
+  assert.equal(turn.render().system, turn.system)
+  assert.deepEqual(turn.blocks.filter((block) => block.kind === 'memory').map((block) => block.slot), [{ depth: 1 }])
+  assert.ok(turn.render().messages.some((message) => message.text.includes('기억')))
+  assert.equal(turn.blocks.some((block) => block.kind === 'user_boundary'), false)
+  assert.deepEqual(parseSystemTemplate('A{{block:character}}{{user}}{{block:output_contract}}'), [
+    { type: 'text', value: 'A' }, { type: 'block', value: 'character' }, { type: 'name', value: 'user' }, { type: 'block', value: 'output_contract' },
+  ])
+})
+
+test('system document preserves dynamic cache boundary and compilePrompt text', async () => {
+  const profile = defaultPromptProfile()
+  profile.systemTemplate = '고정{{block:character}}끝{{block:memory}}후속{{block:output_contract}}'
+  rule(profile, 'memory').slot = 'system'
+  const turn = await buildTurn({ cards: [{ name: '가' }], memoryNotes: [{ text: '동적' }], promptProfile: profile })
+  const character = turn.blocks.find((block) => block.kind === 'character')
+  assert.equal(turn.render().cachePrefixLength, `고정${character.content}끝`.length)
+  assert.equal(turn.render().system, turn.system)
+  const compiled = compilePrompt({ cards: [{ name: '가' }], promptProfile: profile })
+  assert.equal(compiled.system, `고정${character.content}끝후속${turn.blocks.find((block) => block.kind === 'output_contract').content}`)
+})
+
+test('missing optional capsule removes its blank paragraph', async () => {
+  const profile = defaultPromptProfile()
+  profile.systemTemplate = '{{block:character}}\n\n{{block:world}}\n\n{{block:cast}}\n\n{{block:output_contract}}'
+  const turn = await buildTurn({ cards: [{ name: '가' }], promptProfile: profile })
+  const character = turn.blocks.find((block) => block.kind === 'character')
+  const contract = turn.blocks.find((block) => block.kind === 'output_contract')
+  assert.equal(turn.system, `${character.content}\n\n${contract.content}`)
+})
+
+test('the editor default capsule order keeps the existing system and message output', async () => {
+  const profile = defaultPromptProfile()
+  profile.systemTemplate = profile.blocks
+    .filter((block) => !['memory', 'scene_state', 'event', 'directive'].includes(block.kind))
+    .map((block) => `{{block:${block.kind}}}`)
+    .join('\n\n')
+  const original = await buildTurn(sample())
+  const composed = await buildTurn({ ...sample(), promptProfile: profile })
+  assert.equal(composed.system, original.system)
+  assert.deepEqual(composed.render().messages, original.render().messages)
+})
+
+test('system document rejects unknown, duplicate and malformed tags and preserves legacy shape', () => {
+  const invalid = [
+    '{{block:character}}{{block:character}}{{block:output_contract}}',
+    '{{block:unknown}}{{block:output_contract}}',
+    '{{block:character}}',
+    '{{unknown}}{{block:output_contract}}',
+    '{{block:character{{block:output_contract}}',
+    '{{block:output_contract}}}}',
+    `${'x'.repeat(80000)}{{block:output_contract}}`,
+  ]
+  for (const systemTemplate of invalid) {
+    const profile = defaultPromptProfile()
+    profile.systemTemplate = systemTemplate
+    assert.throws(() => validatePromptProfile(profile), /PromptProfile/)
+  }
+  const legacy = defaultPromptProfile()
+  const misplacedContract = defaultPromptProfile()
+  misplacedContract.systemTemplate = '{{block:output_contract}}'
+  rule(misplacedContract, 'output_contract').slot = 'post_history'
+  assert.throws(() => validatePromptProfile(misplacedContract), /시스템 위치/)
+  assert.equal(Object.hasOwn(validatePromptProfile(legacy), 'systemTemplate'), false)
+  assert.equal(Object.hasOwn(legacy, 'systemTemplate'), false)
 })

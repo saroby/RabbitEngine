@@ -7,6 +7,11 @@
 const DYNAMIC_KINDS = new Set(['worldbook', 'memory', 'scene_state', 'event', 'directive'])
 const isDynamicSystem = (kind) => DYNAMIC_KINDS.has(kind) || String(kind ?? '').startsWith('context_')
 
+/** Keep legacy block spacing while allowing exact inline system documents. */
+export function systemTextOf(blocks) {
+  return blocks.map((block, index) => `${index ? block.separatorBefore ?? '\n\n' : ''}${block.content}`).join('')
+}
+
 /**
  * 블록과 이력을 공급자에 넣을 { system, messages } 로 편다.
  * @param {Array<{ kind: string, slot: string | { depth: number }, content: string }>} [blocks]
@@ -19,13 +24,13 @@ export { NOTE_LABEL }
 
 export function renderTurn(blocks = [], messages = [], { userInput = null, midRole = 'user', userFirst = false, openingTurn = '*(이야기 시작)*', mergeSameRole = false } = {}) {
   const systemBlocks = blocks.filter((b) => b.slot === 'system')
-  const system = systemBlocks.map((b) => b.content).join('\n\n')
+  const system = systemTextOf(systemBlocks)
   // 접두는 첫 동적 블록 앞까지다. 블록 순서는 그대로 두고 길이만 정직하게 센다 —
   // system.length 를 접두라고 하면 로어북이 하나 발동한 턴에 캐시가 통째로 깨진다.
   const cut = systemBlocks.findIndex((b) => isDynamicSystem(b.kind))
   const prefixBlocks = cut < 0 ? systemBlocks : systemBlocks.slice(0, cut)
   // join 이므로 마지막 블록 뒤의 구분자(\n\n)는 접두에 들어가지 않는다.
-  const cachePrefixLength = prefixBlocks.map((b) => b.content).join('\n\n').length
+  const cachePrefixLength = systemTextOf(prefixBlocks).length
   const base = messages.map((m) => ({ role: m.role, text: m.text }))
   if (userFirst && base[0]?.role === 'assistant') base.unshift({ role: 'user', text: openingTurn })
   if (typeof userInput === 'string') base.push({ role: 'user', text: userInput })

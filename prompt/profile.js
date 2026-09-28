@@ -11,6 +11,37 @@ export const PROMPT_PROFILE_KINDS = Object.freeze([
 ])
 export const PROMPT_PROFILE_LIMITS = Object.freeze({ template: 20000, total: 80000, depth: 100 })
 
+/** Parse a system document without interpreting replacement text as template syntax. */
+export function parseSystemTemplate(template) {
+  if (typeof template !== 'string' || template.length > PROMPT_PROFILE_LIMITS.total) {
+    throw new Error('PromptProfile: 시스템 문구는 문자열이며 80000자 이하여야 합니다')
+  }
+  const parts = []
+  const seen = new Set()
+  const tokens = /\{\{([\s\S]*?)\}\}/g
+  let end = 0
+  for (const match of template.matchAll(tokens)) {
+    const plain = template.slice(end, match.index)
+    if (plain.includes('{{') || plain.includes('}}')) throw new Error('PromptProfile: 잘못된 시스템 태그입니다')
+    if (plain) parts.push({ type: 'text', value: plain })
+    const token = match[1].trim()
+    if (token === 'user' || token === 'char') parts.push({ type: 'name', value: token })
+    else {
+      const kind = /^block:([a-z_]+)$/.exec(token)?.[1]
+      if (!PROMPT_PROFILE_KINDS.includes(kind)) throw new Error(`PromptProfile: 알 수 없는 시스템 태그입니다 (${token})`)
+      if (seen.has(kind)) throw new Error(`PromptProfile: ${kind} 태그가 중복되었습니다`)
+      seen.add(kind)
+      parts.push({ type: 'block', value: kind })
+    }
+    end = match.index + match[0].length
+  }
+  const tail = template.slice(end)
+  if (tail.includes('{{') || tail.includes('}}')) throw new Error('PromptProfile: 잘못된 시스템 태그입니다')
+  if (tail) parts.push({ type: 'text', value: tail })
+  if (!seen.has('output_contract')) throw new Error('PromptProfile: 출력 규약 태그가 필요합니다')
+  return parts
+}
+
 /** Fresh values, so editing one profile cannot change another. @returns {PromptProfile} */
 export function defaultPromptProfile() {
   return {
@@ -32,7 +63,7 @@ function object(value, keys, label) {
  * @returns {PromptProfile}
  */
 export function validatePromptProfile(input) {
-  object(input, ['version', 'blocks'], '설정')
+  object(input, ['version', 'blocks', 'systemTemplate'], '설정')
   if (input.version !== 1) throw new Error('PromptProfile: 지원하는 version은 1입니다')
   if (!Array.isArray(input.blocks) || input.blocks.length !== PROMPT_PROFILE_KINDS.length) {
     throw new Error(`PromptProfile: ${PROMPT_PROFILE_KINDS.length}개 블록이 각각 한 번씩 필요합니다`)
@@ -64,6 +95,17 @@ export function validatePromptProfile(input) {
     }
     return { kind: block.kind, enabled: block.enabled, template: block.template, slot }
   })
+  if (Object.hasOwn(input, 'systemTemplate')) {
+    const systemTemplate = input.systemTemplate
+    if (total + (typeof systemTemplate === 'string' ? systemTemplate.length : 0) > PROMPT_PROFILE_LIMITS.total) {
+      throw new Error(`PromptProfile: 전체 문구는 ${PROMPT_PROFILE_LIMITS.total}자 이하여야 합니다`)
+    }
+    parseSystemTemplate(systemTemplate)
+    if (!['default', 'system'].includes(blocks.find((block) => block.kind === 'output_contract').slot)) {
+      throw new Error('PromptProfile: 출력 규약 태그는 시스템 위치여야 합니다')
+    }
+    return { version: 1, blocks, systemTemplate }
+  }
   return { version: 1, blocks }
 }
 
@@ -85,7 +127,7 @@ const renderTemplate = (template, content, names) => template.replace(
  * @param {{char:string,user:string}} names
  */
 export function applyPromptProfile(blocks, profile, names) {
-  return profile.blocks.flatMap((rule) => {
+  const applied = profile.blocks.flatMap((rule) => {
     if (!rule.enabled) return []
     let sources = blocks.filter((block) => (block.kind.startsWith('context_') ? 'context' : block.kind) === rule.kind)
     if (!sources.length && ['instruction', 'pacing'].includes(rule.kind)
@@ -98,4 +140,25 @@ export function applyPromptProfile(blocks, profile, names) {
       content: renderTemplate(rule.template, block.content, names),
     }))
   })
+  if (profile.systemTemplate === undefined) return applied
+  const parts = parseSystemTemplate(profile.systemTemplate)
+  // A missing optional source removes its own blank paragraph, not its neighbors.
+  for (const [index, part] of parts.entries()) {
+    if (part.type !== 'block' || applied.some((block) => block.slot === 'system'
+      && (block.kind.startsWith('context_') ? 'context' : block.kind) === part.value)) continue
+    const before = parts[index - 1]?.type === 'text' ? parts[index - 1] : null
+    const after = parts[index + 1]?.type === 'text' ? parts[index + 1] : null
+    if (after?.value.startsWith('\n\n') && (!before?.value || before.value.endsWith('\n\n'))) after.value = after.value.slice(2)
+    else if (!after && before?.value.endsWith('\n\n')) before.value = before.value.slice(0, -2)
+  }
+  const system = parts.flatMap((part) => {
+    if (part.type === 'block') {
+      return applied.filter((block) => block.slot === 'system'
+        && (block.kind.startsWith('context_') ? 'context' : block.kind) === part.value)
+        .map((block, index) => ({ ...block, separatorBefore: index === 0 ? '' : '\n\n' }))
+    }
+    const content = part.type === 'name' ? names[part.value] : part.value
+    return content ? [{ kind: 'profile_text', role: 'system', slot: 'system', trust: 'curated', content, separatorBefore: '' }] : []
+  })
+  return [...system, ...applied.filter((block) => block.slot !== 'system')]
 }

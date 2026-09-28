@@ -74,3 +74,29 @@
 ## Results
 - Staged 18 prompt-profile editor, integration, test, and task-record files; generated `dist-types/` remains ignored by the repository policy.
 - `git diff --cached --check`, `npm run types`, and `npm test` passed; the suite reports 268 tests passed, 0 failed.
+
+# System prompt capsule composer
+
+## Acceptance criteria
+- [x] Edit the system prompt as one multiline document with insertable, visibly distinct, draggable block capsules and free text.
+- [x] The preview and `buildTurn` use that document to produce the actual system prompt; message-position blocks remain separate.
+- [x] Existing saved v1 profiles still compile as before; save, revert, import, and export preserve the new document.
+- [x] Unknown, repeated, or missing required block capsules fail validation before host LLM work.
+
+## Plan
+- [x] Add an optional system document to the profile contract and compile it into literal and source blocks.
+- [x] Replace the system block list UI with a multiline capsule composer, drag/drop and keyboard movement, and retain controls for message-position blocks.
+- [x] Update types/docs, add focused compiler tests, and check editor interactions in a browser.
+- [x] Run typecheck, tests, and a browser flow for inserting, moving, saving, and reverting capsules.
+
+## Working notes
+- A native `<textarea>` cannot style an inline capsule. Use a multiline editable textbox with noneditable capsule nodes and a plain string wire format.
+- Keep source blocks separate in the compiled output so the system cache prefix still stops before dynamic content.
+- The saved v1 contract remains valid when the optional document is absent; it is created only when the new composer changes.
+- Keep a caret stop after each noneditable capsule. Reorder capsule nodes among existing text slots so moving them does not consume paragraph separators.
+
+## Results
+- The optional `systemTemplate` compiles inline text, names, and system block capsules into the same `system` that `buildTurn` and the preview return. Legacy profiles without it retain the previous output and hash.
+- The editor inserts capsules at the caret, supports pointer drag and Alt+arrow reordering, and allows direct typing after inserted or moved capsules. Browser save and revert preserved the document in the standalone profile flow.
+- Snack browser verified capsule insertion, free text, preview, save, revert, and a clean console. A Chrome pointer drag verified block order and paragraph spacing; clicking or typing after the moved capsule updated the system preview at that position. The Snack editor is left open in kept tab 19.
+- `npm test` passed (273/273), `npm run types` passed, and `git diff --check` passed.

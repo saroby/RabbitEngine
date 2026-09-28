@@ -1,7 +1,7 @@
 import { buildTurn } from '../build-turn.js'
 import { asteriskScript } from '../dialect/asterisk-script.js'
 import { emptySceneState } from '../scene/state.js'
-import { defaultPromptProfile, validatePromptProfile, PROMPT_PROFILE_LIMITS } from '../prompt/profile.js'
+import { defaultPromptProfile, validatePromptProfile, parseSystemTemplate, PROMPT_PROFILE_LIMITS } from '../prompt/profile.js'
 
 const LABELS = {
   instruction: '공통 지시문', world: '세계관', rating: '콘텐츠 등급', pacing: '진행 속도',
@@ -9,12 +9,27 @@ const LABELS = {
   worldbook: '로어북', user_boundary: '사용자 역할 경계', output_contract: '출력 규약',
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
 }
+const DEFAULT_MESSAGE_KINDS = new Set(['memory', 'scene_state', 'event', 'directive'])
+
+const defaultSystemTemplate = (blocks) => blocks
+  .filter((block) => block.enabled && (block.kind === 'output_contract'
+    || block.slot === 'system' || (block.slot === 'default' && !DEFAULT_MESSAGE_KINDS.has(block.kind))))
+  .map((block) => `{{block:${block.kind}}}`)
+  .join('\n\n')
 
 const STYLE = `
 .rabbit-prompt-editor{color:#18212b;font:14px/1.55 system-ui,sans-serif;--rabbit-border:#d4dce4;--rabbit-muted:#526171;max-width:100%}
 .rabbit-prompt-editor *{box-sizing:border-box}.rabbit-prompt-editor [hidden]{display:none!important}.rabbit-prompt-editor h2,.rabbit-prompt-editor h3{margin:0 0 12px}
 .rabbit-prompt-editor p{margin:8px 0}.rabbit-prompt-editor .rpe-help{color:var(--rabbit-muted)}
 .rabbit-prompt-editor .rpe-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.rabbit-prompt-editor .rpe-composer-pane{min-width:0}
+.rabbit-prompt-editor .rpe-tags{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.rabbit-prompt-editor .rpe-composer{min-height:340px;max-height:65vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace;border:1px solid #8795a4;border-radius:7px;padding:14px;background:#fff;outline:none}
+.rabbit-prompt-editor .rpe-composer.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
+.rabbit-prompt-editor .rpe-chip{display:inline-block;vertical-align:baseline;white-space:nowrap;border:1px solid #a9c4ed;border-radius:999px;padding:0 7px;background:#eaf2ff;color:#164c9e;font:12px/1.7 system-ui,sans-serif;user-select:all;cursor:grab}
+.rabbit-prompt-editor .rpe-chip:active{cursor:grabbing}
+.rabbit-prompt-editor .rpe-tags button{border-radius:999px;background:#eaf2ff;border-color:#a9c4ed;color:#164c9e}
+.rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
 .rabbit-prompt-editor .rpe-block{border:1px solid var(--rabbit-border);border-radius:8px;margin:10px 0;background:#fff;overflow:hidden}
 .rabbit-prompt-editor summary{cursor:pointer;font-weight:600;padding:12px;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-block-body{padding:0 12px 12px}.rabbit-prompt-editor label{display:grid;gap:4px;margin:10px 0;font-weight:500}
@@ -70,6 +85,8 @@ export function mountPromptEditor(container, options) {
   let input = options.input ?? promptEditorSampleInput()
   let destroyed = false
   let dragIndex = null
+  let draggedChip
+  let composerRange
   let previewRevision = 0
   let previewTimer
   const doc = container.ownerDocument
@@ -93,15 +110,32 @@ export function mountPromptEditor(container, options) {
     return label
   }
   root.append(node('style', STYLE))
-  root.append(node('p', '{{content}}는 엔진이 만든 원문, {{char}}는 첫 캐릭터 이름, {{user}}는 사용자 이름입니다. 문구를 바꾸고, 손잡이(⠿)를 드래그하거나 화살표 키로 순서를, 삽입 위치를 선택하세요.', 'rpe-help'))
+  root.append(node('p', '시스템 프롬프트에 문장을 쓰고 태그를 커서 위치에 넣으세요. 캡슐은 드래그하거나 Alt+←/→로 옮기고 Backspace/Delete로 지울 수 있습니다.', 'rpe-help'))
   const status = node('p')
   status.setAttribute('role', 'status')
   const errors = node('p', '', 'rpe-error')
   errors.setAttribute('role', 'alert')
   root.append(status, errors)
   const layout = node('div', undefined, 'rpe-layout')
+  const composerPane = node('section', undefined, 'rpe-composer-pane')
+  composerPane.setAttribute('aria-label', '시스템 프롬프트 편집')
+  composerPane.append(node('h2', '시스템 프롬프트'))
+  composerPane.append(node('p', '직접 쓴 문장과 태그가 표시된 순서대로 조립됩니다. 출력 규약 태그는 반드시 한 번 포함해야 합니다.', 'rpe-help'))
+  const tagPalette = node('div', undefined, 'rpe-tags')
+  tagPalette.setAttribute('aria-label', '태그 삽입')
+  const composer = node('div', undefined, 'rpe-composer')
+  composer.contentEditable = 'true'
+  composer.spellcheck = false
+  composer.setAttribute('role', 'textbox')
+  composer.setAttribute('aria-label', '시스템 프롬프트 조립 문서')
+  composer.setAttribute('aria-multiline', 'true')
+  const advanced = node('details', undefined, 'rpe-advanced')
+  advanced.append(node('summary', '태그별 문구와 대화 삽입 위치'))
+  advanced.append(node('p', '{{content}}는 해당 태그의 엔진 원문입니다. 시스템 순서는 위 캡슐로, 대화 위치의 블록 순서는 여기 손잡이로 바꿉니다.', 'rpe-help'))
   const blockList = node('section')
-  blockList.setAttribute('aria-label', '프롬프트 블록 편집')
+  blockList.setAttribute('aria-label', '태그별 세부 설정')
+  advanced.append(blockList)
+  composerPane.append(tagPalette, composer, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
   preview.append(node('h2', '실제 조립 결과'))
@@ -143,11 +177,228 @@ export function mountPromptEditor(container, options) {
   const originalText = node('pre')
   originals.append(originalText)
   preview.append(inputDetails, previewStatus, result, originals)
-  layout.append(blockList, preview)
+  layout.append(composerPane, preview)
   root.append(layout)
   container.append(root)
 
+  const tokenText = (token) => token.startsWith('{{block:')
+    ? LABELS[token.slice(8, -2)]
+    : token === '{{user}}' ? '사용자 이름' : '캐릭터 이름'
+  const chip = (token) => {
+    const result = node('span', tokenText(token), 'rpe-chip')
+    result.contentEditable = 'false'
+    result.dataset.token = token
+    result.draggable = true
+    result.tabIndex = 0
+    result.title = `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, Backspace/Delete로 제거`
+    result.addEventListener('dragstart', (event) => {
+      draggedChip = result
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', token)
+    })
+    result.addEventListener('dragend', () => {
+      draggedChip = undefined
+      composer.classList.remove('rpe-drag-over')
+    })
+    result.addEventListener('keydown', (event) => {
+      if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault()
+        const capsules = [...composer.querySelectorAll('.rpe-chip')]
+        const index = capsules.indexOf(result)
+        const neighbor = capsules[index + (event.key === 'ArrowLeft' ? -1 : 1)]
+        if (neighbor) {
+          reorderChip(result, neighbor, event.key === 'ArrowRight')
+          result.focus()
+        }
+      } else if (['Backspace', 'Delete'].includes(event.key)) {
+        event.preventDefault()
+        result.remove()
+        composerChanged()
+        composer.focus()
+      }
+    })
+    return result
+  }
+  const caretStop = () => doc.createTextNode('\u200b')
+  const ensureCaretStop = (capsule) => {
+    const next = capsule.nextSibling
+    if (next?.nodeType === 3) {
+      if (!next.nodeValue.startsWith('\u200b')) next.nodeValue = `\u200b${next.nodeValue}`
+      return next
+    }
+    const stop = caretStop()
+    capsule.after(stop)
+    return stop
+  }
+  const caretAfter = (capsule) => {
+    const stop = ensureCaretStop(capsule)
+    const range = doc.createRange()
+    range.setStart(stop, 1)
+    range.collapse(true)
+    composer.focus()
+    const selection = doc.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    composerRange = range.cloneRange()
+  }
+  const readComposer = (element = composer) => {
+    let text = ''
+    for (const child of element.childNodes) {
+      if (child.nodeType === 3) text += child.nodeValue
+      else if (child.dataset?.token) text += child.dataset.token
+      else if (child.nodeName === 'BR') text += '\n'
+      else {
+        if (['DIV', 'P'].includes(child.nodeName) && text && !text.endsWith('\n')) text += '\n'
+        text += readComposer(child)
+      }
+    }
+    return text.replaceAll('\u200b', '')
+  }
+  const tagButtons = new Map()
+  const refreshTagButtons = () => {
+    const documentText = value.systemTemplate ?? defaultSystemTemplate(value.blocks)
+    for (const [token, control] of tagButtons) {
+      control.disabled = token.startsWith('{{block:') && documentText.includes(token)
+    }
+  }
+  const renderComposer = () => {
+    const documentText = value.systemTemplate ?? defaultSystemTemplate(value.blocks)
+    const parts = parseSystemTemplate(documentText)
+    const children = [caretStop()]
+    for (const part of parts) {
+      if (part.type === 'text') children.push(doc.createTextNode(part.value))
+      else {
+        children.push(chip(part.type === 'block' ? `{{block:${part.value}}}` : `{{${part.value}}}`))
+        children.push(caretStop())
+      }
+    }
+    composer.replaceChildren(...children)
+    composerRange = undefined
+    draggedChip = undefined
+    refreshTagButtons()
+  }
+  const selectionInsideComposer = (range) => range && composer.contains(range.commonAncestorContainer)
+  const rememberRange = () => {
+    const selection = doc.getSelection()
+    if (selection?.rangeCount && selectionInsideComposer(selection.getRangeAt(0))) composerRange = selection.getRangeAt(0).cloneRange()
+  }
+  doc.addEventListener('selectionchange', rememberRange)
+  const insertAtCaret = (inserted) => {
+    const selection = doc.getSelection()
+    const current = selection?.rangeCount ? selection.getRangeAt(0) : null
+    const range = selectionInsideComposer(current) ? current.cloneRange()
+      : selectionInsideComposer(composerRange) ? composerRange.cloneRange()
+        : doc.createRange()
+    if (!selectionInsideComposer(range)) range.selectNodeContents(composer)
+    if (!selectionInsideComposer(current) && !selectionInsideComposer(composerRange)) range.collapse(false)
+    range.deleteContents()
+    range.insertNode(inserted)
+    if (inserted.nodeType === 1 && inserted.classList.contains('rpe-chip')) {
+      const stop = ensureCaretStop(inserted)
+      range.setStart(stop, 1)
+    } else range.setStartAfter(inserted)
+    range.collapse(true)
+    composer.focus()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    composerRange = range.cloneRange()
+  }
+  const composerChanged = () => {
+    const firstDocument = value.systemTemplate === undefined
+    value.systemTemplate = readComposer()
+    refreshTagButtons()
+    if (firstDocument) renderBlocks()
+    changed()
+  }
+  const reorderChip = (moving, target, after) => {
+    const capsules = [...composer.querySelectorAll('.rpe-chip')]
+    const from = capsules.indexOf(moving)
+    const destination = capsules.indexOf(target) + (after ? 1 : 0)
+    if (destination === from || destination === from + 1) return
+    const slots = capsules.map(() => doc.createComment('capsule-slot'))
+    capsules.forEach((capsule, index) => capsule.replaceWith(slots[index]))
+    capsules.splice(from, 1)
+    capsules.splice(destination > from ? destination - 1 : destination, 0, moving)
+    slots.forEach((slot, index) => slot.replaceWith(capsules[index]))
+    caretAfter(moving)
+    composerChanged()
+  }
+  composer.addEventListener('input', composerChanged)
+  composer.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.isComposing) return
+    event.preventDefault()
+    insertAtCaret(doc.createTextNode('\n'))
+    composerChanged()
+  })
+  composer.addEventListener('paste', (event) => {
+    event.preventDefault()
+    insertAtCaret(doc.createTextNode(event.clipboardData.getData('text/plain')))
+    composerChanged()
+  })
+  composer.addEventListener('dragover', (event) => {
+    if (!draggedChip || !composer.contains(draggedChip)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    composer.classList.add('rpe-drag-over')
+  })
+  composer.addEventListener('dragleave', (event) => {
+    if (!composer.contains(event.relatedTarget)) composer.classList.remove('rpe-drag-over')
+  })
+  composer.addEventListener('drop', (event) => {
+    event.preventDefault()
+    composer.classList.remove('rpe-drag-over')
+    const moving = draggedChip
+    draggedChip = undefined
+    if (!moving || !composer.contains(moving)) return
+    const target = event.target.nodeType === 1 ? event.target.closest('.rpe-chip') : event.target.parentElement?.closest('.rpe-chip')
+    if (target === moving) return
+    if (target && composer.contains(target)) {
+      reorderChip(moving, target, event.clientX >= target.getBoundingClientRect().left + target.getBoundingClientRect().width / 2)
+      return
+    }
+    const range = doc.createRange()
+    const atPoint = doc.caretRangeFromPoint?.(event.clientX, event.clientY)
+    if (!selectionInsideComposer(atPoint)) return
+    range.setStart(atPoint.startContainer, atPoint.startOffset)
+    range.collapse(true)
+    const marker = doc.createComment('capsule-drop')
+    range.insertNode(marker)
+    moving.remove()
+    marker.replaceWith(moving)
+    caretAfter(moving)
+    composerChanged()
+  })
+  for (const kind of value.blocks.map((block) => block.kind)) {
+    const token = `{{block:${kind}}}`
+    const control = button(`+ ${LABELS[kind]}`, () => {
+      if ((value.systemTemplate ?? defaultSystemTemplate(value.blocks)).includes(token)) return
+      const rule = value.blocks.find((block) => block.kind === kind)
+      rule.enabled = true
+      if (rule.slot === 'post_history' || typeof rule.slot === 'object' || (rule.slot === 'default' && DEFAULT_MESSAGE_KINDS.has(kind))) rule.slot = 'system'
+      const selection = doc.getSelection()
+      const activeRange = selection?.rangeCount ? selection.getRangeAt(0) : null
+      if (!selectionInsideComposer(activeRange) && !selectionInsideComposer(composerRange)
+        && readComposer() && !readComposer().endsWith('\n\n')) insertAtCaret(doc.createTextNode('\n\n'))
+      insertAtCaret(chip(token))
+      renderBlocks()
+      composerChanged()
+    })
+    control.setAttribute('aria-label', `${LABELS[kind]} 태그를 커서 위치에 삽입`)
+    control.addEventListener('mousedown', (event) => event.preventDefault())
+    tagButtons.set(token, control)
+    tagPalette.append(control)
+  }
+  for (const [name, label] of [['char', '캐릭터 이름'], ['user', '사용자 이름']]) {
+    const token = `{{${name}}}`
+    const control = button(`+ ${label}`, () => { insertAtCaret(chip(token)); composerChanged() })
+    control.setAttribute('aria-label', `${label} 태그를 커서 위치에 삽입`)
+    control.addEventListener('mousedown', (event) => event.preventDefault())
+    tagButtons.set(token, control)
+    tagPalette.append(control)
+  }
+
   function changed() {
+    if (value.systemTemplate === undefined) renderComposer()
     try {
       const valid = validatePromptProfile(value)
       errors.textContent = ''
@@ -199,6 +450,9 @@ export function mountPromptEditor(container, options) {
       // 마우스는 드래그, 키보드는 이 손잡이에 초점을 두고 화살표로 인접 위치와 맞바꾼다 —
       // 버튼을 없애도 키보드·스크린리더 사용자가 순서를 바꿀 방법이 남아야 한다.
       const handle = node('span', '⠿', 'rpe-handle')
+      handle.hidden = value.systemTemplate !== undefined
+        && !(block.slot === 'post_history' || typeof block.slot === 'object'
+          || (block.slot === 'default' && DEFAULT_MESSAGE_KINDS.has(block.kind)))
       handle.setAttribute('role', 'button')
       handle.tabIndex = 0
       handle.draggable = true
@@ -304,6 +558,7 @@ export function mountPromptEditor(container, options) {
   }
 
   renderBlocks()
+  renderComposer()
   schedulePreview()
   return {
     setValue(next) {
@@ -312,12 +567,14 @@ export function mountPromptEditor(container, options) {
       status.textContent = ''
       options.onValidityChange?.(true)
       renderBlocks()
+      renderComposer()
       schedulePreview()
     },
     destroy() {
       destroyed = true
       previewRevision += 1
       clearTimeout(previewTimer)
+      doc.removeEventListener('selectionchange', rememberRange)
       root.remove()
     },
   }

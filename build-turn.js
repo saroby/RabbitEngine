@@ -9,7 +9,7 @@ import { selectMemory } from './memory/index.js'
 import { selectContext } from './memory/legacy-strategies.js'
 import { compileBlocks } from './prompt/blocks.js'
 import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
-import { renderTurn } from './prompt/render.js'
+import { renderTurn, systemTextOf } from './prompt/render.js'
 import { isReal } from './memory/projection.js'
 import { presetOf } from './memory/presets.js'
 import { boundedSize } from './memory/assemble.js'
@@ -172,7 +172,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     .join('\n\n') || null
 
   return {
-    system: systemBlocks.map((block) => block.content).join('\n\n'),
+    system: systemTextOf(systemBlocks),
     blocks: compiled.blocks,
     messages: visibleMessages,
     directive: compiled.blocks.filter((block) => block.kind === 'directive').map((block) => block.content).join('\n\n'),
