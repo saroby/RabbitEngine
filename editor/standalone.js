@@ -4,7 +4,8 @@ const KEY = 'rabbit-engine.prompt-profiles.v1'
 // 호스트가 관리하는 커스텀 블록 목록의 예시. 독립 페이지에서는 고칠 수 없고 미리보기에만 쓴다.
 const SAMPLE_CUSTOM_BLOCKS = Object.freeze([
   { id: 'common-rules', name: '공통 규칙', content: '{{char}}의 말투와 성격을 끝까지 유지한다. {{user}}의 행동을 대신 정하지 않는다.' },
-  { id: 'style-example', name: '문체 예시 (모델)', content: '*유리가 조용히 책장을 넘긴다.*\n유리: "그 이야기는 조금 뒤에 해도 될까요?"' },
+  { id: 'style-example', name: '문체 예시 (모델)', defaultRole: 'assistant', content: '*유리가 조용히 책장을 넘긴다.*\n유리: "그 이야기는 조금 뒤에 해도 될까요?"' },
+  { id: 'example-pair', name: '대화 예시 한 쌍', messages: [{ role: 'user', content: '테스트 요청: 짧게 답해 줘.' }, { role: 'assistant', content: '테스트 응답: 알겠습니다.' }] },
 ])
 const byId = (id) => document.getElementById(id)
 const message = byId('message')

@@ -94,8 +94,30 @@ test('프로필 검증은 커스텀 블록 형식·중복·개수와 엔진 블�
 })
 
 test('customBlocks 라이브러리 입력을 검증한다', () => {
-  assert.deepEqual([...validateCustomBlocks([{ id: 'a', content: '문구' }])], [['a', '문구']])
+  assert.deepEqual([...validateCustomBlocks([{ id: 'a', content: '문구' }])], [['a', { content: '문구' }]])
+  assert.deepEqual([...validateCustomBlocks([{ id: 'p', messages: [{ role: 'user', content: '질문' }, { role: 'assistant', content: '답' }] }])],
+    [['p', { messages: [{ role: 'user', content: '질문' }, { role: 'assistant', content: '답' }] }]])
+  assert.throws(() => validateCustomBlocks([{ id: 'p', content: 'x', messages: [{ role: 'user', content: 'y' }] }]), /하나만/)
+  assert.throws(() => validateCustomBlocks([{ id: 'p', messages: [{ role: 'system', content: 'y' }] }]), /user·assistant/)
+  assert.throws(() => validateCustomBlocks([{ id: 'p', messages: [] }]), /1~20개/)
   assert.throws(() => validateCustomBlocks([{ id: 'a', content: 'x' }, { id: 'a', content: 'y' }]), /중복/)
   assert.throws(() => validateCustomBlocks([{ id: 'a', content: 'x'.repeat(20001) }]), /20000자/)
   assert.throws(() => validateCustomBlocks({}), /배열/)
+})
+
+test('대화 블록은 메시지를 역할 그대로 대화 중간에 넣고, 시스템·마지막 메모 자리는 거부한다', async () => {
+  const library = [{ id: 'pair', messages: [{ role: 'user', content: '{{char}}에게 묻는 예시' }, { role: 'assistant', content: '예시 답변' }] }]
+  const profile = defaultPromptProfile()
+  profile.blocks.push({ kind: 'custom', id: 'pair', enabled: true, role: 'system', slot: { depth: 0 } })
+  const turn = await buildTurn({ ...sample(), promptProfile: profile, customBlocks: library })
+  const messages = turn.render().messages
+  const ask = messages.findIndex((message) => message.text === '유리에게 묻는 예시')
+  assert.ok(ask > 0)
+  assert.deepEqual(messages.slice(ask, ask + 2), [{ role: 'user', text: '유리에게 묻는 예시' }, { role: 'assistant', text: '예시 답변' }])
+  assert.equal(messages.at(-1).role, 'user', '이번 입력이 마지막이다')
+  for (const slot of ['system', 'post_history']) {
+    const placed = defaultPromptProfile()
+    placed.blocks.push({ kind: 'custom', id: 'pair', enabled: true, role: 'system', slot })
+    await assert.rejects(buildTurn({ ...sample(), promptProfile: placed, customBlocks: library }), /대화 중간\(depth\)에만/)
+  }
 })

@@ -109,13 +109,17 @@ export function promptEditorSampleInput() {
  * @param {(value:import('../types.js').PromptProfile)=>void} options.onChange
  * @param {(valid:boolean)=>void} [options.onValidityChange]
  * @param {import('../types.js').TurnInput} [options.input] Initial preview material; defaults to local sample.
- * @param {Array<{id:string,name:string,content:string}>} [options.customBlocks] Host custom block library shown as tags and used for preview.
+ * @param {Array<{id:string,name:string,content?:string,messages?:Array<{role:'user'|'assistant',content:string}>,defaultRole?:'system'|'user'|'assistant'}>} [options.customBlocks] Host custom block library shown as tags and used for preview. Text blocks have content; message blocks have messages and live only in the conversation. defaultRole user/assistant sends a text block into the conversation with that role.
  * @returns {{setValue:(value:import('../types.js').PromptProfile)=>void,setCustomBlocks:(blocks:Array<{id:string,name:string,content:string}>)=>void,destroy:()=>void}}
  */
 export function mountPromptEditor(container, options) {
   let value = validatePromptProfile(options.value)
   let input = options.input ?? promptEditorSampleInput()
   let library = options.customBlocks ?? []
+  const sourceOf = (key) => (isCustomKey(key) ? library.find((block) => block.id === key.slice(7)) : undefined)
+  // 대화 블록(역할이 정해진 메시지 묶음)과 기본 역할이 사용자·모델인 블록은 시스템 프롬프트가 아니라 대화 안이 제자리다.
+  const isMessageBlock = (key) => Array.isArray(sourceOf(key)?.messages)
+  const belongsInConversation = (key) => isMessageBlock(key) || ['user', 'assistant'].includes(sourceOf(key)?.defaultRole)
   const labelOf = (key) => {
     if (!isCustomKey(key)) return LABELS[key]
     const id = key.slice(7)
@@ -410,8 +414,14 @@ export function mountPromptEditor(container, options) {
     let rule = ruleOf(kind)
     if (!rule && isCustomKey(kind)) {
       if (target === 'off') return
-      rule = { kind: 'custom', id: kind.slice(7), enabled: false, role: 'system', slot: 'system' }
+      const defaultRole = sourceOf(kind)?.defaultRole
+      rule = { kind: 'custom', id: kind.slice(7), enabled: false, role: ['user', 'assistant'].includes(defaultRole) ? defaultRole : 'system', slot: 'system' }
       value.blocks.push(rule)
+    }
+    if (isMessageBlock(kind) && target === 'system') {
+      errors.textContent = `${labelOf(kind)}은(는) 역할이 정해진 대화 블록이라 대화 안에만 둘 수 있습니다.`
+      if (!rule.enabled) value.blocks.splice(value.blocks.indexOf(rule), 1)
+      return
     }
     if (kind === 'output_contract' && target !== 'system') {
       errors.textContent = '출력 규약은 응답 파서와 맞물려 있어 시스템 프롬프트에만 둘 수 있습니다.'
@@ -445,10 +455,10 @@ export function mountPromptEditor(container, options) {
           const index = value.blocks.indexOf(ruleOf(anchor))
           value.blocks.splice(where.after ? index + 1 : index, 0, moving)
         } else if (isSystemRule(rule)) {
-          rule.slot = PROMPT_MESSAGE_KINDS.includes(kind) ? 'default' : 'post_history'
+          rule.slot = PROMPT_MESSAGE_KINDS.includes(kind) ? 'default' : belongsInConversation(kind) ? { depth: 0 } : 'post_history'
         }
-        // assistant 는 마지막 사용자 메시지 뒤(프리필 자리)에 둘 수 없다. 바로 앞자리로 옮긴다.
-        if (rule.role === 'assistant' && rule.slot === 'post_history') rule.slot = { depth: 0 }
+        // assistant·대화 블록은 마지막 사용자 메시지 뒤(프리필·메모 자리)에 둘 수 없다. 바로 앞자리로 옮긴다.
+        if ((rule.role === 'assistant' || isMessageBlock(kind)) && rule.slot === 'post_history') rule.slot = { depth: 0 }
       }
     }
     composerChanged()
@@ -573,7 +583,8 @@ export function mountPromptEditor(container, options) {
     const keys = [...value.blocks.filter((block) => block.kind !== 'custom').map((block) => block.kind), ...library.map((block) => `custom:${block.id}`)]
     for (const kind of keys) {
       const token = `{{block:${kind}}}`
-      const control = button(`+ ${labelOf(kind)}`, () => placeBlock(kind, 'system'))
+      // 대화용 블록은 누르면 대화 안(마지막 사용자 메시지 바로 앞)에 들어간다. 나머지는 시스템 프롬프트 커서 위치다.
+      const control = button(`+ ${labelOf(kind)}`, () => placeBlock(kind, belongsInConversation(kind) ? 'conversation' : 'system'))
       if (isCustomKey(kind)) control.dataset.custom = 'true'
       control.setAttribute('aria-label', `${isCustomKey(kind) ? '커스텀 블록 ' : ''}${labelOf(kind)} 태그를 커서 위치에 삽입`)
       control.title = '누르면 시스템 프롬프트 커서 위치에, 끌면 놓은 자리(시스템 프롬프트 또는 대화 안)에 넣습니다.'
@@ -639,6 +650,7 @@ export function mountPromptEditor(container, options) {
       value.systemTemplate = text.replace(new RegExp(`\\{\\{\\s*block:${key}\\s*\\}\\}`), `{{block:${next}}}`)
     }
     rule.id = id
+    if (isMessageBlock(next) && rule.slot === 'post_history') rule.slot = { depth: 0 }
     renderComposer()
     renderBlocks()
     changed()
@@ -649,7 +661,9 @@ export function mountPromptEditor(container, options) {
     const key = profileKeyOf(rule)
     const select = node('select')
     select.setAttribute('aria-label', `${labelOf(key)} 다른 커스텀 블록으로 교체`)
-    const choices = library.filter((block) => block.id === rule.id || !ruleOf(`custom:${block.id}`))
+    const inSystem = zoneOf(rule) === 'system'
+    const choices = library.filter((block) => block.id === rule.id
+      || (!ruleOf(`custom:${block.id}`) && !(inSystem && Array.isArray(block.messages))))
     if (!choices.some((block) => block.id === rule.id)) choices.unshift({ id: rule.id, name: labelOf(key) })
     for (const block of choices) {
       const option = node('option', block.name)
@@ -714,7 +728,7 @@ export function mountPromptEditor(container, options) {
       })
       const where = node('select')
       const choices = [['depth', '대화 중간']]
-      if (rule.role !== 'assistant') choices.push(['post_history', '마지막 사용자 메시지 뒤'])
+      if (rule.role !== 'assistant' && !isMessageBlock(key)) choices.push(['post_history', '마지막 사용자 메시지 뒤'])
       if (PROMPT_MESSAGE_KINDS.includes(rule.kind)) choices.unshift(['default', `엔진 기본 · ${positionText(positionOf({ kind: rule.kind, slot: 'default' }))}`])
       for (const [key, text] of choices) {
         const option = node('option', text)
@@ -743,7 +757,9 @@ export function mountPromptEditor(container, options) {
       })
       item.append(handle, node('span', label, 'rpe-item-name'))
       // 커스텀 블록만 역할을 고른다. 모델 메시지(assistant)는 대화 중간에만 둔다(프리필 금지).
-      if (rule.kind === 'custom') {
+      if (isMessageBlock(key)) {
+        item.append(node('span', `대화 블록 · 메시지 ${sourceOf(key).messages.length}개`, 'rpe-help'), field('교체', swapSelect(rule)))
+      } else if (rule.kind === 'custom') {
         const role = node('select')
         for (const [key, text] of Object.entries(ROLE_LABELS)) {
           const option = node('option', text)
@@ -761,9 +777,9 @@ export function mountPromptEditor(container, options) {
         })
         item.append(role, field('교체', swapSelect(rule)))
       }
-      item.append(where, depthField,
-        button('시스템으로', () => placeBlock(key, 'system')),
-        button('삭제', () => placeBlock(key, 'off')))
+      item.append(where, depthField)
+      if (!isMessageBlock(key)) item.append(button('시스템으로', () => placeBlock(key, 'system')))
+      item.append(button('삭제', () => placeBlock(key, 'off')))
       list.append(item)
     })
   }
@@ -783,7 +799,9 @@ export function mountPromptEditor(container, options) {
       if (block.kind === 'custom') {
         const source = library.find((item) => item.id === block.id)
         body.append(node('p', source ? '커스텀 블록 문구는 이 설정이 아니라 커스텀 블록 목록에서 고칩니다. 고치면 이 블록을 쓰는 모든 설정에 반영됩니다.' : '커스텀 블록 목록에 이 블록이 없습니다. 삭제하거나 목록에 다시 만들어야 저장한 설정을 적용할 수 있습니다.', 'rpe-help'))
-        if (source) body.append(node('pre', source.content))
+        if (source) body.append(node('pre', Array.isArray(source.messages)
+          ? source.messages.map((message) => `[${message.role}] ${message.content}`).join('\n\n')
+          : source.content))
         details.append(body)
         blockList.append(details)
         continue
@@ -833,7 +851,7 @@ export function mountPromptEditor(container, options) {
         // Preview never receives host LLM capabilities. Presets needing those fail visibly.
         const base = { ...input, dialect: input.dialect ?? dialect ?? asteriskScript }
         const [current, original] = await Promise.all([
-          buildTurn({ ...base, promptProfile: valid, customBlocks: library.map(({ id, content }) => ({ id, content })) }),
+          buildTurn({ ...base, promptProfile: valid, customBlocks: library.map(({ id, content, messages }) => (Array.isArray(messages) ? { id, messages } : { id, content })) }),
           buildTurn({ ...base, promptProfile: undefined }),
         ])
         if (destroyed || revision !== previewRevision) return

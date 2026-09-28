@@ -46,9 +46,15 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
     // 방어선이다. 음수·비정수를 조용히 버리면 anchor 뒤로 삽입되거나 위치가 뒤틀린다.
     if (!Number.isInteger(depth) || depth < 0) throw new Error(`renderTurn: depth 는 0 이상의 정수여야 합니다 (${depth})`)
     if (!byDepth.has(depth)) byDepth.set(depth, [])
-    const role = b.kind === 'custom' && (b.role === 'user' || b.role === 'assistant') ? b.role : midRole
     const group = byDepth.get(depth)
-    if (group.at(-1)?.role === role) group.at(-1).text += `\n\n${b.content}`
+    // 대화 블록은 자기 메시지들을 역할 그대로 순서대로 넣고, 앞뒤 블록과 합치지 않는다 — 합치면 예시 대화의 턴 경계가 사라진다.
+    if (b.kind === 'custom' && Array.isArray(b.messages)) {
+      for (const message of b.messages) group.push({ role: message.role, text: message.content, sealed: true })
+      continue
+    }
+    const role = b.kind === 'custom' && (b.role === 'user' || b.role === 'assistant') ? b.role : midRole
+    const last = group.at(-1)
+    if (last && !last.sealed && last.role === role) last.text += `\n\n${b.content}`
     else group.push({ role, text: b.content })
   }
   const out = base.slice()
@@ -61,7 +67,7 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
   for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
     const raw = anchor - depth
     const index = Math.max(floor, raw)
-    const group = byDepth.get(depth)
+    const group = byDepth.get(depth).map(({ role, text }) => ({ role, text }))
     out.splice(index, 0, ...group)
     for (const message of group) inserted.add(message)
     anchor += group.length

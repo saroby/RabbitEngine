@@ -16,6 +16,9 @@ export const PROMPT_MESSAGE_KINDS = Object.freeze(['memory', 'scene_state', 'eve
 // 프로필은 id 로 참조해 자리·역할만 정한다 — 같은 블록을 여러 프리셋이 공유한다.
 export const CUSTOM_BLOCK_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/
 export const CUSTOM_BLOCK_ROLES = Object.freeze(['system', 'user', 'assistant'])
+// 대화 블록: 역할이 정해진 메시지 여러 개를 한 번에 대화 안에 넣는다(예: user → assistant 예시 한 쌍).
+export const CUSTOM_MESSAGE_ROLES = Object.freeze(['user', 'assistant'])
+export const CUSTOM_MESSAGES_MAX = 20
 
 /** Profile rules and assembled blocks share one identity: the kind, or `custom:<id>` for host blocks. */
 export const profileKeyOf = (block) => block.kind === 'custom' ? `custom:${block.id ?? block.customId}`
@@ -191,8 +194,9 @@ const renderTemplate = (template, content, names) => template.replace(
 )
 
 /** Validate the host's custom block library and return a detached copy keyed by id.
+ * 항목은 텍스트 블록 `{ id, content }` 또는 대화 블록 `{ id, messages: [{ role, content }] }` 중 하나다.
  * @param {unknown} input
- * @returns {Map<string, string>}
+ * @returns {Map<string, { content: string } | { messages: Array<{ role: 'user'|'assistant', content: string }> }>}
  */
 export function validateCustomBlocks(input = []) {
   if (!Array.isArray(input)) throw new Error('customBlocks: 배열이어야 합니다')
@@ -202,10 +206,27 @@ export function validateCustomBlocks(input = []) {
       throw new Error('customBlocks: 각 항목은 영문 소문자·숫자·-·_ 1~64자 id가 필요합니다')
     }
     if (library.has(block.id)) throw new Error(`customBlocks: ${block.id}가 중복되었습니다`)
+    if (block.messages !== undefined) {
+      if (block.content !== undefined) throw new Error(`customBlocks: ${block.id}는 content 와 messages 중 하나만 가져야 합니다`)
+      if (!Array.isArray(block.messages) || !block.messages.length || block.messages.length > CUSTOM_MESSAGES_MAX) {
+        throw new Error(`customBlocks: ${block.id} 메시지는 1~${CUSTOM_MESSAGES_MAX}개여야 합니다`)
+      }
+      let total = 0
+      const messages = block.messages.map((message) => {
+        if (!message || !CUSTOM_MESSAGE_ROLES.includes(message.role) || typeof message.content !== 'string') {
+          throw new Error(`customBlocks: ${block.id} 메시지는 user·assistant 역할과 문자열 내용이 필요합니다`)
+        }
+        total += message.content.length
+        return { role: message.role, content: message.content }
+      })
+      if (total > PROMPT_PROFILE_LIMITS.template) throw new Error(`customBlocks: ${block.id} 내용은 ${PROMPT_PROFILE_LIMITS.template}자 이하여야 합니다`)
+      library.set(block.id, { messages })
+      continue
+    }
     if (typeof block.content !== 'string' || block.content.length > PROMPT_PROFILE_LIMITS.template) {
       throw new Error(`customBlocks: ${block.id} 내용은 ${PROMPT_PROFILE_LIMITS.template}자 이하 문자열이어야 합니다`)
     }
-    library.set(block.id, block.content)
+    library.set(block.id, { content: block.content })
   }
   return library
 }
@@ -225,9 +246,20 @@ export function applyPromptProfile(blocks, profile, names, library = new Map()) 
     if (rule.kind === 'custom') {
       if (!library.has(rule.id)) throw new Error(`PromptProfile: 커스텀 블록 ${rule.id}의 내용이 없습니다`)
       // {{content}} 는 엔진 원문 자리라 커스텀 블록에는 없다. 이름만 한 번 치환한다.
-      const content = library.get(rule.id).replace(/\{\{\s*(user|char)\s*\}\}/g, (_, key) => names[key])
+      const named = (text) => text.replace(/\{\{\s*(user|char)\s*\}\}/g, (_, key) => names[key])
+      const source = library.get(rule.id)
+      const slot = typeof rule.slot === 'object' ? { ...rule.slot } : rule.slot
+      if (source.messages) {
+        // 역할이 박힌 메시지는 시스템 문서나 마지막 사용자 메시지 뒤 메모로 풀 수 없다. 대화 중간에만 둔다.
+        if (typeof slot !== 'object') throw new Error(`PromptProfile: 대화 블록 ${rule.id}는 대화 중간(depth)에만 둘 수 있습니다`)
+        const messages = source.messages.map((message) => ({ role: message.role, content: named(message.content) })).filter((message) => message.content.trim())
+        if (!messages.length) return []
+        return [{ kind: 'custom', customId: rule.id, role: rule.role, slot, trust: 'curated', messages,
+          content: messages.map((message) => `[${message.role}] ${message.content}`).join('\n\n') }]
+      }
+      const content = named(source.content)
       if (!content.trim()) return []
-      return [{ kind: 'custom', customId: rule.id, role: rule.role, slot: typeof rule.slot === 'object' ? { ...rule.slot } : rule.slot, trust: 'curated', content }]
+      return [{ kind: 'custom', customId: rule.id, role: rule.role, slot, trust: 'curated', content }]
     }
     let sources = blocks.filter((block) => profileKeyOf(block) === rule.kind)
     if (!sources.length && ['instruction', 'pacing'].includes(rule.kind)
