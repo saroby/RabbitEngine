@@ -31,6 +31,7 @@ export { analyzeUserInput } from './scene/input.js'
 export { buildDirective, DIRECTIVE_MAX_CHARS } from './scene/directive.js'
 export { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION, MAX_EXTRACTION_EXCHANGES } from './scene/extraction.js'
 export { buildTurn, PACING_TEXT } from './build-turn.js'
+export { resolveTools, authorizeToolCall, TOOL_ACTOR_KEY } from './prompt/tools.js'
 
 export { defaultPromptProfile, validatePromptProfile, promptProfileHash, PROMPT_PROFILE_VERSION, PROMPT_PROFILE_KINDS, PROMPT_PROFILE_LIMITS } from './prompt/profile.js'
 /** @typedef {import('./types.js').PromptProfile} PromptProfile */

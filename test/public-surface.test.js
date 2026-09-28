@@ -31,6 +31,7 @@ const PUBLIC = [
   'extractionRecipe', 'applyExtraction', 'parseExtractionOutput', 'EXTRACTION_VERSION',
   'MAX_EXTRACTION_EXCHANGES',
   'PACING_TEXT',
+  'resolveTools', 'authorizeToolCall', 'TOOL_ACTOR_KEY',
   'hashText', 'projectMessages', 'activeTextOf', 'chunkEntries',
 ]
 

@@ -20,6 +20,7 @@ import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
 import { buildDirective } from './scene/directive.js'
 import { validatePromptProfile } from './prompt/profile.js'
+import { resolveTools } from './prompt/tools.js'
 
 /** 응답의 호흡. normal 은 아무 문장도 넣지 않는다 — 기본값이 프롬프트를 늘리지 않게 한다. */
 export const PACING_TEXT = Object.freeze({
@@ -83,6 +84,8 @@ export async function buildTurn(input = {}, ctx = {}) {
   if (typeof dialect.parse !== 'function') {
     throw new Error('buildTurn: dialect 는 defineDialect 로 만든 방언이어야 합니다')
   }
+  // 도구 명세·카드 참조 오류는 기억 층이 호스트 LLM 을 부르기 전에 잡는다.
+  const tools = resolveTools(cards, raw.toolSpecs ?? [])
 
   // 프리셋이 있으면 그것이 이기고, 옛 전략 이름만 있으면 어댑터로 간다 —
   // 저장된 세션이 { strategy: 'window' } 꼴을 들고 있다. 둘 다 없으면 이력을
@@ -177,9 +180,12 @@ export async function buildTurn(input = {}, ctx = {}) {
     messages: visibleMessages,
     directive: compiled.blocks.filter((block) => block.kind === 'directive').map((block) => block.content).join('\n\n'),
     render: (options = {}) => renderTurn(compiled.blocks, visibleMessages, { userInput, ...options }),
+    tools,
     manifest: {
       ...memoryManifest,
       injectedText,
+      // 이번 턴에 연 도구와 소유자. 정의 전체는 turn.tools 에 있다.
+      tools: tools.map((tool) => ({ name: tool.name, owners: [...tool.owners] })),
       // enforceFormat 이 false 여도 방언은 그대로 보고한다 — 규약 층만 빠질 뿐
       // 청킹은 여전히 이 방언으로 씬 경계를 잡고, 그 이름이 캐시 키에 들어간다.
       dialect: { id: dialect.id, version: dialect.version },

@@ -108,6 +108,20 @@ const next = applyExtraction(sceneState, raw, { indicatorDefs, names, expectedRe
 if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
 
+## 인물별 도구
+
+카드는 도구 id 만 들고(`tools: ['manseryeok']`), 스키마는 호스트가 `toolSpecs` 로 준다. 실행은 호스트가 한다. 한 번의 호출이 여러 인물을 연기하므로 도구는 호출 단위로 열리고, 모든 도구에 `actor`(소유자 enum) 인자가 필수로 붙는다. 실행 전 `authorizeToolCall` 이 소유자를 다시 확인한다 — 스키마는 모델을 좁히는 장치일 뿐이고 실제 문은 이 검사다.
+
+```js
+const toolSpecs = [{ id: 'manseryeok', description: '사주 원국을 계산한다.', parameters: { type: 'object', properties: { birth: { type: 'string' } }, required: ['birth'] } }]
+const cards = [{ name: '서연', tools: ['manseryeok'] }, { name: '도윤', tools: [] }]
+
+const turn = await buildTurn({ cards, toolSpecs, userInput }, ctx)
+// turn.tools: [{ name, description, parameters, owners }] — 소유자가 장면에 있는 도구만, 명세 순서로
+const check = authorizeToolCall(turn.tools, { name: call.name, input: call.input })
+const result = check.ok ? await run(check.name, check.args, check.actor) : { error: check.message }  // 거부도 tool_result 로 돌려준다
+```
+
 ## 기억 층
 
 긴 이력은 고정된 청크로 잘라 닫힌 청크만 요약한다. 같은 재료로 만든 요약은 `recipeHash` 로 캐시에서 꺼내므로 LLM 을 다시 부르지 않고, 부른 호출은 전부 manifest 의 장부에 남는다. 요약에 쓰는 LLM 도 엔진이 직접 부르지 않는다 — 당신이 `ctx.llm` 으로 건넨 호출자를 쓴다.

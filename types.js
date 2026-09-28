@@ -147,6 +147,7 @@
  * @property {'slow' | 'normal' | 'eventful'} [pacing] 응답의 호흡. 기본 'normal'
  * @property {boolean} [continuing] 이어쓰기면 true — 사용자 행동 지시를 디렉티브에 넣지 않는다
  * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
+ * @property {ToolSpec[]} [toolSpecs] 호스트 도구 명세. 카드의 tools 가 id 로 가리킨다
  */
 
 /**
@@ -157,7 +158,30 @@
  * @property {Array<{ role: string, text: string }>} messages
  * @property {string} directive 이력 뒤에 붙는 짧은 지시
  * @property {(options?: { midRole?: string, userFirst?: boolean, openingTurn?: string, userInput?: string | null, mergeSameRole?: boolean }) => { system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number, cachePrefixKinds: string[] }} render 블록과 이력을 공급자에 넣을 모양으로 편다. cachePrefixLength 는 첫 동적 블록(worldbook·context_*) 앞까지의 길이다
+ * @property {ToolDefinition[]} tools 이번 턴에 열 도구. 장면 카드가 가리킨 것만, 명세 순서로
  * @property {object} manifest 이 턴을 무엇으로 만들었는지. ID 가 아니라 값으로 동결돼 있다
+ */
+
+/**
+ * 호스트가 가진 도구 하나. 카드는 { tools: ['id', …] } 로 이것을 가리킨다.
+ * @typedef {object} ToolSpec
+ * @property {string} id 공급자 도구 이름으로 쓰인다. 영문·숫자·_·- 1~64자
+ * @property {string} description
+ * @property {object} [parameters] type 이 object 인 JSON 스키마. actor 는 예약돼 있다
+ */
+
+/**
+ * 공급자 중립 도구 정의. 호스트가 자기 SDK 모양으로 감싼다 (Anthropic 은 parameters → input_schema).
+ * @typedef {object} ToolDefinition
+ * @property {string} name
+ * @property {string} description 사용할 수 있는 인물이 덧붙어 있다
+ * @property {object} parameters actor(소유자 enum)가 필수 인자로 들어가 있다
+ * @property {string[]} owners 이 도구를 쓸 수 있는 인물 이름
+ */
+
+/**
+ * authorizeToolCall 의 결과. ok 면 args(actor 를 뺀 인자)로 실행한다.
+ * @typedef {{ ok: true, name: string, actor: string, args: Record<string, unknown> } | { ok: false, reason: 'unknown_tool' | 'invalid_input' | 'actor_not_allowed', message: string }} ToolCallCheck
  */
 
 export {}
