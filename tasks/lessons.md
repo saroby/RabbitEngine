@@ -1,0 +1,5 @@
+# Lessons
+
+- Failure mode: Combining distinct model input fields into one preview made conversation messages look like part of the system prompt. Detection signal: The user asked why `[message 1 · user]` appeared in the same result area. Prevention rule: Show API fields with separate labeled regions when their boundaries affect meaning.
+- Failure mode: Placing saved-profile selection and the full editor on one screen hid the list-to-edit workflow. Detection signal: The user explicitly requested a registered list whose items open an edit screen. Prevention rule: Give collection browsing and item editing separate views when selection is a navigation step.
+- Failure mode: A read-only saved-output comparison duplicated a large preview when the task was to recover from edits. Detection signal: The user asked to replace it with last-saved-state revert and save actions. Prevention rule: Use a direct restore action when the user needs to undo a draft, and keep comparison UI only when side-by-side inspection is actually requested.

@@ -10,9 +10,10 @@
   "sideEffects": false,
   "types": "./dist-types/index.d.ts",
   "exports": {
-    ".": { "types": "./dist-types/index.d.ts", "default": "./index.js" }
+    ".": { "types": "./dist-types/index.d.ts", "default": "./index.js" },
+    "./editor": { "types": "./dist-types/editor/index.d.ts", "default": "./editor/index.js" }
   },
-  "files": ["index.js", "types.js", "sha256.js", "build-turn.js", "dialect", "prompt", "scene", "memory", "worldbook", "dist-types"],
+  "files": ["index.js", "types.js", "sha256.js", "build-turn.js", "dialect", "prompt", "scene", "memory", "worldbook", "dist-types", "editor"],
   "scripts": {
     "test": "node --test",
     "types": "tsc -p tsconfig.json",

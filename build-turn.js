@@ -19,6 +19,7 @@ import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
 import { buildDirective } from './scene/directive.js'
+import { validatePromptProfile } from './prompt/profile.js'
 
 /** 응답의 호흡. normal 은 아무 문장도 넣지 않는다 — 기본값이 프롬프트를 늘리지 않게 한다. */
 export const PACING_TEXT = Object.freeze({
@@ -71,6 +72,9 @@ export async function buildTurn(input = {}, ctx = {}) {
   const userName = raw.userName ?? '유저'
   const enforceFormat = raw.enforceFormat ?? true
   const context = ctx ?? {}
+  // Validate before memory selection can invoke a host-provided LLM.
+  const promptProfile = raw.promptProfile === undefined ? undefined : validatePromptProfile(raw.promptProfile)
+  if (promptProfile && !enforceFormat) throw new Error('PromptProfile: 출력 규약을 끌 수 없습니다')
 
   if (!Array.isArray(cards) || !cards.length) {
     throw new Error('buildTurn: cards 에 캐릭터 카드가 최소 하나 필요합니다')
@@ -124,6 +128,8 @@ export async function buildTurn(input = {}, ctx = {}) {
     cards,
     playerCard: player,
     instructionText: instruction,
+    worldText: raw.world,
+    promptProfile,
     ratingInstruction: ratingInstruction(rating),
     pacingText: PACING_TEXT[pacing],
     worldbooks,
@@ -169,7 +175,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     system: systemBlocks.map((block) => block.content).join('\n\n'),
     blocks: compiled.blocks,
     messages: visibleMessages,
-    directive,
+    directive: compiled.blocks.filter((block) => block.kind === 'directive').map((block) => block.content).join('\n\n'),
     render: (options = {}) => renderTurn(compiled.blocks, visibleMessages, { userInput, ...options }),
     manifest: {
       ...memoryManifest,
@@ -196,6 +202,7 @@ export async function buildTurn(input = {}, ctx = {}) {
         // compileBlocks 이므로 그 버전은 옆에 따로 남긴다.
         compilerVersion: PROMPT_COMPILER_VERSION,
         blockCompilerVersion: compiled.compilerVersion,
+        ...(compiled.profile ? { profile: compiled.profile } : {}),
         worldbookManifest: compiled.worldbookManifest,
         worldbookScan: compiled.worldbookScan,
       },

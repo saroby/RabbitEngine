@@ -3,7 +3,9 @@
 
 // system 슬롯 안에서도 매 턴 달라질 수 있는 블록. 로어북은 키워드로 발동하고
 // context_* 는 기억 층이 고른 것이라, 이 블록부터 뒤는 캐시 접두가 될 수 없다.
-const isDynamicSystem = (kind) => kind === 'worldbook' || String(kind ?? '').startsWith('context_')
+// 편집기로 system에 옮긴 기억·장면·사건·턴 지시도 같은 동적 경계를 지킨다.
+const DYNAMIC_KINDS = new Set(['worldbook', 'memory', 'scene_state', 'event', 'directive'])
+const isDynamicSystem = (kind) => DYNAMIC_KINDS.has(kind) || String(kind ?? '').startsWith('context_')
 
 /**
  * 블록과 이력을 공급자에 넣을 { system, messages } 로 편다.

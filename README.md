@@ -166,3 +166,9 @@ turn.manifest.prompt.blocks        // 블록 본문까지 값으로 들어 있�
 ## 평가
 
 `eval/README.md` 를 봐라. `eval/scenarios/*.json` 의 결정론 검사(블록·디렉티브·system 조립)는 `npm test` 에 포함된다. 실제 응답 품질은 `node scripts/eval-judge.js --variant full|no-directive|no-state` 로 수동 실행한다 — 모델 키(`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`)가 필요하고 `npm test` 에는 없다.
+
+## 프롬프트 설정과 독립 편집기
+
+`buildTurn({ ...input, promptProfile })`로 캐릭터/작품마다 다른 블록 문구·순서·위치를 적용할 수 있다. `defaultPromptProfile()`과 `validatePromptProfile()`이 엔진 설정 계약을 제공한다. 설정 저장과 캐릭터 연결은 호스트 몫이다.
+
+`rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 여러 설정을 브라우저에 저장하고 실제 조립 결과를 미리 본다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.

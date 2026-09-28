@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RabbitEngine 프롬프트 편집기</title>
+  <style>
+    body{margin:0;background:#f4f6f8;color:#18212b;font:15px/1.6 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding:28px}h1,h2{margin:0}header p,.help{color:#526171}[hidden]{display:none!important}.screen-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:24px 0}.screen-heading p{margin:4px 0 0}.toolbar,.list-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.toolbar{margin:20px 0}label{display:grid;gap:4px}button,input{font:inherit;border:1px solid #8795a4;border-radius:5px;padding:8px;background:white;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}#save{background:#245dbd;border-color:#245dbd;color:white}.profile-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.profile-item{width:100%;display:flex;justify-content:space-between;gap:16px;text-align:left;padding:16px;border:1px solid #d4dce4;border-radius:8px}.profile-item:hover{border-color:#3874e5;background:#f5f8ff}.profile-item span:last-child{color:#526171;white-space:nowrap}.back{border:0;background:none;padding:0;color:#245dbd}#message{min-height:24px;color:#a11a24}#state{color:#526171}input[type=file]{max-width:260px}:focus-visible{outline:3px solid #3874e5;outline-offset:2px}@media(max-width:600px){main{padding:16px}.screen-heading,.toolbar{align-items:stretch;flex-direction:column}.list-actions{align-items:stretch;flex-direction:column}.profile-item{padding:14px}}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>RabbitEngine 프롬프트 편집기</h1><p>여러 프롬프트 설정을 만들고 실제 조립 결과를 미리 봅니다. 이 독립 페이지의 저장소는 현재 브라우저뿐이며, 서비스 캐릭터에는 적용되지 않습니다. 서비스 적용은 연결된 admin에서 관리합니다.</p></header>
+  <p id="state" role="status"></p>
+  <p id="message" role="alert"></p>
+  <section id="list-view" aria-labelledby="list-title">
+    <div class="screen-heading">
+      <div><h2 id="list-title" tabindex="-1">등록된 설정</h2><p class="help">설정을 선택해 문구와 삽입 위치를 편집합니다.</p></div>
+      <div class="list-actions"><button type="button" id="new">새 설정</button><label>JSON 가져오기<input id="import" type="file" accept="application/json,.json"></label></div>
+    </div>
+    <ul id="profiles" class="profile-list"></ul>
+  </section>
+  <section id="edit-view" aria-labelledby="edit-title" hidden>
+    <div class="screen-heading"><div><button type="button" id="back" class="back">← 설정 목록</button><h2 id="edit-title" tabindex="-1"></h2></div></div>
+    <div class="toolbar">
+      <label>설정 이름<input id="name" maxlength="120"></label>
+      <button type="button" id="save">브라우저에 저장</button>
+      <button type="button" id="revert">마지막 저장 상태로 되돌리기</button>
+      <button type="button" id="duplicate">복제</button>
+      <button type="button" id="delete">삭제</button>
+      <button type="button" id="export">JSON 내보내기</button>
+    </div>
+    <div id="editor"></div>
+  </section>
+</main>
+<script type="module" src="./standalone.js"></script>
+</body>
+</html>
