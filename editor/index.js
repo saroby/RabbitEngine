@@ -56,7 +56,6 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-item.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
 .rabbit-prompt-editor .rpe-item-name{font-weight:600;flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-item label{display:flex;align-items:center;gap:6px;margin:0;font-weight:400}
-.rabbit-prompt-editor .rpe-off-list{display:flex;flex-wrap:wrap;gap:6px}.rabbit-prompt-editor .rpe-off-list .rpe-item{margin:0}
 .rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
 .rabbit-prompt-editor .rpe-block{border:1px solid var(--rabbit-border);border-radius:8px;margin:10px 0;background:#fff;overflow:hidden}
 .rabbit-prompt-editor summary{cursor:pointer;font-weight:600;padding:12px;overflow-wrap:anywhere}
@@ -138,7 +137,7 @@ export function mountPromptEditor(container, options) {
     return label
   }
   root.append(node('style', STYLE))
-  root.append(node('p', '블록은 시스템 프롬프트·대화 안에 넣기·사용 안 함 중 한 곳에만 있습니다. 구역 사이로 끌어 옮기거나 각 블록의 버튼을 쓰세요. 시스템 프롬프트의 캡슐은 Alt+←/→로 순서를 바꾸고 Backspace/Delete로 사용 안 함으로 보냅니다.', 'rpe-help'))
+  root.append(node('p', '블록은 시스템 프롬프트와 대화 안에 넣기 중 한 곳에만 있습니다. 두 구역 사이로 끌어 옮기거나 각 블록의 버튼을 쓰세요. 시스템 프롬프트의 캡슐은 Alt+←/→로 순서를 바꾸고 Backspace/Delete로 삭제합니다. 삭제한 블록은 + 태그 버튼이 다시 켜지며, 누르거나 원하는 구역으로 끌어 다시 넣습니다.', 'rpe-help'))
   const status = node('p')
   status.setAttribute('role', 'status')
   const errors = node('p', '', 'rpe-error')
@@ -166,15 +165,13 @@ export function mountPromptEditor(container, options) {
     return { section, list }
   }
   const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 마지막 사용자 메시지 뒤에 놓은 블록은 [진행 메모]로 감싸 그 메시지에 붙습니다. 블록을 다른 블록 위에 놓으면 그 자리로 갑니다.', 'conversation')
-  const offZone = zone('사용 안 함', '여기 있는 블록은 프롬프트에 들어가지 않습니다.', 'off')
-  offZone.list.className = 'rpe-off-list'
   const advanced = node('details', undefined, 'rpe-advanced')
   advanced.append(node('summary', '태그별 문구'))
   advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다.', 'rpe-help'))
   const blockList = node('section')
   blockList.setAttribute('aria-label', '태그별 문구')
   advanced.append(blockList)
-  composerPane.append(tagPalette, composer, conversationZone.section, offZone.section, advanced)
+  composerPane.append(tagPalette, composer, conversationZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
   preview.append(node('h2', '실제 조립 결과'))
@@ -231,7 +228,7 @@ export function mountPromptEditor(container, options) {
     result.tabIndex = 0
     const kind = token.startsWith('{{block:') ? token.slice(8, -2) : undefined
     result.title = kind
-      ? `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, 다른 구역으로 끌어 옮기기, Backspace/Delete로 사용 안 함`
+      ? `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, 대화 구역으로 끌어 옮기기, Backspace/Delete로 삭제`
       : `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, Backspace/Delete로 제거`
     result.addEventListener('dragstart', (event) => {
       draggedChip = result
@@ -296,10 +293,10 @@ export function mountPromptEditor(container, options) {
     return text.replaceAll('\u200b', '')
   }
   const tagButtons = new Map()
+  // 블록 태그 버튼은 삭제된(어느 구역에도 없는) 블록일 때만 켜진다.
   const refreshTagButtons = () => {
-    const documentText = value.systemTemplate ?? defaultSystemTemplate(value.blocks)
     for (const [token, control] of tagButtons) {
-      control.disabled = token.startsWith('{{block:') && documentText.includes(token)
+      if (token.startsWith('{{block:')) control.disabled = zoneOf(ruleOf(token.slice(8, -2))) !== 'off'
     }
   }
   const renderComposer = () => {
@@ -455,7 +452,6 @@ export function mountPromptEditor(container, options) {
     element.addEventListener('dragend', endDrag)
   }
   acceptBlockDrop(conversationZone.section, (kind) => placeBlock(kind, 'conversation'))
-  acceptBlockDrop(offZone.section, (kind) => placeBlock(kind, 'off'))
   const reorderChip = (moving, target, after) => {
     const capsules = [...composer.querySelectorAll('.rpe-chip')]
     const from = capsules.indexOf(moving)
@@ -537,6 +533,8 @@ export function mountPromptEditor(container, options) {
     const token = `{{block:${kind}}}`
     const control = button(`+ ${LABELS[kind]}`, () => placeBlock(kind, 'system'))
     control.setAttribute('aria-label', `${LABELS[kind]} 태그를 커서 위치에 삽입`)
+    control.title = '누르면 시스템 프롬프트 커서 위치에, 끌면 놓은 자리(시스템 프롬프트 또는 대화 안)에 넣습니다.'
+    dragSource(control, kind)
     control.addEventListener('mousedown', (event) => event.preventDefault())
     tagButtons.set(token, control)
     tagPalette.append(control)
@@ -638,28 +636,12 @@ export function mountPromptEditor(container, options) {
       })
       item.append(handle, node('span', LABELS[rule.kind], 'rpe-item-name'), where, depthField,
         button('시스템으로', () => placeBlock(rule.kind, 'system')),
-        button('사용 안 함', () => placeBlock(rule.kind, 'off')))
+        button('삭제', () => placeBlock(rule.kind, 'off')))
       list.append(item)
     })
   }
 
-  function renderOff() {
-    const list = offZone.list
-    list.replaceChildren()
-    const rules = value.blocks.filter((rule) => zoneOf(rule) === 'off')
-    if (!rules.length) list.append(node('p', '모든 블록을 사용 중입니다.', 'rpe-help'))
-    for (const rule of rules) {
-      const item = node('div', undefined, 'rpe-item')
-      item.dataset.kind = rule.kind
-      dragSource(item, rule.kind)
-      item.append(node('span', LABELS[rule.kind], 'rpe-item-name'),
-        button('시스템으로', () => placeBlock(rule.kind, 'system')),
-        button('대화로', () => placeBlock(rule.kind, 'conversation')))
-      list.append(item)
-    }
-  }
-
-  const zoneText = (rule) => ({ system: '시스템 프롬프트', off: '사용 안 함' })[zoneOf(rule)] ?? `대화 안 · ${positionText(positionOf(rule))}`
+  const zoneText = (rule) => ({ system: '시스템 프롬프트', off: '삭제됨' })[zoneOf(rule)] ?? `대화 안 · ${positionText(positionOf(rule))}`
 
   function renderTemplates() {
     const opened = new Set([...blockList.querySelectorAll('details[open]')].map((element) => element.dataset.kind))
@@ -687,7 +669,7 @@ export function mountPromptEditor(container, options) {
 
   function renderBlocks() {
     renderConversation()
-    renderOff()
+    refreshTagButtons()
     renderTemplates()
   }
 
