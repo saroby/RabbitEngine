@@ -83,7 +83,9 @@ export function withoutSystemBlocks(template, remove) {
   return formatSystemTemplate(dropBlockParts(parseSystemTemplate(template), remove))
 }
 
-/** Fresh values, so editing one profile cannot change another. @returns {PromptProfile} */
+/** Fresh values, so editing one profile cannot change another. Only engine blocks; custom blocks are added by the host.
+ * @returns {PromptProfile & { blocks: import('../types.js').PromptProfileBlock[] }}
+ */
 export function defaultPromptProfile() {
   return {
     version: 1,
