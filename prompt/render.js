@@ -36,6 +36,8 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
   if (typeof userInput === 'string') base.push({ role: 'user', text: userInput })
 
   // depth 별로 모아 한 메시지로. 큰 depth 부터 끼워야 앞서 끼운 것이 색인을 안 밀어낸다.
+  // 엔진 블록은 midRole 로 가고, 호스트 커스텀 블록만 자기 역할(user·assistant)을 가진다 —
+  // 같은 depth 안에서 역할이 바뀌는 곳마다 메시지를 나눈다.
   const byDepth = new Map()
   for (const b of blocks) {
     if (typeof b.slot !== 'object' || b.slot === null) continue
@@ -44,20 +46,26 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
     // 방어선이다. 음수·비정수를 조용히 버리면 anchor 뒤로 삽입되거나 위치가 뒤틀린다.
     if (!Number.isInteger(depth) || depth < 0) throw new Error(`renderTurn: depth 는 0 이상의 정수여야 합니다 (${depth})`)
     if (!byDepth.has(depth)) byDepth.set(depth, [])
-    byDepth.get(depth).push(b.content)
+    const role = b.kind === 'custom' && (b.role === 'user' || b.role === 'assistant') ? b.role : midRole
+    const group = byDepth.get(depth)
+    if (group.at(-1)?.role === role) group.at(-1).text += `\n\n${b.content}`
+    else group.push({ role, text: b.content })
   }
   const out = base.slice()
+  const inserted = new Set()
   let anchor = typeof userInput === 'string' ? out.length - 1 : out.length
-  // 이력이 depth 보다 짧아 index 0 으로 클램프되는 depth 가 둘 이상이면, floor 를 하나씩
-  // 밀어 먼저 처리한(더 큰) depth 가 더 앞자리를 지키게 한다 — 안 그러면 나중 삽입이 항상
+  // 이력이 depth 보다 짧아 index 0 으로 클램프되는 depth 가 둘 이상이면, floor 를 밀어
+  // 먼저 처리한(더 큰) depth 가 더 앞자리를 지키게 한다 — 안 그러면 나중 삽입이 항상
   // index 0 을 차지해 순서가 뒤집힌다.
   let floor = 0
   for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
     const raw = anchor - depth
     const index = Math.max(floor, raw)
-    out.splice(index, 0, { role: midRole, text: byDepth.get(depth).join('\n\n') })
-    anchor += 1
-    if (raw < floor) floor += 1
+    const group = byDepth.get(depth)
+    out.splice(index, 0, ...group)
+    for (const message of group) inserted.add(message)
+    anchor += group.length
+    if (raw < floor) floor += group.length
   }
 
   // 유저 턴 끝에 맨몸으로 이어 붙이면 모델이 유저의 말로 인용한다("…라고 했지", 실측).
@@ -67,6 +75,10 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
     const note = `[${NOTE_LABEL}: ${post}]`
     if (typeof userInput === 'string') { const last = out.at(-1); last.text = last.text ? `${last.text}\n\n${note}` : note }
     else out.push({ role: midRole, text: note })
+  }
+  // 끼운 assistant 가 마지막이면 공급자는 그것을 프리필로 받는다(거부하는 모델도 있다). 대화 중간에만 허용한다.
+  if (out.at(-1)?.role === 'assistant' && inserted.has(out.at(-1))) {
+    throw new Error('renderTurn: assistant 커스텀 블록은 마지막 메시지가 될 수 없습니다 (프리필 미지원)')
   }
   // 같은 역할이 연달아 나오는 것을 막는 공급자(Anthropic 등)가 있다. 기본값은
   // 그대로 두고 — 자리(depth)를 바꾸면 골든이 흔들린다 — 필요할 때만 켠다.

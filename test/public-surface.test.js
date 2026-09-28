@@ -7,7 +7,7 @@ import * as engine from '../index.js'
 const PUBLIC = [
   'VERSION',
   'buildTurn',
-  'defaultPromptProfile', 'validatePromptProfile', 'promptProfileHash',
+  'defaultPromptProfile', 'validatePromptProfile', 'validateCustomBlocks', 'promptProfileHash',
   'PROMPT_PROFILE_VERSION', 'PROMPT_PROFILE_KINDS', 'PROMPT_PROFILE_LIMITS',
   'defineDialect', 'verifyDialect', 'parserVersionOf', 'koreanPlayscript',
   'asteriskScript', 'ASTERISK_FORMAT',

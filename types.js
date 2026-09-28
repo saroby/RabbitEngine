@@ -130,6 +130,7 @@
  * @property {string} [instruction] 시스템 지시문
  * @property {string} [world] 별도 세계관 블록
  * @property {PromptProfile} [promptProfile] 블록 문구·순서·위치 설정
+ * @property {CustomBlockSource[]} [customBlocks] 프로필의 커스텀 블록이 id 로 참조하는 호스트 문구. 참조한 id 가 없으면 오류다
  * @property {object[]} [worldbooks] 로어북
  * @property {object} [worldbookOverrides]
  * @property {object} [worldbookOptions]
@@ -197,8 +198,22 @@ export {}
  * @property {'default'|'system'|'post_history'|{depth:number}} slot default는 원본 블록 위치를 유지한다
  */
 /**
+ * 호스트가 만든 커스텀 블록의 자리. 문구는 프로필이 아니라 customBlocks 라이브러리에 있다.
+ * @typedef {object} PromptProfileCustomBlock
+ * @property {'custom'} kind
+ * @property {string} id 영문 소문자·숫자·-·_ 1~64자
+ * @property {boolean} enabled
+ * @property {'system'|'user'|'assistant'} role 대화 안 위치에서 보낼 역할. system 은 엔진 블록처럼 midRole 로 간다. assistant 는 post_history 불가
+ * @property {'system'|'post_history'|{depth:number}} slot
+ */
+/**
+ * @typedef {object} CustomBlockSource
+ * @property {string} id
+ * @property {string} content {{user}}, {{char}}를 지원한다. 20,000자 이하
+ */
+/**
  * @typedef {object} PromptProfile
  * @property {1} version
- * @property {PromptProfileBlock[]} blocks 모든 블록 종류가 한 번씩 들어간 순서 있는 목록
- * @property {string} [systemTemplate] 시스템 문구와 {{block:kind}}·{{user}}·{{char}} 태그. 생략하면 기존 블록 순서를 사용한다
+ * @property {Array<PromptProfileBlock|PromptProfileCustomBlock>} blocks 모든 엔진 블록 종류가 한 번씩 들어간 순서 있는 목록. 커스텀 블록은 50개까지 섞을 수 있다
+ * @property {string} [systemTemplate] 시스템 문구와 {{block:kind}}·{{block:custom:id}}·{{user}}·{{char}} 태그. 생략하면 기존 블록 순서를 사용한다
  */

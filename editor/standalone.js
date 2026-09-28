@@ -1,6 +1,11 @@
 import { mountPromptEditor, defaultPromptProfile, validatePromptProfile } from './index.js'
 
 const KEY = 'rabbit-engine.prompt-profiles.v1'
+// 호스트가 관리하는 커스텀 블록 목록의 예시. 독립 페이지에서는 고칠 수 없고 미리보기에만 쓴다.
+const SAMPLE_CUSTOM_BLOCKS = Object.freeze([
+  { id: 'common-rules', name: '공통 규칙', content: '{{char}}의 말투와 성격을 끝까지 유지한다. {{user}}의 행동을 대신 정하지 않는다.' },
+  { id: 'style-example', name: '문체 예시 (모델)', content: '*유리가 조용히 책장을 넘긴다.*\n유리: "그 이야기는 조금 뒤에 해도 될까요?"' },
+])
 const byId = (id) => document.getElementById(id)
 const message = byId('message')
 const list = byId('profiles')
@@ -74,6 +79,7 @@ function choose(id, focus = true) {
   editor?.destroy()
   editor = mountPromptEditor(byId('editor'), {
     value: draft,
+    customBlocks: SAMPLE_CUSTOM_BLOCKS,
     onChange(value) { draft = value; dirty = true; status() },
     onValidityChange(next) { valid = next; dirty = true; status() },
   })

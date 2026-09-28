@@ -19,7 +19,7 @@ import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
 import { buildDirective } from './scene/directive.js'
-import { validatePromptProfile } from './prompt/profile.js'
+import { validatePromptProfile, validateCustomBlocks } from './prompt/profile.js'
 import { resolveTools } from './prompt/tools.js'
 
 /** 응답의 호흡. normal 은 아무 문장도 넣지 않는다 — 기본값이 프롬프트를 늘리지 않게 한다. */
@@ -76,6 +76,10 @@ export async function buildTurn(input = {}, ctx = {}) {
   // Validate before memory selection can invoke a host-provided LLM.
   const promptProfile = raw.promptProfile === undefined ? undefined : validatePromptProfile(raw.promptProfile)
   if (promptProfile && !enforceFormat) throw new Error('PromptProfile: 출력 규약을 끌 수 없습니다')
+  // 커스텀 블록 참조도 기억 선택(LLM 호출 가능) 전에 확인한다. 조립 단계에서 같은 검사를 다시 한다.
+  const customLibrary = validateCustomBlocks(raw.customBlocks ?? [])
+  const missingCustom = (promptProfile?.blocks ?? []).find((rule) => rule.kind === 'custom' && rule.enabled && !customLibrary.has(rule.id))
+  if (missingCustom) throw new Error(`PromptProfile: 커스텀 블록 ${missingCustom.id}의 내용이 없습니다`)
 
   if (!Array.isArray(cards) || !cards.length) {
     throw new Error('buildTurn: cards 에 캐릭터 카드가 최소 하나 필요합니다')
@@ -133,6 +137,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     instructionText: instruction,
     worldText: raw.world,
     promptProfile,
+    customBlocks: raw.customBlocks ?? [],
     ratingInstruction: ratingInstruction(rating),
     pacingText: PACING_TEXT[pacing],
     worldbooks,
