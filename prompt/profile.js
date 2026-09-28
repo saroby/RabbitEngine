@@ -10,6 +10,12 @@ export const PROMPT_PROFILE_KINDS = Object.freeze([
   'scene_state', 'event', 'directive',
 ])
 export const PROMPT_PROFILE_LIMITS = Object.freeze({ template: 20000, total: 80000, depth: 100 })
+// 엔진 기본 위치(`default`)가 시스템이 아니라 대화 안인 블록들 (prompt/blocks.js).
+export const PROMPT_MESSAGE_KINDS = Object.freeze(['memory', 'scene_state', 'event', 'directive'])
+
+/** Whether a profile rule places its block in the system prompt. Worldbook entries with their own depth still follow that depth. */
+export const isSystemRule = (rule) => rule.slot === 'system'
+  || (rule.slot === 'default' && !PROMPT_MESSAGE_KINDS.includes(rule.kind))
 
 /** Parse a system document without interpreting replacement text as template syntax. */
 export function parseSystemTemplate(template) {
@@ -40,6 +46,33 @@ export function parseSystemTemplate(template) {
   if (tail) parts.push({ type: 'text', value: tail })
   if (!seen.has('output_contract')) throw new Error('PromptProfile: 출력 규약 태그가 필요합니다')
   return parts
+}
+
+/** Serialize parsed parts back to the stored document form. */
+export function formatSystemTemplate(parts) {
+  return parts.map((part) => part.type === 'text' ? part.value
+    : part.type === 'name' ? `{{${part.value}}}` : `{{block:${part.value}}}`).join('')
+}
+
+// 비어 있는 태그는 자기 앞뒤 빈 문단 하나만 가져간다. 이웃 문단은 건드리지 않는다.
+// 조립(applyPromptProfile)과 정규화(validatePromptProfile)가 같은 규칙을 써야 저장값을 정리해도 출력이 같다.
+function dropBlockParts(parts, isEmpty) {
+  for (const [index, part] of parts.entries()) {
+    if (part.type !== 'block' || !isEmpty(part.value)) continue
+    const before = parts[index - 1]?.type === 'text' ? parts[index - 1] : null
+    const after = parts[index + 1]?.type === 'text' ? parts[index + 1] : null
+    if (after?.value.startsWith('\n\n') && (!before?.value || before.value.endsWith('\n\n'))) after.value = after.value.slice(2)
+    else if (!after && before?.value.endsWith('\n\n')) before.value = before.value.slice(0, -2)
+  }
+  return parts.filter((part) => part.type !== 'block' || !isEmpty(part.value))
+}
+
+/** Remove block tags from a system document with the same blank-paragraph rule the assembler uses.
+ * @param {string} template
+ * @param {(kind:string)=>boolean} remove
+ */
+export function withoutSystemBlocks(template, remove) {
+  return formatSystemTemplate(dropBlockParts(parseSystemTemplate(template), remove))
 }
 
 /** Fresh values, so editing one profile cannot change another. @returns {PromptProfile} */
@@ -100,11 +133,20 @@ export function validatePromptProfile(input) {
     if (total + (typeof systemTemplate === 'string' ? systemTemplate.length : 0) > PROMPT_PROFILE_LIMITS.total) {
       throw new Error(`PromptProfile: 전체 문구는 ${PROMPT_PROFILE_LIMITS.total}자 이하여야 합니다`)
     }
-    parseSystemTemplate(systemTemplate)
+    const tagged = new Set(parseSystemTemplate(systemTemplate).filter((part) => part.type === 'block').map((part) => part.value))
     if (!['default', 'system'].includes(blocks.find((block) => block.kind === 'output_contract').slot)) {
       throw new Error('PromptProfile: 출력 규약 태그는 시스템 위치여야 합니다')
     }
-    return { version: 1, blocks, systemTemplate }
+    // 블록의 자리는 한 곳에서만 정해진다: 활성인 시스템 블록 ⇔ 문서에 태그가 있다.
+    // 어긋난 두 경우는 원래도 아무것도 출력하지 않으므로 출력은 그대로 두고 저장 형태만 맞춘다 —
+    // 대화 위치·비활성 블록의 태그는 지우고, 태그 없는 시스템 블록은 비활성으로 둔다.
+    const placed = (block) => block.enabled && isSystemRule(block)
+    const byKind = new Map(blocks.map((block) => [block.kind, block]))
+    return {
+      version: 1,
+      blocks: blocks.map((block) => (placed(block) && !tagged.has(block.kind) ? { ...block, enabled: false } : block)),
+      systemTemplate: withoutSystemBlocks(systemTemplate, (kind) => !placed(byKind.get(kind))),
+    }
   }
   return { version: 1, blocks }
 }
@@ -141,16 +183,9 @@ export function applyPromptProfile(blocks, profile, names) {
     }))
   })
   if (profile.systemTemplate === undefined) return applied
-  const parts = parseSystemTemplate(profile.systemTemplate)
   // A missing optional source removes its own blank paragraph, not its neighbors.
-  for (const [index, part] of parts.entries()) {
-    if (part.type !== 'block' || applied.some((block) => block.slot === 'system'
-      && (block.kind.startsWith('context_') ? 'context' : block.kind) === part.value)) continue
-    const before = parts[index - 1]?.type === 'text' ? parts[index - 1] : null
-    const after = parts[index + 1]?.type === 'text' ? parts[index + 1] : null
-    if (after?.value.startsWith('\n\n') && (!before?.value || before.value.endsWith('\n\n'))) after.value = after.value.slice(2)
-    else if (!after && before?.value.endsWith('\n\n')) before.value = before.value.slice(0, -2)
-  }
+  const parts = dropBlockParts(parseSystemTemplate(profile.systemTemplate), (kind) => !applied.some((block) => block.slot === 'system'
+    && (block.kind.startsWith('context_') ? 'context' : block.kind) === kind))
   const system = parts.flatMap((part) => {
     if (part.type === 'block') {
       return applied.filter((block) => block.slot === 'system'

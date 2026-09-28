@@ -1,7 +1,11 @@
 import { buildTurn } from '../build-turn.js'
 import { asteriskScript } from '../dialect/asterisk-script.js'
 import { emptySceneState } from '../scene/state.js'
-import { defaultPromptProfile, validatePromptProfile, parseSystemTemplate, PROMPT_PROFILE_LIMITS } from '../prompt/profile.js'
+import { DEFAULT_DEPTHS } from '../prompt/blocks.js'
+import {
+  defaultPromptProfile, validatePromptProfile, parseSystemTemplate, withoutSystemBlocks, isSystemRule,
+  PROMPT_MESSAGE_KINDS, PROMPT_PROFILE_LIMITS,
+} from '../prompt/profile.js'
 
 const LABELS = {
   instruction: '공통 지시문', world: '세계관', rating: '콘텐츠 등급', pacing: '진행 속도',
@@ -9,13 +13,29 @@ const LABELS = {
   worldbook: '로어북', user_boundary: '사용자 역할 경계', output_contract: '출력 규약',
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
 }
-const DEFAULT_MESSAGE_KINDS = new Set(['memory', 'scene_state', 'event', 'directive'])
+const BLOCK_DRAG_TYPE = 'application/x-rabbit-block'
 
 const defaultSystemTemplate = (blocks) => blocks
-  .filter((block) => block.enabled && (block.kind === 'output_contract'
-    || block.slot === 'system' || (block.slot === 'default' && !DEFAULT_MESSAGE_KINDS.has(block.kind))))
+  .filter((block) => block.enabled && (block.kind === 'output_contract' || isSystemRule(block)))
   .map((block) => `{{block:${block.kind}}}`)
   .join('\n\n')
+
+// 블록은 세 구역 중 한 곳에만 있다. 활성·위치·문서 태그를 따로 두지 않고 구역에서 파생한다.
+const zoneOf = (rule) => (!rule.enabled ? 'off' : isSystemRule(rule) ? 'system' : 'conversation')
+// 대화 안 자리. 클수록 대화 앞쪽이고 -1 은 마지막 사용자 메시지 뒤다.
+const positionOf = (rule) => {
+  if (rule.slot === 'post_history' || (rule.slot === 'default' && rule.kind === 'directive')) return -1
+  if (typeof rule.slot === 'object') return Number.isInteger(rule.slot.depth) ? rule.slot.depth : 0
+  return DEFAULT_DEPTHS[rule.kind] ?? 0
+}
+const positionText = (position) => (position < 0 ? '마지막 사용자 메시지 뒤'
+  : position === 0 ? '마지막 사용자 메시지 바로 앞' : `마지막 사용자 메시지보다 ${position}개 앞`)
+// 같은 자리를 가리키면 엔진 기본값(`default`)을 유지해 저장값이 불필요하게 바뀌지 않게 한다.
+const slotAt = (kind, position) => {
+  if (PROMPT_MESSAGE_KINDS.includes(kind) && positionOf({ kind, slot: 'default' }) === position) return 'default'
+  return position < 0 ? 'post_history' : { depth: position }
+}
+const blockKindsIn = (text) => new Set([...text.matchAll(/\{\{\s*block:([a-z_]+)\s*\}\}/g)].map((match) => match[1]))
 
 const STYLE = `
 .rabbit-prompt-editor{color:#18212b;font:14px/1.55 system-ui,sans-serif;--rabbit-border:#d4dce4;--rabbit-muted:#526171;max-width:100%}
@@ -29,6 +49,14 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-chip{display:inline-block;vertical-align:baseline;white-space:nowrap;border:1px solid #a9c4ed;border-radius:999px;padding:0 7px;background:#eaf2ff;color:#164c9e;font:12px/1.7 system-ui,sans-serif;user-select:all;cursor:grab}
 .rabbit-prompt-editor .rpe-chip:active{cursor:grabbing}
 .rabbit-prompt-editor .rpe-tags button{border-radius:999px;background:#eaf2ff;border-color:#a9c4ed;color:#164c9e}
+.rabbit-prompt-editor .rpe-zone{margin-top:18px;border:1px dashed #a3b0bd;border-radius:8px;padding:12px;background:#fafbfc}
+.rabbit-prompt-editor .rpe-zone.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px;background:#f2f7ff}
+.rabbit-prompt-editor .rpe-zone h2{font-size:16px;margin:0}.rabbit-prompt-editor .rpe-zone h3{font-size:13px;color:var(--rabbit-muted);margin:12px 0 6px}
+.rabbit-prompt-editor .rpe-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--rabbit-border);border-radius:7px;padding:6px 8px;margin:6px 0;background:#fff}
+.rabbit-prompt-editor .rpe-item.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
+.rabbit-prompt-editor .rpe-item-name{font-weight:600;flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
+.rabbit-prompt-editor .rpe-item label{display:flex;align-items:center;gap:6px;margin:0;font-weight:400}
+.rabbit-prompt-editor .rpe-off-list{display:flex;flex-wrap:wrap;gap:6px}.rabbit-prompt-editor .rpe-off-list .rpe-item{margin:0}
 .rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
 .rabbit-prompt-editor .rpe-block{border:1px solid var(--rabbit-border);border-radius:8px;margin:10px 0;background:#fff;overflow:hidden}
 .rabbit-prompt-editor summary{cursor:pointer;font-weight:600;padding:12px;overflow-wrap:anywhere}
@@ -84,8 +112,8 @@ export function mountPromptEditor(container, options) {
   let value = validatePromptProfile(options.value)
   let input = options.input ?? promptEditorSampleInput()
   let destroyed = false
-  let dragIndex = null
   let draggedChip
+  let draggedKind
   let composerRange
   let previewRevision = 0
   let previewTimer
@@ -110,7 +138,7 @@ export function mountPromptEditor(container, options) {
     return label
   }
   root.append(node('style', STYLE))
-  root.append(node('p', '시스템 프롬프트에 문장을 쓰고 태그를 커서 위치에 넣으세요. 캡슐은 드래그하거나 Alt+←/→로 옮기고 Backspace/Delete로 지울 수 있습니다.', 'rpe-help'))
+  root.append(node('p', '블록은 시스템 프롬프트·대화 안에 넣기·사용 안 함 중 한 곳에만 있습니다. 구역 사이로 끌어 옮기거나 각 블록의 버튼을 쓰세요. 시스템 프롬프트의 캡슐은 Alt+←/→로 순서를 바꾸고 Backspace/Delete로 사용 안 함으로 보냅니다.', 'rpe-help'))
   const status = node('p')
   status.setAttribute('role', 'status')
   const errors = node('p', '', 'rpe-error')
@@ -129,13 +157,24 @@ export function mountPromptEditor(container, options) {
   composer.setAttribute('role', 'textbox')
   composer.setAttribute('aria-label', '시스템 프롬프트 조립 문서')
   composer.setAttribute('aria-multiline', 'true')
+  const zone = (title, help, name) => {
+    const section = node('section', undefined, 'rpe-zone')
+    section.dataset.zone = name
+    section.setAttribute('aria-label', title)
+    const list = node('div')
+    section.append(node('h2', title), node('p', help, 'rpe-help'), list)
+    return { section, list }
+  }
+  const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 마지막 사용자 메시지 뒤에 놓은 블록은 [진행 메모]로 감싸 그 메시지에 붙습니다. 블록을 다른 블록 위에 놓으면 그 자리로 갑니다.', 'conversation')
+  const offZone = zone('사용 안 함', '여기 있는 블록은 프롬프트에 들어가지 않습니다.', 'off')
+  offZone.list.className = 'rpe-off-list'
   const advanced = node('details', undefined, 'rpe-advanced')
-  advanced.append(node('summary', '태그별 문구와 대화 삽입 위치'))
-  advanced.append(node('p', '{{content}}는 해당 태그의 엔진 원문입니다. 시스템 순서는 위 캡슐로, 대화 위치의 블록 순서는 여기 손잡이로 바꿉니다.', 'rpe-help'))
+  advanced.append(node('summary', '태그별 문구'))
+  advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다.', 'rpe-help'))
   const blockList = node('section')
-  blockList.setAttribute('aria-label', '태그별 세부 설정')
+  blockList.setAttribute('aria-label', '태그별 문구')
   advanced.append(blockList)
-  composerPane.append(tagPalette, composer, advanced)
+  composerPane.append(tagPalette, composer, conversationZone.section, offZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
   preview.append(node('h2', '실제 조립 결과'))
@@ -190,16 +229,18 @@ export function mountPromptEditor(container, options) {
     result.dataset.token = token
     result.draggable = true
     result.tabIndex = 0
-    result.title = `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, Backspace/Delete로 제거`
+    const kind = token.startsWith('{{block:') ? token.slice(8, -2) : undefined
+    result.title = kind
+      ? `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, 다른 구역으로 끌어 옮기기, Backspace/Delete로 사용 안 함`
+      : `${tokenText(token)} · 드래그 또는 Alt+←/→로 이동, Backspace/Delete로 제거`
     result.addEventListener('dragstart', (event) => {
       draggedChip = result
+      draggedKind = kind
       event.dataTransfer.effectAllowed = 'move'
       event.dataTransfer.setData('text/plain', token)
+      if (kind) event.dataTransfer.setData(BLOCK_DRAG_TYPE, kind)
     })
-    result.addEventListener('dragend', () => {
-      draggedChip = undefined
-      composer.classList.remove('rpe-drag-over')
-    })
+    result.addEventListener('dragend', endDrag)
     result.addEventListener('keydown', (event) => {
       if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         event.preventDefault()
@@ -212,8 +253,8 @@ export function mountPromptEditor(container, options) {
         }
       } else if (['Backspace', 'Delete'].includes(event.key)) {
         event.preventDefault()
-        result.remove()
-        composerChanged()
+        if (kind) placeBlock(kind, 'off')
+        else { result.remove(); composerChanged() }
         composer.focus()
       }
     })
@@ -303,13 +344,118 @@ export function mountPromptEditor(container, options) {
     selection.addRange(range)
     composerRange = range.cloneRange()
   }
+  // 문서를 직접 고쳐도(선택 삭제·붙여넣기) 구역이 어긋나지 않게, 태그 유무를 블록 상태에 되돌려 적는다.
+  const syncFromDocument = () => {
+    const tagged = blockKindsIn(value.systemTemplate)
+    for (const rule of value.blocks) {
+      if (tagged.has(rule.kind)) {
+        rule.enabled = true
+        if (!isSystemRule(rule)) rule.slot = 'system'
+      } else if (rule.enabled && isSystemRule(rule) && rule.kind !== 'output_contract') rule.enabled = false
+    }
+  }
   const composerChanged = () => {
-    const firstDocument = value.systemTemplate === undefined
     value.systemTemplate = readComposer()
+    syncFromDocument()
     refreshTagButtons()
-    if (firstDocument) renderBlocks()
+    renderBlocks()
     changed()
   }
+  const documentHas = (kind) => blockKindsIn(value.systemTemplate ?? defaultSystemTemplate(value.blocks)).has(kind)
+  const ruleOf = (kind) => value.blocks.find((block) => block.kind === kind)
+  const removeTag = (kind) => {
+    if (!documentHas(kind)) return
+    const text = value.systemTemplate ?? defaultSystemTemplate(value.blocks)
+    try {
+      value.systemTemplate = withoutSystemBlocks(text, (tagKind) => tagKind === kind)
+    } catch {
+      // 문서가 아직 잘못된 상태면 빈 문단 정리 없이 태그만 뺀다. 검증 오류는 그대로 보인다.
+      value.systemTemplate = text.replace(new RegExp(`\\{\\{\\s*block:${kind}\\s*\\}\\}`), '')
+    }
+    renderComposer()
+  }
+  /**
+   * 블록을 한 구역으로 옮긴다. 활성·위치·문서 태그는 여기서만 함께 바뀐다.
+   * @param {string} kind
+   * @param {'system'|'conversation'|'off'} target
+   * @param {{range?:Range, before?:string, after?:string}} [where] 문서 안 위치, 또는 대화 구역에서 기준이 되는 블록
+   */
+  function placeBlock(kind, target, where = {}) {
+    const rule = ruleOf(kind)
+    if (kind === 'output_contract' && target !== 'system') {
+      errors.textContent = '출력 규약은 응답 파서와 맞물려 있어 시스템 프롬프트에만 둘 수 있습니다.'
+      return
+    }
+    if (target === 'system') {
+      if (!documentHas(kind)) {
+        if (value.systemTemplate === undefined) renderComposer()
+        const selection = doc.getSelection()
+        if (where.range && selectionInsideComposer(where.range)) {
+          selection.removeAllRanges()
+          selection.addRange(where.range)
+          composerRange = where.range.cloneRange()
+        } else {
+          const activeRange = selection?.rangeCount ? selection.getRangeAt(0) : null
+          if (!selectionInsideComposer(activeRange) && !selectionInsideComposer(composerRange)
+            && readComposer() && !readComposer().endsWith('\n\n')) insertAtCaret(doc.createTextNode('\n\n'))
+        }
+        insertAtCaret(chip(`{{block:${kind}}}`))
+      }
+      // 태그가 들어갔으므로 syncFromDocument 가 활성·시스템 위치로 맞춘다.
+    } else {
+      removeTag(kind)
+      rule.enabled = target === 'conversation'
+      if (target === 'conversation') {
+        const anchor = where.before ?? where.after
+        if (anchor && anchor !== kind) {
+          rule.slot = slotAt(kind, positionOf(ruleOf(anchor)))
+          const [moving] = value.blocks.splice(value.blocks.indexOf(rule), 1)
+          const index = value.blocks.indexOf(ruleOf(anchor))
+          value.blocks.splice(where.after ? index + 1 : index, 0, moving)
+        } else if (isSystemRule(rule)) {
+          rule.slot = PROMPT_MESSAGE_KINDS.includes(kind) ? 'default' : 'post_history'
+        }
+      }
+    }
+    composerChanged()
+  }
+  function endDrag() {
+    draggedChip = undefined
+    draggedKind = undefined
+    root.querySelectorAll('.rpe-drag-over').forEach((element) => element.classList.remove('rpe-drag-over'))
+  }
+  const acceptBlockDrop = (element, onDrop) => {
+    element.addEventListener('dragover', (event) => {
+      if (!draggedKind) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      element.classList.add('rpe-drag-over')
+    })
+    element.addEventListener('dragleave', (event) => {
+      if (!element.contains(event.relatedTarget)) element.classList.remove('rpe-drag-over')
+    })
+    element.addEventListener('drop', (event) => {
+      if (!draggedKind) return
+      event.preventDefault()
+      event.stopPropagation()
+      const kind = draggedKind
+      endDrag()
+      onDrop(kind, event)
+    })
+  }
+  const dragSource = (element, kind) => {
+    element.draggable = true
+    element.addEventListener('dragstart', (event) => {
+      draggedChip = undefined
+      draggedKind = kind
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData(BLOCK_DRAG_TYPE, kind)
+      event.dataTransfer.setData('text/plain', LABELS[kind])
+    })
+    element.addEventListener('dragend', endDrag)
+  }
+  acceptBlockDrop(conversationZone.section, (kind) => placeBlock(kind, 'conversation'))
+  acceptBlockDrop(offZone.section, (kind) => placeBlock(kind, 'off'))
   const reorderChip = (moving, target, after) => {
     const capsules = [...composer.querySelectorAll('.rpe-chip')]
     const from = capsules.indexOf(moving)
@@ -335,8 +481,9 @@ export function mountPromptEditor(container, options) {
     insertAtCaret(doc.createTextNode(event.clipboardData.getData('text/plain')))
     composerChanged()
   })
+  const outsideBlockDrag = () => draggedKind && !(draggedChip && composer.contains(draggedChip))
   composer.addEventListener('dragover', (event) => {
-    if (!draggedChip || !composer.contains(draggedChip)) return
+    if (!(draggedChip && composer.contains(draggedChip)) && !outsideBlockDrag()) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
     composer.classList.add('rpe-drag-over')
@@ -347,10 +494,28 @@ export function mountPromptEditor(container, options) {
   composer.addEventListener('drop', (event) => {
     event.preventDefault()
     composer.classList.remove('rpe-drag-over')
-    const moving = draggedChip
-    draggedChip = undefined
-    if (!moving || !composer.contains(moving)) return
     const target = event.target.nodeType === 1 ? event.target.closest('.rpe-chip') : event.target.parentElement?.closest('.rpe-chip')
+    if (outsideBlockDrag()) {
+      // 다른 구역에서 끌어 온 블록: 놓은 자리(캡슐 위면 그 앞뒤)에 태그를 넣는다.
+      const kind = draggedKind
+      endDrag()
+      let range = null
+      if (target && composer.contains(target)) {
+        range = doc.createRange()
+        const after = event.clientX >= target.getBoundingClientRect().left + target.getBoundingClientRect().width / 2
+        if (after) range.setStartAfter(ensureCaretStop(target))
+        else range.setStartBefore(target)
+        range.collapse(true)
+      } else {
+        const atPoint = doc.caretRangeFromPoint?.(event.clientX, event.clientY)
+        if (selectionInsideComposer(atPoint)) range = atPoint
+      }
+      placeBlock(kind, 'system', range ? { range } : {})
+      return
+    }
+    const moving = draggedChip
+    endDrag()
+    if (!moving || !composer.contains(moving)) return
     if (target === moving) return
     if (target && composer.contains(target)) {
       reorderChip(moving, target, event.clientX >= target.getBoundingClientRect().left + target.getBoundingClientRect().width / 2)
@@ -370,19 +535,7 @@ export function mountPromptEditor(container, options) {
   })
   for (const kind of value.blocks.map((block) => block.kind)) {
     const token = `{{block:${kind}}}`
-    const control = button(`+ ${LABELS[kind]}`, () => {
-      if ((value.systemTemplate ?? defaultSystemTemplate(value.blocks)).includes(token)) return
-      const rule = value.blocks.find((block) => block.kind === kind)
-      rule.enabled = true
-      if (rule.slot === 'post_history' || typeof rule.slot === 'object' || (rule.slot === 'default' && DEFAULT_MESSAGE_KINDS.has(kind))) rule.slot = 'system'
-      const selection = doc.getSelection()
-      const activeRange = selection?.rangeCount ? selection.getRangeAt(0) : null
-      if (!selectionInsideComposer(activeRange) && !selectionInsideComposer(composerRange)
-        && readComposer() && !readComposer().endsWith('\n\n')) insertAtCaret(doc.createTextNode('\n\n'))
-      insertAtCaret(chip(token))
-      renderBlocks()
-      composerChanged()
-    })
+    const control = button(`+ ${LABELS[kind]}`, () => placeBlock(kind, 'system'))
     control.setAttribute('aria-label', `${LABELS[kind]} 태그를 커서 위치에 삽입`)
     control.addEventListener('mousedown', (event) => event.preventDefault())
     tagButtons.set(token, control)
@@ -418,103 +571,124 @@ export function mountPromptEditor(container, options) {
     }
   }
 
-  // finalIndex 는 이동이 끝난 뒤 그 블록이 있어야 할 배열 인덱스다. 드롭 대상의 인덱스를
-  // 이 값으로 바꾸는 계산은 각 호출부(드래그·화살표)가 맡는다 — splice 두 번이면 충분하다.
-  function moveTo(from, finalIndex) {
-    if (from === finalIndex || from == null || finalIndex == null) return
-    const [item] = value.blocks.splice(from, 1)
-    value.blocks.splice(finalIndex, 0, item)
-    renderBlocks(item.kind)
-    changed()
-    blockList.querySelector(`[data-kind="${item.kind}"] .rpe-handle`)?.focus()
-  }
+  // 대화 구역은 실제 대화 흐름 순서(앞쪽 자리 먼저)로 보여 준다. 같은 자리 안에서는 설정 순서가 조립 순서다.
+  const conversationOrder = () => value.blocks
+    .map((rule, index) => ({ rule, index }))
+    .filter(({ rule }) => zoneOf(rule) === 'conversation')
+    .sort((a, b) => positionOf(b.rule) - positionOf(a.rule) || a.index - b.index)
+    .map(({ rule }) => rule)
 
-  function renderBlocks(focusKind) {
-    const opened = new Set([...blockList.querySelectorAll('details[open]')].map((element) => element.dataset.kind))
-    blockList.replaceChildren()
-    value.blocks.forEach((block, index) => {
-      const details = node('details', undefined, 'rpe-block')
-      details.dataset.kind = block.kind
-      details.open = opened.has(block.kind) || block.kind === focusKind || block.kind === 'instruction'
-      const summary = node('summary', `${index + 1}. ${LABELS[block.kind]}${block.enabled ? '' : ' · 비활성'}`)
-      details.append(summary)
-      const body = node('div', undefined, 'rpe-block-body')
-      const controls = node('div', undefined, 'rpe-tools')
-      const enabled = node('input')
-      enabled.type = 'checkbox'
-      enabled.checked = block.enabled
-      enabled.disabled = block.kind === 'output_contract'
-      const label = field('활성화', enabled)
-      label.className = 'rpe-check'
-      enabled.addEventListener('change', () => { block.enabled = enabled.checked; summary.textContent = `${index + 1}. ${LABELS[block.kind]}${block.enabled ? '' : ' · 비활성'}`; changed() })
-      // 마우스는 드래그, 키보드는 이 손잡이에 초점을 두고 화살표로 인접 위치와 맞바꾼다 —
-      // 버튼을 없애도 키보드·스크린리더 사용자가 순서를 바꿀 방법이 남아야 한다.
+  function renderConversation() {
+    const list = conversationZone.list
+    list.replaceChildren()
+    const rules = conversationOrder()
+    if (!rules.length) list.append(node('p', '대화 안에 넣은 블록이 없습니다. 블록을 여기로 끌어 오세요.', 'rpe-help'))
+    let lastPosition
+    rules.forEach((rule, order) => {
+      const position = positionOf(rule)
+      if (position !== lastPosition) list.append(node('h3', positionText(position)))
+      lastPosition = position
+      const item = node('div', undefined, 'rpe-item')
+      item.dataset.kind = rule.kind
+      // 마우스는 손잡이를 끌고, 키보드는 손잡이에서 위/아래 화살표로 이웃 블록의 자리로 옮긴다.
       const handle = node('span', '⠿', 'rpe-handle')
-      handle.hidden = value.systemTemplate !== undefined
-        && !(block.slot === 'post_history' || typeof block.slot === 'object'
-          || (block.slot === 'default' && DEFAULT_MESSAGE_KINDS.has(block.kind)))
       handle.setAttribute('role', 'button')
       handle.tabIndex = 0
-      handle.draggable = true
-      handle.setAttribute('aria-label', `${LABELS[block.kind]} 순서 이동. 드래그하거나 위/아래 화살표.`)
-      handle.addEventListener('dragstart', (event) => {
-        dragIndex = index
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', String(index))
-      })
-      handle.addEventListener('dragend', () => {
-        dragIndex = null
-        blockList.querySelectorAll('.rpe-drag-over').forEach((element) => element.classList.remove('rpe-drag-over'))
-      })
+      handle.setAttribute('aria-label', `${LABELS[rule.kind]} 이동. 드래그하거나 위/아래 화살표.`)
+      dragSource(handle, rule.kind)
       handle.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowUp' && index > 0) { event.preventDefault(); moveTo(index, index - 1) }
-        else if (event.key === 'ArrowDown' && index < value.blocks.length - 1) { event.preventDefault(); moveTo(index, index + 1) }
-      })
-      details.addEventListener('dragover', (event) => {
-        if (dragIndex == null) return
+        const neighbor = rules[order + (event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : NaN)]
+        if (!neighbor) return
         event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        details.classList.add('rpe-drag-over')
+        placeBlock(rule.kind, 'conversation', event.key === 'ArrowUp' ? { before: neighbor.kind } : { after: neighbor.kind })
+        list.querySelector(`[data-kind="${rule.kind}"] .rpe-handle`)?.focus()
       })
-      details.addEventListener('dragleave', () => details.classList.remove('rpe-drag-over'))
-      details.addEventListener('drop', (event) => {
-        event.preventDefault()
-        details.classList.remove('rpe-drag-over')
-        if (dragIndex == null) return
-        moveTo(dragIndex, dragIndex < index ? index - 1 : index)
-        dragIndex = null
+      acceptBlockDrop(item, (kind, event) => {
+        if (kind === rule.kind) return
+        const box = item.getBoundingClientRect()
+        placeBlock(kind, 'conversation', event.clientY >= box.top + box.height / 2 ? { after: rule.kind } : { before: rule.kind })
       })
-      controls.append(label, handle)
-      const slot = node('select')
-      for (const [key, text] of [['default', '엔진 기본 위치'], ['system', '시스템'], ['post_history', '마지막 사용자 메시지 뒤'], ['depth', '대화 중간']]) {
+      const where = node('select')
+      const choices = [['depth', '대화 중간'], ['post_history', '마지막 사용자 메시지 뒤']]
+      if (PROMPT_MESSAGE_KINDS.includes(rule.kind)) choices.unshift(['default', `엔진 기본 · ${positionText(positionOf({ kind: rule.kind, slot: 'default' }))}`])
+      for (const [key, text] of choices) {
         const option = node('option', text)
         option.value = key
-        slot.append(option)
+        where.append(option)
       }
-      slot.value = typeof block.slot === 'object' ? 'depth' : block.slot
+      where.value = typeof rule.slot === 'object' ? 'depth' : rule.slot
       const depth = node('input')
       depth.type = 'number'; depth.min = '0'; depth.max = String(PROMPT_PROFILE_LIMITS.depth); depth.step = '1'
-      depth.value = String(typeof block.slot === 'object' ? block.slot.depth : 0)
-      const depthField = field('대화 끝에서 앞쪽으로 (메시지 수)', depth)
-      depthField.hidden = slot.value !== 'depth'
-      slot.addEventListener('change', () => {
-        block.slot = slot.value === 'depth' ? { depth: Number(depth.value) } : slot.value
-        depthField.hidden = slot.value !== 'depth'
+      depth.value = String(typeof rule.slot === 'object' ? rule.slot.depth : Math.max(0, position))
+      depth.setAttribute('aria-label', `${LABELS[rule.kind]}: 마지막 사용자 메시지보다 몇 개 앞`)
+      const depthField = field('메시지 수', depth)
+      depthField.hidden = where.value !== 'depth'
+      where.setAttribute('aria-label', `${LABELS[rule.kind]} 대화 안 위치`)
+      where.addEventListener('change', () => {
+        rule.slot = where.value === 'depth' ? { depth: Math.max(0, position) } : where.value
+        renderBlocks()
         changed()
+        list.querySelector(`[data-kind="${rule.kind}"] select`)?.focus()
       })
-      depth.addEventListener('input', () => { block.slot = { depth: depth.value === '' ? NaN : Number(depth.value) }; changed() })
+      depth.addEventListener('input', () => { rule.slot = { depth: depth.value === '' ? NaN : Number(depth.value) }; changed() })
+      // 입력 중에는 다시 그리지 않고, 값이 확정되면 새 자리 묶음으로 옮긴다.
+      depth.addEventListener('change', () => {
+        renderBlocks()
+        list.querySelector(`[data-kind="${rule.kind}"] input[type=number]`)?.focus()
+      })
+      item.append(handle, node('span', LABELS[rule.kind], 'rpe-item-name'), where, depthField,
+        button('시스템으로', () => placeBlock(rule.kind, 'system')),
+        button('사용 안 함', () => placeBlock(rule.kind, 'off')))
+      list.append(item)
+    })
+  }
+
+  function renderOff() {
+    const list = offZone.list
+    list.replaceChildren()
+    const rules = value.blocks.filter((rule) => zoneOf(rule) === 'off')
+    if (!rules.length) list.append(node('p', '모든 블록을 사용 중입니다.', 'rpe-help'))
+    for (const rule of rules) {
+      const item = node('div', undefined, 'rpe-item')
+      item.dataset.kind = rule.kind
+      dragSource(item, rule.kind)
+      item.append(node('span', LABELS[rule.kind], 'rpe-item-name'),
+        button('시스템으로', () => placeBlock(rule.kind, 'system')),
+        button('대화로', () => placeBlock(rule.kind, 'conversation')))
+      list.append(item)
+    }
+  }
+
+  const zoneText = (rule) => ({ system: '시스템 프롬프트', off: '사용 안 함' })[zoneOf(rule)] ?? `대화 안 · ${positionText(positionOf(rule))}`
+
+  function renderTemplates() {
+    const opened = new Set([...blockList.querySelectorAll('details[open]')].map((element) => element.dataset.kind))
+    blockList.replaceChildren()
+    for (const block of value.blocks) {
+      const details = node('details', undefined, 'rpe-block')
+      details.dataset.kind = block.kind
+      details.open = opened.has(block.kind)
+      details.append(node('summary', `${LABELS[block.kind]} · ${zoneText(block)}`))
+      const body = node('div', undefined, 'rpe-block-body')
       const template = node('textarea')
       template.rows = block.kind === 'instruction' ? 5 : 3
       template.maxLength = PROMPT_PROFILE_LIMITS.template
       template.value = block.template
       template.spellcheck = false
       template.addEventListener('input', () => { block.template = template.value; changed() })
-      body.append(controls, field(`${LABELS[block.kind]} 삽입 위치`, slot), depthField, field(`${LABELS[block.kind]} 문구`, template))
+      body.append(field(`${LABELS[block.kind]} 문구`, template))
       if (block.kind === 'output_contract') body.append(node('p', '응답 파서와 맞물리는 출력 문법은 {{content}}로 한 번 유지합니다. 앞뒤의 추가 지시는 편집할 수 있습니다.', 'rpe-help'))
       if (['cast', 'context', 'worldbook', 'memory', 'scene_state', 'event'].includes(block.kind)) body.append(node('p', '해당 데이터가 있을 때만 생성됩니다. 같은 종류의 블록이 여러 개면 이 설정이 각각 적용됩니다.', 'rpe-help'))
+      if (block.kind === 'worldbook') body.append(node('p', '시스템 프롬프트에 둔 로어북도 항목에 자체 depth가 있으면 그 항목만 대화 안의 해당 자리로 들어갑니다.', 'rpe-help'))
       details.append(body)
       blockList.append(details)
-    })
+    }
+  }
+
+  function renderBlocks() {
+    renderConversation()
+    renderOff()
+    renderTemplates()
   }
 
   const showOutput = (rendered) => {

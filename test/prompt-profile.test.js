@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildTurn, compileBlocks, compilePrompt, defaultPromptProfile, validatePromptProfile, promptProfileHash, asteriskScript, MEMORY_LABEL } from '../index.js'
-import { parseSystemTemplate } from '../prompt/profile.js'
+import { applyPromptProfile, parseSystemTemplate } from '../prompt/profile.js'
+import { systemTextOf } from '../prompt/render.js'
 import { mountPromptEditor, promptEditorSampleInput } from '../editor/index.js'
 
 const sample = () => ({ ...promptEditorSampleInput(), dialect: asteriskScript })
@@ -163,6 +164,56 @@ test('the editor default capsule order keeps the existing system and message out
   const composed = await buildTurn({ ...sample(), promptProfile: profile })
   assert.equal(composed.system, original.system)
   assert.deepEqual(composed.render().messages, original.render().messages)
+})
+
+// 검증(정규화)을 거치지 않은 조립 결과. 저장값을 정리해도 출력이 같다는 기준으로 쓴다.
+const assembleRaw = (options, profile) => {
+  const raw = compileBlocks(options)
+  return applyPromptProfile(raw.blocks, profile, raw.names)
+}
+
+test('each block has one place: stale tags and untagged system blocks are normalized without changing output', () => {
+  const options = { cards: [{ name: '가' }], instructionText: '지시', worldText: '세계', pacingText: '호흡', memoryNotes: [{ text: '기억' }] }
+  const stale = defaultPromptProfile()
+  // pacing: 비활성인데 태그가 남았다. memory: 대화 위치인데 태그가 남았다. world: 시스템 위치인데 태그가 없다.
+  stale.systemTemplate = '머리\n\n{{block:instruction}}\n\n{{block:pacing}}\n\n{{block:character}}{{block:memory}}\n\n{{block:output_contract}}'
+  rule(stale, 'pacing').enabled = false
+  rule(stale, 'memory').slot = { depth: 1 }
+  const normalized = validatePromptProfile(stale)
+  // memory 앞은 캡슐이라 뒤쪽 빈 문단을 가져간다 — 조립할 때 비는 태그와 같은 규칙이다.
+  assert.equal(normalized.systemTemplate, '머리\n\n{{block:instruction}}\n\n{{block:character}}{{block:output_contract}}')
+  assert.equal(rule(normalized, 'world').enabled, false)
+  assert.equal(rule(normalized, 'user_boundary').enabled, false)
+  assert.equal(rule(normalized, 'memory').enabled, true)
+  assert.deepEqual(rule(normalized, 'memory').slot, { depth: 1 })
+  assert.equal(rule(normalized, 'output_contract').enabled, true)
+  assert.deepEqual(validatePromptProfile(normalized), normalized, 'normalization is idempotent')
+
+  const before = assembleRaw(options, stale)
+  const after = compileBlocks({ ...options, promptProfile: stale }).blocks
+  assert.equal(systemTextOf(after.filter((block) => block.slot === 'system')), systemTextOf(before.filter((block) => block.slot === 'system')))
+  assert.deepEqual(after.filter((block) => block.slot !== 'system'), before.filter((block) => block.slot !== 'system'))
+})
+
+test('normalizing a stale tag keeps the blank-paragraph result of assembling it', () => {
+  const options = { cards: [{ name: '가' }], memoryNotes: [{ text: '기억' }] }
+  // cast 는 원본 데이터가 없어 비는 태그, memory 는 대화 위치라 정리되는 태그다.
+  const cases = [
+    'A\n\n{{block:cast}}\n\n{{block:memory}}\n\nB{{block:output_contract}}',
+    'A\n\n{{block:memory}}\n\n{{block:cast}}\n\nB{{block:output_contract}}',
+    '{{block:memory}}\n\nA{{block:character}}{{block:output_contract}}',
+    'A{{block:output_contract}}\n\n{{block:memory}}',
+    'A\n\n{{block:memory}}{{block:output_contract}}',
+    'A\n\n{{block:memory}}\n\n{{block:character}}\n\n{{block:output_contract}}',
+  ]
+  for (const systemTemplate of cases) {
+    const profile = { ...defaultPromptProfile(), systemTemplate }
+    rule(profile, 'memory').slot = { depth: 2 }
+    for (const kind of ['instruction', 'world', 'rating', 'pacing', 'player', 'context', 'worldbook', 'user_boundary']) rule(profile, kind).enabled = false
+    const before = systemTextOf(assembleRaw(options, profile).filter((block) => block.slot === 'system'))
+    const after = systemTextOf(compileBlocks({ ...options, promptProfile: profile }).blocks.filter((block) => block.slot === 'system'))
+    assert.equal(after, before, systemTemplate)
+  }
 })
 
 test('system document rejects unknown, duplicate and malformed tags and preserves legacy shape', () => {
