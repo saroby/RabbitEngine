@@ -8,7 +8,7 @@ import {
 } from '../prompt/profile.js'
 
 const LABELS = {
-  instruction: '공통 지시문', world: '세계관', rating: '콘텐츠 등급', pacing: '진행 속도',
+  instruction: '엔진 지시문', world: '세계관', rating: '콘텐츠 등급', pacing: '진행 속도',
   character: '캐릭터', cast: '등장인물', player: '사용자 캐릭터', context: '선택된 기억',
   worldbook: '로어북', user_boundary: '사용자 역할 경계', output_contract: '출력 규약',
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
