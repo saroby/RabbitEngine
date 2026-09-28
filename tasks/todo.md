@@ -100,3 +100,23 @@
 - The editor inserts capsules at the caret, supports pointer drag and Alt+arrow reordering, and allows direct typing after inserted or moved capsules. Browser save and revert preserved the document in the standalone profile flow.
 - Snack browser verified capsule insertion, free text, preview, save, revert, and a clean console. A Chrome pointer drag verified block order and paragraph spacing; clicking or typing after the moved capsule updated the system preview at that position. The Snack editor is left open in kept tab 19.
 - `npm test` passed (273/273), `npm run types` passed, and `git diff --check` passed.
+
+# Rating heading consistency
+
+## Acceptance criteria
+- [x] Every rating instruction uses `[묘사 범위]` as its section heading.
+- [x] Rating behavior and the directive text stay the same.
+
+## Plan
+- [x] Trace the displayed rating text to its source and callers.
+- [x] Change the shared rating instruction text and update its golden fixture.
+- [x] Run validation and verify the preview in a browser, then record the result.
+
+## Working notes
+- `buildTurn` passes `ratingInstruction(rating)` into the `rating` system block. `scene/rating.js` owns the current `묘사 범위:` prefix for all three ratings.
+- The existing `127.0.0.1` Snack browser origin reused an old module despite hard reload. Opening the same local server through `localhost` fetched the new text; tab 21 shows the result.
+
+## Results
+- `scene/rating.js` now emits `[묘사 범위]` followed by the same rating instruction on the next line for `all`, `teen`, and `adult`. The directive strings are unchanged.
+- Updated the golden fixture and added a heading assertion for all three ratings. `npm test` passed (273/273), `npm run types` passed, and `git diff --check` passed.
+- Snack browser tab 21 displays `[묘사 범위]` in the assembled system prompt with no console errors.

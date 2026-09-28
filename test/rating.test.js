@@ -11,6 +11,7 @@ test('assertRating — 모르는 값은 던진다', () => {
   assert.throws(() => assertRating('r18'), /rating/)
 })
 test('adult 는 직접 묘사를, all 은 여운 처리를 지시한다', () => {
+  for (const rating of RATINGS) assert.match(ratingInstruction(rating), /^\[묘사 범위\]\n/)
   assert.match(ratingInstruction('adult'), /직접/)
   assert.match(ratingInstruction('all'), /직접 묘사하지 않는다/)
   assert.match(ratingDirective('teen'), /암시/)
