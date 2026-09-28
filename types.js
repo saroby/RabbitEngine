@@ -128,6 +128,8 @@
  * @property {object[]} cards 등장 캐릭터 카드. 최소 하나
  * @property {object | null} [player] 플레이어 슬롯
  * @property {string} [instruction] 시스템 지시문
+ * @property {string} [world] 별도 세계관 블록
+ * @property {PromptProfile} [promptProfile] 블록 문구·순서·위치 설정
  * @property {object[]} [worldbooks] 로어북
  * @property {object} [worldbookOverrides]
  * @property {object} [worldbookOptions]
@@ -159,3 +161,20 @@
  */
 
 export {}
+
+/**
+ * @typedef {'instruction'|'world'|'rating'|'pacing'|'character'|'cast'|'player'|'context'|'worldbook'|'user_boundary'|'output_contract'|'memory'|'scene_state'|'event'|'directive'} PromptProfileKind
+ */
+/**
+ * @typedef {object} PromptProfileBlock
+ * @property {PromptProfileKind} kind
+ * @property {boolean} enabled
+ * @property {string} template {{content}}, {{user}}, {{char}}를 지원한다
+ * @property {'default'|'system'|'post_history'|{depth:number}} slot default는 원본 블록 위치를 유지한다
+ */
+/**
+ * @typedef {object} PromptProfile
+ * @property {1} version
+ * @property {PromptProfileBlock[]} blocks 모든 블록 종류가 한 번씩 들어간 순서 있는 목록
+ * @property {string} [systemTemplate] 시스템 문구와 {{block:kind}}·{{user}}·{{char}} 태그. 생략하면 기존 블록 순서를 사용한다
+ */

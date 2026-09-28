@@ -3,3 +3,5 @@ dist-types/
 *.tgz
 .DS_Store
 eval/results/
+
+.logs/

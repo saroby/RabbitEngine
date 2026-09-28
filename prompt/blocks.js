@@ -6,6 +6,7 @@ import { koreanPlayscript } from '../dialect/korean-playscript.js'
 import { parserVersionOf } from '../dialect/define.js'
 import { injectWorldbooksWithManifest } from '../worldbook/strategies.js'
 import { MEMORY_LABEL } from '../memory/defaults.js'
+import { applyPromptProfile, validatePromptProfile, promptProfileHash } from './profile.js'
 
 export const BLOCK_COMPILER_VERSION = 'blocks-v1'
 export const DEFAULT_DEPTHS = Object.freeze({ memory: 4, scene_state: 2, event: 0 })
@@ -23,6 +24,8 @@ const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: 
  * @param {object[]} [options.cards] 캐릭터 카드 목록. 첫 장이 주인공이다
  * @param {object} [options.card] 카드 한 장만 줄 때의 하위 호환 입력
  * @param {object} [options.playerCard] 플레이어(유저) 카드
+ * @param {import('../types.js').PromptProfile} [options.promptProfile] 블록 편집 설정
+ * @param {string} [options.worldText] 세계관
  * @param {string} [options.instructionText] 시스템 지시문
  * @param {string} [options.ratingInstruction] 등급 문장 (scene/rating.js)
  * @param {string} [options.pacingText] 호흡 문장
@@ -40,21 +43,24 @@ const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: 
  * @param {object} [options.dialect] 대본 방언
  * @param {boolean} [options.enforceFormat] false 면 규약 블록을 넣지 않는다
  * @param {string} [options.userName] {{user}} 에 들어갈 이름
- * @returns {{ blocks: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object }}
+ * @returns {{ blocks: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object, profile?: {version:number,hash:string} }}
  */
 export function compileBlocks({
-  cards, card, playerCard, instructionText, ratingInstruction, pacingText,
+  cards, card, playerCard, instructionText, worldText, ratingInstruction, pacingText, promptProfile,
   worldbooks = [], worldbookOverrides = {}, worldbookOptions = {}, worldbookDepth = null,
   messages = [], rawMessages = null,
   contextNotes = [], memoryNotes = null,
   sceneStateText = '', events = [], directive = '',
   dialect = koreanPlayscript, enforceFormat = true, userName = '유저',
 } = {}) {
+  const profile = promptProfile === undefined ? null : validatePromptProfile(promptProfile)
+  if (profile && !enforceFormat) throw new Error('PromptProfile: 출력 규약을 끌 수 없습니다')
   const list = (cards?.length ? cards : [card]).filter(Boolean)
   const names = namesOf({ card: list[0], playerCard, userName })
   const blocks = []
 
   if (instructionText) blocks.push(sys('instruction', substitute(instructionText, names)))
+  if (worldText) blocks.push(sys('world', substitute(worldText, names)))
   if (ratingInstruction) blocks.push(sys('rating', ratingInstruction))
   if (pacingText) blocks.push(sys('pacing', pacingText))
   for (const source of list) {
@@ -96,7 +102,8 @@ export function compileBlocks({
   if (String(directive || '').trim()) blocks.push({ kind: 'directive', role: 'system', slot: 'post_history', trust: 'engine', content: directive.trim() })
 
   return {
-    blocks, names, compilerVersion: BLOCK_COMPILER_VERSION,
+    blocks: profile ? applyPromptProfile(blocks, profile, names) : blocks, names, compilerVersion: BLOCK_COMPILER_VERSION,
+    ...(profile ? { profile: { version: profile.version, hash: promptProfileHash(profile) } } : {}),
     worldbookManifest: injected.manifest,
     worldbookScan: { scanSource: injected.scanSource, usedChars: injected.usedChars, truncated: injected.truncated, budgetChars: injected.budgetChars },
   }
