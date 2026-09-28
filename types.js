@@ -207,9 +207,8 @@ export {}
  * @property {'system'|'post_history'|{depth:number}} slot
  */
 /**
- * @typedef {object} CustomBlockSource
- * @property {string} id
- * @property {string} content {{user}}, {{char}}를 지원한다. 20,000자 이하
+ * 호스트 커스텀 블록 문구. 텍스트 블록은 content, 대화 블록은 messages 중 하나만 가진다. {{user}}, {{char}}를 지원하고 합계 20,000자 이하다.
+ * @typedef {{ id: string, content: string } | { id: string, messages: Array<{ role: 'user'|'assistant', content: string }> }} CustomBlockSource
  */
 /**
  * @typedef {object} PromptProfile
