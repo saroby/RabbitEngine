@@ -57,6 +57,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-zone h2{font-size:16px;margin:0}.rabbit-prompt-editor .rpe-zone h3{font-size:13px;color:var(--rabbit-muted);margin:12px 0 6px}
 .rabbit-prompt-editor .rpe-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--rabbit-border);border-radius:7px;padding:6px 8px;margin:6px 0;background:#fff}
 .rabbit-prompt-editor .rpe-item.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
+.rabbit-prompt-editor .rpe-custom-swaps{margin-top:8px}.rabbit-prompt-editor .rpe-custom-swaps .rpe-item{background:#fffaf2}
 .rabbit-prompt-editor .rpe-item-name{font-weight:600;flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-item label{display:flex;align-items:center;gap:6px;margin:0;font-weight:400}
 .rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
@@ -181,7 +182,10 @@ export function mountPromptEditor(container, options) {
   const blockList = node('section')
   blockList.setAttribute('aria-label', '태그별 문구')
   advanced.append(blockList)
-  composerPane.append(tagPalette, composer, conversationZone.section, advanced)
+  // 시스템 프롬프트에 넣은 커스텀 블록은 캡슐이라 옆에 선택 상자를 둘 수 없다. 캡슐 아래에 교체 줄을 따로 둔다.
+  const systemCustomList = node('div', undefined, 'rpe-custom-swaps')
+  systemCustomList.setAttribute('aria-label', '시스템 프롬프트의 커스텀 블록 교체')
+  composerPane.append(tagPalette, composer, systemCustomList, conversationZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
   preview.append(node('h2', '실제 조립 결과'))
@@ -617,6 +621,65 @@ export function mountPromptEditor(container, options) {
     .sort((a, b) => positionOf(b.rule) - positionOf(a.rule) || a.index - b.index)
     .map(({ rule }) => rule)
 
+  /**
+   * 배치된 커스텀 블록을 같은 자리·역할 그대로 다른 커스텀 블록으로 바꾼다. 여러 버전의 지시문을 바꿔 끼우는 용도다.
+   * @param {string} key 지금 배치된 블록의 키(custom:<id>)
+   * @param {string} id 새로 넣을 커스텀 블록 id
+   */
+  function swapCustom(key, id) {
+    const rule = ruleOf(key)
+    const next = `custom:${id}`
+    if (!rule || next === key) return
+    if (ruleOf(next)) {
+      errors.textContent = `${labelOf(next)}은(는) 이미 이 설정에 들어 있습니다. 한 설정에 같은 블록은 한 번만 넣을 수 있습니다.`
+      return
+    }
+    const text = value.systemTemplate ?? (isSystemRule(rule) ? defaultSystemTemplate(value.blocks) : undefined)
+    if (text !== undefined && blockKindsIn(text).has(key)) {
+      value.systemTemplate = text.replace(new RegExp(`\\{\\{\\s*block:${key}\\s*\\}\\}`), `{{block:${next}}}`)
+    }
+    rule.id = id
+    renderComposer()
+    renderBlocks()
+    changed()
+  }
+
+  /** 배치된 커스텀 블록의 교체 선택 상자. 현재 블록과, 아직 이 설정에 없는 목록의 블록만 고를 수 있다. */
+  function swapSelect(rule) {
+    const key = profileKeyOf(rule)
+    const select = node('select')
+    select.setAttribute('aria-label', `${labelOf(key)} 다른 커스텀 블록으로 교체`)
+    const choices = library.filter((block) => block.id === rule.id || !ruleOf(`custom:${block.id}`))
+    if (!choices.some((block) => block.id === rule.id)) choices.unshift({ id: rule.id, name: labelOf(key) })
+    for (const block of choices) {
+      const option = node('option', block.name)
+      option.value = block.id
+      select.append(option)
+    }
+    select.value = rule.id
+    select.disabled = choices.length < 2
+    select.title = select.disabled ? '바꿔 넣을 다른 커스텀 블록이 없습니다.' : '같은 자리·역할 그대로 다른 커스텀 블록으로 바꿉니다.'
+    select.addEventListener('change', () => {
+      swapCustom(key, select.value)
+      root.querySelector(`[data-kind="custom:${select.value}"] select[aria-label$="교체"]`)?.focus()
+    })
+    return select
+  }
+
+  function renderSystemCustoms() {
+    systemCustomList.replaceChildren()
+    const rules = value.blocks.filter((rule) => rule.kind === 'custom' && zoneOf(rule) === 'system')
+    if (!rules.length) return
+    systemCustomList.append(node('p', '시스템 프롬프트에 넣은 커스텀 블록 — 같은 자리에서 다른 버전으로 바꿀 수 있습니다.', 'rpe-help'))
+    for (const rule of rules) {
+      const key = profileKeyOf(rule)
+      const item = node('div', undefined, 'rpe-item')
+      item.dataset.kind = key
+      item.append(node('span', labelOf(key), 'rpe-item-name'), field('교체', swapSelect(rule)))
+      systemCustomList.append(item)
+    }
+  }
+
   function renderConversation() {
     const list = conversationZone.list
     list.replaceChildren()
@@ -696,7 +759,7 @@ export function mountPromptEditor(container, options) {
           changed()
           list.querySelector(`[data-kind="${key}"] select[aria-label$="메시지 역할"]`)?.focus()
         })
-        item.append(role)
+        item.append(role, field('교체', swapSelect(rule)))
       }
       item.append(where, depthField,
         button('시스템으로', () => placeBlock(key, 'system')),
@@ -741,6 +804,7 @@ export function mountPromptEditor(container, options) {
   }
 
   function renderBlocks() {
+    renderSystemCustoms()
     renderConversation()
     refreshTagButtons()
     renderTemplates()
