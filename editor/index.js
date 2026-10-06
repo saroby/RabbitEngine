@@ -65,6 +65,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-tags button[data-variable],.rabbit-prompt-editor .rpe-chip[data-variable]{background:#e6f6f1;border-color:#8fd1bc;color:#0b5e47}
 .rabbit-prompt-editor .rpe-block-panel{border:1px solid #a9c4ed;border-left:4px solid #3874e5;border-radius:8px;padding:10px 12px;margin:10px 0;background:#f8fbff}
 .rabbit-prompt-editor .rpe-block-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rabbit-prompt-editor .rpe-original{margin-top:8px}.rabbit-prompt-editor .rpe-original summary{cursor:pointer;color:var(--rabbit-muted);font-size:13px}.rabbit-prompt-editor .rpe-original pre{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#f1f4f8;font:12px/1.6 ui-monospace,monospace}
 .rabbit-prompt-editor .rpe-block-panel h3{margin:0;font-size:14px}.rabbit-prompt-editor .rpe-block-panel label{margin-top:6px}
 .rabbit-prompt-editor .rpe-item.rpe-selected{border-color:#3874e5;box-shadow:0 0 0 1px #3874e5}
 .rabbit-prompt-editor .rpe-name-button{border:0;background:none;padding:0;font-weight:600;text-align:left;color:inherit;text-decoration:underline dotted #8795a4;text-underline-offset:3px}
@@ -263,11 +264,9 @@ export function mountPromptEditor(container, options) {
   const messageList = node('div')
   messageSection.append(node('h3', '대화 메시지'), messageList)
   result.append(systemSection, messageSection)
-  const originals = node('details')
-  originals.append(node('summary', '{{content}} 원문 확인'))
-  const originalText = node('pre')
-  originals.append(originalText)
-  preview.append(inputDetails, previewStatus, result, originals)
+  preview.append(inputDetails, previewStatus, result)
+  // 블록 종류별 {{content}} 원문(미리보기 데이터 기준). 문구를 고치는 바로 그 자리에서 보여 준다.
+  let originalsByKind = new Map()
   layout.append(composerPane, preview)
   root.append(layout)
   container.append(root)
@@ -696,7 +695,7 @@ export function mountPromptEditor(container, options) {
       previewRevision += 1
       previewStatus.textContent = '잘못된 항목을 고치면 미리보기가 갱신됩니다.'
       showOutput()
-      originalText.textContent = ''
+      setOriginals([])
     }
   }
 
@@ -897,6 +896,11 @@ export function mountPromptEditor(container, options) {
       refreshSnippets()
     })
     parts.push(field(`${LABELS[block.kind]} 문구`, template))
+    const original = node('details', undefined, 'rpe-original')
+    original.append(node('summary', '{{content}} 원문 — 미리보기 데이터에서 이 자리에 들어가는 내용'), node('pre'))
+    original.dataset.originalFor = block.kind
+    fillOriginal(original)
+    parts.push(original)
     if (block.kind === 'output_contract') parts.push(node('p', '응답 파서와 맞물리는 출력 문법은 {{content}}로 한 번 유지합니다. 앞뒤의 추가 지시는 편집할 수 있습니다.', 'rpe-help'))
     if (['cast', 'context', 'worldbook', 'memory', 'scene_state', 'event'].includes(block.kind)) parts.push(node('p', '해당 데이터가 있을 때만 생성됩니다. 같은 종류의 블록이 여러 개면 이 설정이 각각 적용됩니다.', 'rpe-help'))
     if (block.kind === 'worldbook') parts.push(node('p', '시스템 프롬프트에 둔 로어북도 항목에 자체 depth가 있으면 그 항목만 대화 안의 해당 자리로 들어갑니다.', 'rpe-help'))
@@ -917,6 +921,17 @@ export function mountPromptEditor(container, options) {
       details.append(body)
       blockList.append(details)
     }
+  }
+
+  function fillOriginal(element) {
+    const text = originalsByKind.get(element.dataset.originalFor)
+    element.querySelector('pre').textContent = text ?? '이 미리보기 데이터에는 이 블록의 원문이 없습니다. 원본 데이터가 있을 때만 생성됩니다.'
+  }
+
+  function setOriginals(blocks) {
+    originalsByKind = new Map()
+    for (const block of blocks) originalsByKind.set(block.kind, [originalsByKind.get(block.kind), block.content].filter(Boolean).join('\n\n'))
+    for (const element of root.querySelectorAll('[data-original-for]')) fillOriginal(element)
   }
 
   const refreshSnippets = () => {
@@ -1007,13 +1022,13 @@ export function mountPromptEditor(container, options) {
         if (destroyed || revision !== previewRevision) return
         const currentRendered = current.render()
         showOutput(currentRendered)
-        originalText.textContent = original.blocks.map((block) => `[${block.kind} · ${JSON.stringify(block.slot)}]\n${block.content}`).join('\n\n')
+        setOriginals(original.blocks)
         previewStatus.textContent = `조립 완료 · 시스템 ${currentRendered.system.length.toLocaleString()}자 · 메시지 ${currentRendered.messages.length}개`
       } catch (error) {
         if (destroyed || revision !== previewRevision) return
         previewStatus.textContent = `미리보기를 만들 수 없습니다: ${error.message}`
         showOutput()
-        originalText.textContent = ''
+        setOriginals([])
       }
     }, 150)
   }
