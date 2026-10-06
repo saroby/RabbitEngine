@@ -17,8 +17,9 @@ const LABELS = {
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
 }
 const BLOCK_DRAG_TYPE = 'application/x-rabbit-block'
-const ROLE_LABELS = { system: '메모 (user로 전송)', user: '사용자 메시지', assistant: '모델 메시지' }
-const ROLE_BADGES = { system: '메모', user: '사용자 메시지', assistant: '모델 메시지' }
+const ROLE_LABELS = { system: '메모 — 사용자 쪽 메시지로 보냄', user: '사용자 메시지로 보냄', assistant: '모델 답변으로 보냄' }
+// 카드 배지. 블록이 실제로 어느 쪽 메시지로 들어가는지 말한다(메모도 user 로 간다).
+const ROLE_BADGES = { system: '사용자 쪽 · 메모', user: '사용자 쪽 · 사용자 메시지', assistant: '모델 쪽 · 모델 답변' }
 // 더 이전 대화 보기 한 번에 늘리는 말풍선 수.
 const HISTORY_STEP = 4
 const DROP_TEXT = '+ 여기에 넣기'
@@ -80,7 +81,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-card{display:flex;align-items:center;gap:8px;margin:0 18px;padding:5px 10px;border:1px solid var(--rabbit-border);border-left:3px solid #3874e5;border-radius:7px;background:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .rabbit-prompt-editor .rpe-card:hover{background:#f8fbff;border-color:#a9c4ed;border-left-color:#3874e5}
 .rabbit-prompt-editor .rpe-card[data-custom]{border-left-color:#e08a1e}.rabbit-prompt-editor .rpe-card[data-custom]:hover{border-left-color:#e08a1e}
-.rabbit-prompt-editor .rpe-card.rpe-selected{box-shadow:0 0 0 2px #3874e5}
+.rabbit-prompt-editor .rpe-card.rpe-selected{box-shadow:0 0 0 2px #3874e5}.rabbit-prompt-editor .rpe-card[data-side=user]{align-self:flex-end;width:82%;margin:0 0 0 auto}.rabbit-prompt-editor .rpe-card[data-side=assistant]{align-self:flex-start;width:82%;margin:0 auto 0 0}
 .rabbit-prompt-editor .rpe-card-grip{color:#9aa6b2;cursor:grab;user-select:none;font-size:13px}
 .rabbit-prompt-editor .rpe-card-name{font-weight:600;white-space:nowrap}
 .rabbit-prompt-editor .rpe-badge{font-size:11px;padding:0 7px;border-radius:999px;background:#eef1f5;color:#3f4d5b;white-space:nowrap}
@@ -223,7 +224,7 @@ export function mountPromptEditor(container, options) {
     section.append(node('h2', title), node('p', help, 'rpe-help'), list)
     return { section, list }
   }
-  const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 위가 오래된 대화, 맨 아래가 이번 입력입니다. 블록을 말풍선 사이 칸에 끌어 놓으세요. 마지막 메시지 뒤 칸의 블록은 [진행 메모]로 감싸 그 메시지에 붙습니다.', 'conversation')
+  const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 위가 오래된 대화, 맨 아래가 이번 입력입니다. 블록 하나가 대화 메시지 하나로 들어갑니다 — 오른쪽 카드는 사용자 쪽, 왼쪽 카드는 모델 쪽 메시지입니다(메모도 사용자 쪽). 같은 쪽 메시지가 이어지면 공급자에 따라 하나로 합쳐 보내질 수 있습니다. 마지막 메시지 뒤 칸의 블록은 따로 메시지가 되지 않고 [진행 메모]로 감싸 이번 입력 끝에 붙습니다.', 'conversation')
   conversationZone.list.className = 'rpe-timeline'
   conversationZone.list.setAttribute('role', 'group')
   conversationZone.list.setAttribute('aria-label', '대화 흐름 (위가 오래된 대화)')
@@ -916,8 +917,11 @@ export function mountPromptEditor(container, options) {
     grip.setAttribute('aria-hidden', 'true')
     const message = isMessageBlock(key)
     const role = rule.kind === 'custom' ? rule.role : 'system'
-    const badge = node('span', message ? `대화 블록 · 메시지 ${sourceOf(key).messages.length}개` : ROLE_BADGES[role], 'rpe-badge')
+    const appended = position === POST_HISTORY
+    const badge = node('span', message ? `대화 블록 · 메시지 ${sourceOf(key).messages.length}개` : appended ? '이번 입력 끝에 붙음' : ROLE_BADGES[role], 'rpe-badge')
     if (!message) badge.dataset.role = role
+    // 보내지는 쪽에 붙인다: 모델 답변은 왼쪽, 메모·사용자 메시지·이번 입력에 붙는 블록은 오른쪽. 대화 블록은 양쪽을 담아 가운데.
+    card.dataset.side = message ? 'both' : role === 'assistant' ? 'assistant' : 'user'
     card.append(grip, node('span', label, 'rpe-card-name'), badge)
     if (!message) card.append(snippetNode(key, 'rpe-card-snippet'))
     const engineDefault = rule.slot === 'default'
