@@ -63,7 +63,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-tags button[data-custom],.rabbit-prompt-editor .rpe-chip[data-custom]{background:#fff3e0;border-color:#e8b46a;color:#7a4100}
 .rabbit-prompt-editor .rpe-chip[data-custom] .rpe-chip-snippet{color:#8a5a20}
 .rabbit-prompt-editor .rpe-tags button[data-variable],.rabbit-prompt-editor .rpe-chip[data-variable]{background:#e6f6f1;border-color:#8fd1bc;color:#0b5e47}
-.rabbit-prompt-editor .rpe-block-panel{border:1px solid #a9c4ed;border-left:4px solid #3874e5;border-radius:8px;padding:10px 12px;margin:10px 0;background:#f8fbff}
+.rabbit-prompt-editor .rpe-block-panel{width:min(640px,calc(100vw - 48px));max-height:calc(100vh - 96px);overflow:auto;border:1px solid var(--rabbit-border);border-radius:12px;padding:18px 20px;background:#fff;color:#18212b;color-scheme:light;box-shadow:0 12px 40px rgba(0,0,0,.25)}.rabbit-prompt-editor .rpe-block-panel::backdrop{background:rgba(0,0,0,.45)}.rabbit-prompt-editor .rpe-block-panel textarea{width:100%}
 .rabbit-prompt-editor .rpe-block-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .rabbit-prompt-editor .rpe-original{margin-top:8px}.rabbit-prompt-editor .rpe-original summary{cursor:pointer;color:var(--rabbit-muted);font-size:13px}.rabbit-prompt-editor .rpe-original pre{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#f1f4f8;font:12px/1.6 ui-monospace,monospace}
 .rabbit-prompt-editor .rpe-block-panel h3{margin:0;font-size:14px}.rabbit-prompt-editor .rpe-block-panel label{margin-top:6px}
@@ -174,7 +174,7 @@ export function mountPromptEditor(container, options) {
     return label
   }
   root.append(node('style', STYLE))
-  root.append(node('p', '태그로 블록을 배치하고, 캡슐이나 대화 블록을 누르면 바로 아래에서 문구를 고칩니다.', 'rpe-help'))
+  root.append(node('p', '태그로 블록을 배치하고, 캡슐이나 대화 블록을 누르면 팝업에서 문구를 고칩니다.', 'rpe-help'))
   const guide = node('details', undefined, 'rpe-guide')
   const guideList = node('ul')
   for (const text of [
@@ -214,19 +214,19 @@ export function mountPromptEditor(container, options) {
   const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 마지막 사용자 메시지 뒤에 놓은 블록은 [진행 메모]로 감싸 그 메시지에 붙습니다. 블록을 다른 블록 위에 놓으면 그 자리로 갑니다.', 'conversation')
   const advanced = node('details', undefined, 'rpe-advanced')
   advanced.append(node('summary', '모든 블록 문구'))
-  advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다. 캡슐이나 대화 블록을 누르면 그 블록의 문구만 바로 아래에서 열립니다.', 'rpe-help'))
+  advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다. 캡슐이나 대화 블록을 누르면 그 블록의 문구만 팝업으로 열립니다.', 'rpe-help'))
   const blockList = node('section')
   blockList.setAttribute('aria-label', '모든 블록 문구')
   advanced.append(blockList)
-  // 시스템 프롬프트에 넣은 커스텀 블록은 캡슐이라 옆에 선택 상자를 둘 수 없다. 캡슐 아래에 교체 줄을 따로 둔다.
-  // 선택한 블록의 문구 패널. 시스템 프롬프트 캡슐이면 문서 바로 아래, 대화 블록이면 그 항목 바로 아래에 붙는다.
-  const blockPanel = node('section', undefined, 'rpe-block-panel')
+  // 선택한 블록의 문구는 팝업(모달 dialog)으로 연다. 화면 안에 끼워 넣으면 누를 때마다 레이아웃이 밀린다.
+  const blockPanel = node('dialog', undefined, 'rpe-block-panel')
   blockPanel.setAttribute('aria-label', '블록 문구')
-  blockPanel.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return
+  blockPanel.addEventListener('cancel', (event) => {
     event.preventDefault()
     closePanel(true)
   })
+  // 바깥(배경)을 누르면 닫는다. dialog 자신이 눌린 경우만 배경이다.
+  blockPanel.addEventListener('click', (event) => { if (event.target === blockPanel) closePanel(true) })
   composerPane.append(tagPalette, composer, conversationZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
@@ -268,7 +268,7 @@ export function mountPromptEditor(container, options) {
   // 블록 종류별 {{content}} 원문(미리보기 데이터 기준). 문구를 고치는 바로 그 자리에서 보여 준다.
   let originalsByKind = new Map()
   layout.append(composerPane, preview)
-  root.append(layout)
+  root.append(layout, blockPanel)
   container.append(root)
 
   const tokenText = (token) => token.startsWith('{{block:')
@@ -816,7 +816,7 @@ export function mountPromptEditor(container, options) {
         renderBlocks()
         list.querySelector(`[data-kind="${key}"] input[type=number]`)?.focus()
       })
-      // 이름(또는 항목의 빈 곳)을 누르면 이 항목 바로 아래에 문구 패널이 열린다.
+      // 이름(또는 항목의 빈 곳)을 누르면 이 블록의 문구 팝업이 열린다.
       const name = node('span', undefined, 'rpe-item-name')
       const nameButton = button(label, (event) => selectBlock(key, { focus: event.detail === 0 }))
       nameButton.className = 'rpe-name-button'
@@ -954,8 +954,8 @@ export function mountPromptEditor(container, options) {
     const rule = selectedKey ? ruleOf(selectedKey) : undefined
     if (!rule || zoneOf(rule) === 'off') {
       selectedKey = undefined
+      if (blockPanel.open) blockPanel.close()
       blockPanel.replaceChildren()
-      blockPanel.remove()
       markSelection()
       return
     }
@@ -963,13 +963,11 @@ export function mountPromptEditor(container, options) {
     head.append(node('h3', `블록 문구 · ${labelOf(selectedKey)}`), button('닫기', () => closePanel(true)))
     blockPanel.dataset.panelFor = selectedKey
     blockPanel.replaceChildren(head, node('p', `${zoneText(rule)} · ${isCustomKey(selectedKey) ? '커스텀 블록' : '엔진 블록'}`, 'rpe-help'), ...blockEditorParts(rule))
-    const item = zoneOf(rule) === 'conversation' ? conversationZone.list.querySelector(`.rpe-item[data-kind="${selectedKey}"]`) : null
-    if (item) item.after(blockPanel)
-    else composer.after(blockPanel)
+    if (!blockPanel.open && blockPanel.isConnected) blockPanel.showModal()
     markSelection()
   }
 
-  /** 블록을 선택해 그 자리 바로 아래에 문구 패널을 연다. 키보드로 열었으면 첫 입력란으로 초점을 옮긴다. */
+  /** 블록을 선택해 문구 팝업을 연다. 키보드로 열었으면 첫 입력란으로 초점을 옮긴다. */
   function selectBlock(key, { focus = false } = {}) {
     selectedKey = key
     renderPanel()
@@ -1056,6 +1054,7 @@ export function mountPromptEditor(container, options) {
     },
     destroy() {
       destroyed = true
+      if (blockPanel.open) blockPanel.close()
       previewRevision += 1
       clearTimeout(previewTimer)
       doc.removeEventListener('selectionchange', rememberRange)
