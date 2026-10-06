@@ -75,7 +75,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-zone h2{font-size:16px;margin:0}.rabbit-prompt-editor .rpe-zone h3{font-size:13px;color:var(--rabbit-muted);margin:12px 0 6px}
 .rabbit-prompt-editor .rpe-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--rabbit-border);border-radius:7px;padding:6px 8px;margin:6px 0;background:#fff}
 .rabbit-prompt-editor .rpe-item.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
-.rabbit-prompt-editor .rpe-custom-swaps{margin-top:8px}.rabbit-prompt-editor .rpe-custom-swaps .rpe-item{background:#fffaf2}
+
 .rabbit-prompt-editor .rpe-item-name{font-weight:600;flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-item label{display:flex;align-items:center;gap:6px;margin:0;font-weight:400}
 .rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
@@ -226,9 +226,7 @@ export function mountPromptEditor(container, options) {
     event.preventDefault()
     closePanel(true)
   })
-  const systemCustomList = node('div', undefined, 'rpe-custom-swaps')
-  systemCustomList.setAttribute('aria-label', '시스템 프롬프트의 커스텀 블록 교체')
-  composerPane.append(tagPalette, composer, systemCustomList, conversationZone.section, advanced)
+  composerPane.append(tagPalette, composer, conversationZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
   preview.append(node('h2', '실제 조립 결과'))
@@ -758,20 +756,6 @@ export function mountPromptEditor(container, options) {
     return select
   }
 
-  function renderSystemCustoms() {
-    systemCustomList.replaceChildren()
-    const rules = value.blocks.filter((rule) => rule.kind === 'custom' && zoneOf(rule) === 'system')
-    if (!rules.length) return
-    systemCustomList.append(node('p', '시스템 프롬프트에 넣은 커스텀 블록 — 같은 자리에서 다른 버전으로 바꿀 수 있습니다.', 'rpe-help'))
-    for (const rule of rules) {
-      const key = profileKeyOf(rule)
-      const item = node('div', undefined, 'rpe-item')
-      item.dataset.kind = key
-      item.append(node('span', labelOf(key), 'rpe-item-name'), field('교체', swapSelect(rule)))
-      systemCustomList.append(item)
-    }
-  }
-
   function renderConversation() {
     const list = conversationZone.list
     list.replaceChildren()
@@ -988,7 +972,6 @@ export function mountPromptEditor(container, options) {
   }
 
   function renderBlocks() {
-    renderSystemCustoms()
     renderConversation()
     refreshTagButtons()
     renderTemplates()
