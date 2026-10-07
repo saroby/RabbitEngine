@@ -7,7 +7,7 @@ import {
 } from '../prompt/profile.js'
 import { blockSnippet } from './snippet.js'
 import {
-  POST_HISTORY, MAX_DEPTH, positionOf, positionText, slotAt, historyLength, timelineRows, gapAbove, gapBelow, keyboardStep,
+  POST_HISTORY, MIN_HISTORY, MAX_DEPTH, positionOf, positionText, slotAt, historyLength, timelineRows, gapAbove, gapBelow, keyboardStep,
 } from './timeline.js'
 
 const LABELS = {
@@ -67,7 +67,8 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-zone h2{font-size:16px;margin:0}
 .rabbit-prompt-editor .rpe-zone-note{font-size:12px;color:var(--rabbit-muted);margin:4px 0}.rabbit-prompt-editor .rpe-zone-note[data-warn]{color:#a11a24}.rabbit-prompt-editor .rpe-zone-note:empty{display:none}
 .rabbit-prompt-editor .rpe-timeline{display:flex;flex-direction:column;margin-top:8px}
-.rabbit-prompt-editor .rpe-more{align-self:center;font-size:12px;padding:2px 10px;border-style:dashed;background:#fff;color:var(--rabbit-muted)}
+.rabbit-prompt-editor .rpe-history-controls{align-self:center;display:flex;gap:6px}
+.rabbit-prompt-editor .rpe-more{font-size:12px;padding:2px 10px;border-style:dashed;background:#fff;color:var(--rabbit-muted)}
 .rabbit-prompt-editor .rpe-bubble{display:flex;align-items:center;gap:6px;max-width:80%;padding:5px 12px;border-radius:14px;font-size:12px;color:#3f4d5b;background:#eceff3;user-select:none}
 .rabbit-prompt-editor .rpe-bubble[data-role=user]{align-self:flex-end;background:#e4edfb;color:#24466f;border-bottom-right-radius:4px}
 .rabbit-prompt-editor .rpe-bubble[data-role=assistant]{align-self:flex-start;border-bottom-left-radius:4px}
@@ -829,7 +830,10 @@ export function mountPromptEditor(container, options) {
     const list = conversationZone.list
     list.replaceChildren()
     const rules = conversationOrder()
-    const history = historyLength(Math.max(-1, ...rules.map(positionOf)), requestedHistory)
+    const deepest = Math.max(-1, ...rules.map(positionOf))
+    const history = historyLength(deepest, requestedHistory)
+    // 블록이 놓인 자리 위로는 접지 않는다. 블록 없이 늘린 말풍선만 접힌다.
+    const floor = historyLength(deepest)
     const more = button(history >= MAX_DEPTH ? `더 이전 대화 없음 (최대 ${MAX_DEPTH}개 앞)` : '더 이전 대화 보기', () => {
       requestedHistory = Math.min(MAX_DEPTH, history + HISTORY_STEP)
       renderConversation()
@@ -838,7 +842,19 @@ export function mountPromptEditor(container, options) {
     more.className = 'rpe-more'
     more.disabled = history >= MAX_DEPTH
     more.title = '위쪽에 이전 대화 말풍선을 더 보여 줘서 더 앞자리에도 블록을 놓을 수 있게 합니다.'
-    list.append(more)
+    const less = button('이전 대화 접기', () => {
+      requestedHistory = 0
+      renderConversation()
+      list.querySelector('.rpe-more')?.focus()
+    })
+    less.className = 'rpe-more rpe-less'
+    less.disabled = history <= floor
+    less.title = less.disabled
+      ? (floor > MIN_HISTORY ? '가장 앞쪽 블록 위까지만 보이는 상태입니다. 블록을 아래로 옮기면 더 접힙니다.' : '더 접을 이전 대화가 없습니다.')
+      : `더 보기로 늘린 말풍선을 접어 ${floor}개만 보입니다. 놓은 블록은 그대로입니다.`
+    const controls = node('div', undefined, 'rpe-history-controls')
+    controls.append(more, less)
+    list.append(controls)
     if (!rules.length) list.append(node('p', '대화 안에 넣은 블록이 없습니다. 태그나 캡슐을 말풍선 사이 칸으로 끌어 오세요.', 'rpe-help'))
     for (const row of timelineRows(history)) {
       if (row.type === 'gap') {
