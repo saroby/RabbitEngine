@@ -7,7 +7,7 @@ import {
 } from '../prompt/profile.js'
 import { blockSnippet } from './snippet.js'
 import {
-  POST_HISTORY, MIN_HISTORY, MAX_DEPTH, positionOf, positionText, slotAt, historyLength, timelineRows, gapAbove, gapBelow, keyboardStep,
+  POST_HISTORY, MAX_DEPTH, positionOf, positionText, slotAt, historyLength, timelineRows, foldRows, gapAbove, gapBelow, keyboardStep,
 } from './timeline.js'
 
 const LABELS = {
@@ -68,6 +68,8 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-zone-note{font-size:12px;color:var(--rabbit-muted);margin:4px 0}.rabbit-prompt-editor .rpe-zone-note[data-warn]{color:#a11a24}.rabbit-prompt-editor .rpe-zone-note:empty{display:none}
 .rabbit-prompt-editor .rpe-timeline{display:flex;flex-direction:column;margin-top:8px}
 .rabbit-prompt-editor .rpe-history-controls{align-self:center;display:flex;gap:6px}
+.rabbit-prompt-editor .rpe-fold{align-self:stretch;margin:4px 18px 8px;padding:6px 10px;font-size:12px;color:var(--rabbit-muted);background:#f4f6f8;border:1px dashed var(--rabbit-border);border-radius:8px;cursor:pointer}
+.rabbit-prompt-editor .rpe-fold:hover{color:#245dbd;border-color:#a9c4ed;background:#f5f8ff}
 .rabbit-prompt-editor .rpe-more{font-size:12px;padding:2px 10px;border-style:dashed;background:#fff;color:var(--rabbit-muted)}
 .rabbit-prompt-editor .rpe-bubble{display:flex;align-items:center;gap:6px;max-width:80%;padding:5px 12px;border-radius:14px;font-size:12px;color:#3f4d5b;background:#eceff3;user-select:none}
 .rabbit-prompt-editor .rpe-bubble[data-role=user]{align-self:flex-end;background:#e4edfb;color:#24466f;border-bottom-right-radius:4px}
@@ -235,6 +237,8 @@ export function mountPromptEditor(container, options) {
   conversationZone.list.before(zoneNote)
   // "더 이전 대화 보기"로 늘린 말풍선 수. 배치가 바뀌어도 이 화면에서는 유지한다.
   let requestedHistory = 0
+  // 블록이 없어 접혀 있던 구간 중 펼친 자리. "이전 대화 접기"가 비운다.
+  const unfolded = new Set()
   const advanced = node('details', undefined, 'rpe-advanced')
   advanced.append(node('summary', '모든 블록 문구'))
   advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다. 캡슐이나 대화 안 카드를 누르면 그 블록의 문구만 팝업으로 열립니다.', 'rpe-help'))
@@ -832,7 +836,11 @@ export function mountPromptEditor(container, options) {
     const rules = conversationOrder()
     const deepest = Math.max(-1, ...rules.map(positionOf))
     const history = historyLength(deepest, requestedHistory)
-    // 블록이 놓인 자리 위로는 접지 않는다. 블록 없이 늘린 말풍선만 접힌다.
+    // 블록이 있는 칸과 그 바로 위 말풍선, 가장 앞쪽 블록보다 더 앞(더 보기로 늘린 것)은 보이고,
+    // 그 사이의 빈 구간은 접는다. 펼친 구간은 unfolded 에 남는다.
+    const occupied = new Set(rules.map(positionOf))
+    const shown = (position) => occupied.has(position) || occupied.has(position - 1) || position > deepest || unfolded.has(position)
+    const rows = foldRows(timelineRows(history), shown)
     const floor = historyLength(deepest)
     const more = button(history >= MAX_DEPTH ? `더 이전 대화 없음 (최대 ${MAX_DEPTH}개 앞)` : '더 이전 대화 보기', () => {
       requestedHistory = Math.min(MAX_DEPTH, history + HISTORY_STEP)
@@ -844,19 +852,32 @@ export function mountPromptEditor(container, options) {
     more.title = '위쪽에 이전 대화 말풍선을 더 보여 줘서 더 앞자리에도 블록을 놓을 수 있게 합니다.'
     const less = button('이전 대화 접기', () => {
       requestedHistory = 0
+      unfolded.clear()
       renderConversation()
       list.querySelector('.rpe-more')?.focus()
     })
     less.className = 'rpe-more rpe-less'
-    less.disabled = history <= floor
+    less.disabled = history <= floor && !unfolded.size
     less.title = less.disabled
-      ? (floor > MIN_HISTORY ? '가장 앞쪽 블록 위까지만 보이는 상태입니다. 블록을 아래로 옮기면 더 접힙니다.' : '더 접을 이전 대화가 없습니다.')
-      : `더 보기로 늘린 말풍선을 접어 ${floor}개만 보입니다. 놓은 블록은 그대로입니다.`
+      ? '더 접을 이전 대화가 없습니다. 블록이 없는 구간은 이미 접혀 있습니다.'
+      : '더 보기로 늘리거나 펼친 말풍선을 다시 접습니다. 놓은 블록은 그대로입니다.'
     const controls = node('div', undefined, 'rpe-history-controls')
     controls.append(more, less)
     list.append(controls)
     if (!rules.length) list.append(node('p', '대화 안에 넣은 블록이 없습니다. 태그나 캡슐을 말풍선 사이 칸으로 끌어 오세요.', 'rpe-help'))
-    for (const row of timelineRows(history)) {
+    for (const row of rows) {
+      if (row.type === 'fold') {
+        const fold = button(`⋯ 이전 대화 말풍선 ${row.count}개 접힘 · 펼치기`, () => {
+          for (let position = row.to; position <= row.from; position += 1) unfolded.add(position)
+          renderConversation()
+          list.querySelector(`.rpe-gap[data-position="${row.from}"]`)?.scrollIntoView({ block: 'nearest' })
+          list.querySelector('.rpe-less')?.focus()
+        })
+        fold.className = 'rpe-fold'
+        fold.title = `이번 입력보다 메시지 ${row.to}~${row.from}개 앞 구간입니다. 블록이 없어 접어 두었습니다. 펼치면 이 구간의 칸에도 블록을 놓을 수 있습니다.`
+        list.append(fold)
+        continue
+      }
       if (row.type === 'gap') {
         list.append(gapNode(row.position, rules.filter((rule) => positionOf(rule) === row.position)))
         continue

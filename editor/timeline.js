@@ -62,6 +62,31 @@ export function timelineRows(history) {
   return rows
 }
 
+/**
+ * 블록이 없는 이전 대화 구간을 한 줄로 접은 행. 블록을 100개 앞에 두면 말풍선 100개가 다 그려져
+ * 화면이 끝없이 길어지므로, 보여야 할 자리가 아닌 칸·말풍선이 2쌍 이상 이어지면 접기 행 하나로 바꾼다.
+ * 최근 말풍선(MIN_HISTORY 이하)·이번 입력 뒤 칸은 항상 보인다.
+ * @param {ReturnType<typeof timelineRows>} rows
+ * @param {(position:number)=>boolean} shown 칸 N 과 말풍선 N 을 보일지
+ * @returns {Array<ReturnType<typeof timelineRows>[number] | {type:'fold', from:number, to:number, count:number}>}
+ */
+export function foldRows(rows, shown) {
+  const visible = (position) => position <= MIN_HISTORY || shown(position)
+  const result = []
+  let run = []
+  const flush = () => {
+    if (run.length >= 4) result.push({ type: 'fold', from: run[0].position, to: run[run.length - 1].index, count: run.length / 2 })
+    else result.push(...run)
+    run = []
+  }
+  for (const row of rows) {
+    const position = row.type === 'gap' ? row.position : row.index
+    if (visible(position)) { flush(); result.push(row) } else run.push(row)
+  }
+  flush()
+  return result
+}
+
 /** 한 칸 위(더 오래된 쪽) 자리. 더 갈 수 없으면 undefined. */
 export const gapAbove = (position) => (position < 0 ? 0 : position < MAX_DEPTH ? position + 1 : undefined)
 /** 한 칸 아래(더 최신 쪽) 자리. 더 갈 수 없으면 undefined. */

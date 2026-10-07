@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { renderTurn } from '../prompt/render.js'
 import {
-  POST_HISTORY, MAX_DEPTH, positionOf, slotAt, bubbleAt, historyLength, timelineRows, gapAbove, gapBelow, keyboardStep, positionText,
+  POST_HISTORY, MAX_DEPTH, positionOf, slotAt, bubbleAt, historyLength, timelineRows, foldRows, gapAbove, gapBelow, keyboardStep, positionText,
 } from '../editor/timeline.js'
 
 test('engine default slots map to the positions the old editor labelled', () => {
@@ -81,4 +81,20 @@ test('position text is plain language', () => {
   assert.equal(positionText(0), '마지막 사용자 메시지(이번 입력) 바로 앞')
   assert.equal(positionText(1), '이전 모델 답변 바로 앞 (이번 입력보다 메시지 1개 앞)')
   assert.equal(positionText(2), '이전 사용자 메시지 바로 앞 (이번 입력보다 메시지 2개 앞)')
+})
+
+test('foldRows folds empty runs between far blocks and keeps recent bubbles', () => {
+  // 블록이 10개 앞과 0개 앞에만 있는 설정: 10 칸·말풍선과 바로 위 11, 최근 0~3 은 보이고 4~9 는 접힌다.
+  const occupied = new Set([10, 0])
+  const shown = (position) => occupied.has(position) || occupied.has(position - 1) || position > 11
+  const rows = foldRows(timelineRows(11), shown)
+  assert.deepEqual(rows.map((row) => (row.type === 'gap' ? `g${row.position}` : row.type === 'fold' ? `f${row.from}-${row.to}x${row.count}` : `m${row.index}`)),
+    ['g11', 'm11', 'g10', 'm10', 'f9-4x6', 'g3', 'm3', 'g2', 'm2', 'g1', 'm1', 'g0', 'm0', `g${POST_HISTORY}`])
+})
+
+test('foldRows leaves a single hidden pair unfolded and folds nothing when everything is shown', () => {
+  const rows = timelineRows(5)
+  assert.deepEqual(foldRows(rows, () => true), rows)
+  // 4 하나만 숨김 대상이면 접기 행보다 그냥 보이는 편이 짧다.
+  assert.deepEqual(foldRows(rows, (position) => position !== 4), rows)
 })
