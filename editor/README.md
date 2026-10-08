@@ -15,14 +15,18 @@ const editor = mountPromptEditor(container, {
   value: validatePromptProfile(savedProfile),
   onChange(profile) { draft = profile },
   onValidityChange(valid) { saveButton.disabled = !valid },
+  // disabled: true — 입력을 잠그고 블록 확인·팝업 닫기는 허용 (선택)
   // input: 실제 캐릭터·세계관·대화 등 buildTurn 입력 (선택)
   // customBlocks: 호스트가 관리하는 커스텀 블록 목록 [{ id, name, content }] (선택)
   // customBlockHref: (id) => 커스텀 블록 편집 화면 주소 (선택)
 })
 editor.setValue(newlySavedProfile) // 저장·다른 설정 선택 후 값 갱신
 editor.setCustomBlocks(library)    // 호스트 커스텀 블록 목록 [{ id, name, content }] 갱신
+editor.setDisabled(true)          // 읽기 전용·요청 처리 중에는 편집 잠금, false로 복구
 editor.destroy()                  // 페이지 해제
 ```
+
+`disabled`는 문구 입력·블록 삭제·키보드 이동·끌기를 막으며 블록 팝업의 **닫기**와 Escape는 유지한다. 처리 상태가 바뀌면 `setDisabled`로 잠금만 갱신하므로 열려 있는 팝업과 미저장 문구를 유지한다. 호스트는 편집기 전체를 disabled fieldset으로 감싸지 않고 이 옵션을 사용한다.
 
 `customBlockHref`를 주면 커스텀 블록의 문구 패널과 `모든 블록 문구` 항목이 문구를 읽기 전용으로 보여 주고 그 아래에 **커스텀 블록에서 편집 ↗** 링크를 둔다. 링크는 같은 탭에서 열리므로 저장하지 않은 변경 확인은 호스트가 맡는다. 주지 않으면 지금처럼 "커스텀 블록 목록에서 고칩니다" 안내만 보인다.
 

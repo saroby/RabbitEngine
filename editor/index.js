@@ -141,13 +141,15 @@ export function promptEditorSampleInput() {
  * @param {import('../types.js').PromptProfile} options.value
  * @param {(value:import('../types.js').PromptProfile)=>void} options.onChange
  * @param {(valid:boolean)=>void} [options.onValidityChange]
+ * @param {boolean} [options.disabled] Disable editing while keeping block inspection and dialog dismissal available.
  * @param {import('../types.js').TurnInput} [options.input] Initial preview material; defaults to local sample.
  * @param {Array<{id:string,name:string,content?:string,messages?:Array<{role:'user'|'assistant',content:string}>,defaultRole?:'system'|'user'|'assistant'}>} [options.customBlocks] Host custom block library shown as tags and used for preview. Text blocks have content; message blocks have messages and live only in the conversation. defaultRole user/assistant sends a text block into the conversation with that role.
  * @param {(id:string)=>string} [options.customBlockHref] Link to the host's edit page for a custom block. When given, the custom block's wording panel shows its text read-only with a "커스텀 블록에서 편집" link (same tab; the host handles unsaved-change confirmation).
- * @returns {{setValue:(value:import('../types.js').PromptProfile)=>void,setCustomBlocks:(blocks:Array<{id:string,name:string,content:string}>)=>void,destroy:()=>void}}
+ * @returns {{setValue:(value:import('../types.js').PromptProfile)=>void,setCustomBlocks:(blocks:Array<{id:string,name:string,content:string}>)=>void,setDisabled:(disabled:boolean)=>void,destroy:()=>void}}
  */
 export function mountPromptEditor(container, options) {
   let value = validatePromptProfile(options.value)
+  let disabled = Boolean(options.disabled)
   let input = options.input ?? promptEditorSampleInput()
   let library = options.customBlocks ?? []
   const sourceOf = (key) => (isCustomKey(key) ? library.find((block) => block.id === key.slice(7)) : undefined)
@@ -206,7 +208,12 @@ export function mountPromptEditor(container, options) {
   const errors = node('p', '', 'rpe-error')
   errors.setAttribute('role', 'alert')
   root.append(status, errors)
-  const layout = node('div', undefined, 'rpe-layout')
+  const layout = node('fieldset', undefined, 'rpe-layout')
+  layout.style.border = '0'
+  layout.style.padding = '0'
+  layout.style.margin = '0'
+  layout.style.minWidth = '0'
+  layout.disabled = disabled
   const composerPane = node('section', undefined, 'rpe-composer-pane')
   composerPane.setAttribute('aria-label', '시스템 프롬프트 편집')
   composerPane.append(node('h2', '시스템 프롬프트'))
@@ -214,7 +221,8 @@ export function mountPromptEditor(container, options) {
   const tagPalette = node('div', undefined, 'rpe-tags')
   tagPalette.setAttribute('aria-label', '태그 삽입')
   const composer = node('div', undefined, 'rpe-composer')
-  composer.contentEditable = 'true'
+  composer.contentEditable = String(!disabled)
+  composer.setAttribute('aria-readonly', String(disabled))
   composer.spellcheck = false
   composer.setAttribute('role', 'textbox')
   composer.setAttribute('aria-label', '시스템 프롬프트 조립 문서')
@@ -297,6 +305,18 @@ export function mountPromptEditor(container, options) {
   layout.append(composerPane, preview)
   root.append(layout, blockPanel)
   container.append(root)
+
+  // Fieldsets disable native controls, but not editable documents, capsule shortcuts or dragging.
+  // Inspection (click/Enter) and dismissal (close/Escape) remain available while editing is locked.
+  const preventEditing = (event) => {
+    if (!disabled) return
+    if (event.type === 'keydown' && !event.altKey && !['Backspace', 'Delete'].includes(event.key)) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+  for (const type of ['beforeinput', 'input', 'paste', 'cut', 'dragstart', 'dragover', 'drop', 'keydown']) {
+    root.addEventListener(type, preventEditing, true)
+  }
 
   const tokenText = (token) => token.startsWith('{{block:')
     ? labelOf(token.slice(8, -2))
@@ -1184,8 +1204,14 @@ export function mountPromptEditor(container, options) {
     head.append(node('h3', `블록 문구 · ${labelOf(selectedKey)}`), button('닫기', () => closePanel(true)))
     blockPanel.dataset.panelFor = selectedKey
     const inConversation = zoneOf(rule) === 'conversation'
-    blockPanel.replaceChildren(head, node('p', `${inConversation ? '대화 안' : '시스템 프롬프트'} · ${isCustomKey(selectedKey) ? '커스텀 블록' : '엔진 블록'}`, 'rpe-help'),
-      ...blockEditorParts(rule), ...(inConversation ? conversationControls(rule) : []))
+    const controls = node('fieldset')
+    controls.style.border = '0'
+    controls.style.padding = '0'
+    controls.style.margin = '0'
+    controls.style.minWidth = '0'
+    controls.disabled = disabled
+    controls.append(...blockEditorParts(rule), ...(inConversation ? conversationControls(rule) : []))
+    blockPanel.replaceChildren(head, node('p', `${inConversation ? '대화 안' : '시스템 프롬프트'} · ${isCustomKey(selectedKey) ? '커스텀 블록' : '엔진 블록'}`, 'rpe-help'), controls)
     if (!blockPanel.open && blockPanel.isConnected) blockPanel.showModal()
     markSelection()
   }
@@ -1259,6 +1285,14 @@ export function mountPromptEditor(container, options) {
   renderComposer()
   schedulePreview()
   return {
+    setDisabled(next) {
+      disabled = Boolean(next)
+      layout.disabled = disabled
+      composer.contentEditable = String(!disabled)
+      composer.setAttribute('aria-readonly', String(disabled))
+      const controls = blockPanel.querySelector('fieldset')
+      if (controls) controls.disabled = disabled
+    },
     setValue(next) {
       value = validatePromptProfile(next)
       errors.textContent = ''
