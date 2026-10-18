@@ -26,7 +26,7 @@ const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: 
  * @param {object} [options.playerCard] 플레이어(유저) 카드
  * @param {import('../types.js').PromptProfile} [options.promptProfile] 블록 편집 설정
  * @param {Array<{ id: string, content: string }>} [options.customBlocks] 프로필이 id 로 참조하는 호스트 커스텀 블록 문구
- * @param {string} [options.worldText] 세계관
+ * @param {string} [options.longDescriptionText] 소개(작품의 긴 설명)
  * @param {string} [options.instructionText] 시스템 지시문
  * @param {string} [options.ratingInstruction] 등급 문장 (scene/rating.js)
  * @param {string} [options.pacingText] 호흡 문장
@@ -47,7 +47,7 @@ const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: 
  * @returns {{ blocks: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object, profile?: {version:number,hash:string} }}
  */
 export function compileBlocks({
-  cards, card, playerCard, instructionText, worldText, ratingInstruction, pacingText, promptProfile, customBlocks = [],
+  cards, card, playerCard, instructionText, longDescriptionText, ratingInstruction, pacingText, promptProfile, customBlocks = [],
   worldbooks = [], worldbookOverrides = {}, worldbookOptions = {}, worldbookDepth = null,
   messages = [], rawMessages = null,
   contextNotes = [], memoryNotes = null,
@@ -62,7 +62,7 @@ export function compileBlocks({
   const blocks = []
 
   if (instructionText) blocks.push(sys('instruction', substitute(instructionText, names)))
-  if (worldText) blocks.push(sys('world', substitute(worldText, names)))
+  if (longDescriptionText) blocks.push(sys('long_description', substitute(longDescriptionText, names)))
   if (ratingInstruction) blocks.push(sys('rating', ratingInstruction))
   if (pacingText) blocks.push(sys('pacing', pacingText))
   for (const source of list) {

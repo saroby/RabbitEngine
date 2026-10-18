@@ -128,7 +128,7 @@
  * @property {object[]} cards 등장 캐릭터 카드. 최소 하나
  * @property {object | null} [player] 플레이어 슬롯
  * @property {string} [instruction] 시스템 지시문
- * @property {string} [world] 별도 세계관 블록
+ * @property {string} [longDescription] 별도 소개(작품의 긴 설명) 블록
  * @property {PromptProfile} [promptProfile] 블록 문구·순서·위치 설정
  * @property {CustomBlockSource[]} [customBlocks] 프로필의 커스텀 블록이 id 로 참조하는 호스트 문구. 참조한 id 가 없으면 오류다
  * @property {object[]} [worldbooks] 로어북
@@ -188,7 +188,7 @@
 export {}
 
 /**
- * @typedef {'instruction'|'world'|'rating'|'pacing'|'character'|'cast'|'player'|'context'|'worldbook'|'user_boundary'|'output_contract'|'memory'|'scene_state'|'event'|'directive'} PromptProfileKind
+ * @typedef {'instruction'|'long_description'|'rating'|'pacing'|'character'|'cast'|'player'|'context'|'worldbook'|'user_boundary'|'output_contract'|'memory'|'scene_state'|'event'|'directive'} PromptProfileKind
  */
 /**
  * @typedef {object} PromptProfileBlock
