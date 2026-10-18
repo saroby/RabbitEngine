@@ -18,6 +18,7 @@ import { koreanPlayscript } from './dialect/korean-playscript.js'
 import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
+import { checkReply, stopSequencesFor } from './scene/reply.js'
 import { buildDirective } from './scene/directive.js'
 import { createMacroExpander, macroVarsOf } from './prompt/macros.js'
 import { validatePromptProfile, validateCustomBlocks } from './prompt/profile.js'
@@ -182,6 +183,11 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 기억 층이 실제로 모델에 보낸 최종 문자열. 치환과 라벨을 거친 뒤의 값이라
   // selectMemory 혼자서는 알 수 없다. memoryNotes 로 온 것은 depth 슬롯이라
   // system 문자열 안에는 없다 — 그래도 "기억으로 보낸 것" 의 증거는 여기 모은다.
+  // 응답 검사에 쓸 유저 이름. 프롬프트에 보인 호칭이 정본이고, 세션 이름과 플레이어 카드 이름도
+  // 모델이 화자로 쓸 수 있으니 같이 본다.
+  const userNames = [...new Set([compiled.names.user, userName, player?.name].filter((name) => typeof name === 'string' && name.trim()))]
+  const replyNames = { userNames, castNames: names }
+
   const injectedText = compiled.blocks
     .filter((block) => block.kind.startsWith('context_') || block.kind === 'memory')
     .map((block) => block.content)
@@ -194,6 +200,8 @@ export async function buildTurn(input = {}, ctx = {}) {
     directive: compiled.blocks.filter((block) => block.kind === 'directive').map((block) => block.content).join('\n\n'),
     render: (options = {}) => renderTurn(compiled.blocks, visibleMessages, { userInput, ...options }),
     tools,
+    checkReply: (text) => checkReply(dialect, text, replyNames),
+    stopSequences: stopSequencesFor(replyNames),
     manifest: {
       ...memoryManifest,
       injectedText,
