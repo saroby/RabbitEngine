@@ -110,6 +110,10 @@ const next = applyExtraction(sceneState, raw, { indicatorDefs, names, expectedRe
 if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
 
+### 프롬프트 캐시가 이어지는지 재기
+
+공급자의 접두 캐시는 지난 요청과 앞에서부터 같은 만큼만 다시 쓴다. `prefixFingerprint(turn.render())` 로 지문(해시와 길이만, 원문 없음)을 턴마다 남기고 `sharedPrefix(지난 지문, 이번 지문)` 으로 견주면 `{ chars, totalChars, messages, system }` 이 나온다. `system` 은 `'same'` · `'prefix'`(캐시 접두만 같다) · `'changed'` 중 하나고, `messages` 는 그대로 이어지는 앞 메시지 수다. 창이 한 칸씩 밀리는 기억 설정은 맨 앞 메시지가 매 턴 바뀌어 `messages: 0` 이 된다. 실제 적중은 공급자의 캐시 단위 · 수명 · 도구 정의에 달렸으니 `chars` 는 상한으로 읽는다.
+
 ## 응답 검사
 
 프롬프트에 "유저의 대사를 대신 쓰지 않는다" 를 넣어도 모델은 종종 유저 줄을 지어낸다. `turn.stopSequences` 로 생성 중에 막고, 끝난 응답은 `turn.checkReply` 로 확인한다. 자를지 다시 부를지는 당신의 코드가 정한다.
@@ -176,10 +180,10 @@ const result = check.ok ? await run(check.name, check.args, check.actor) : { err
 - `{{else if}}` 는 위에서부터 처음 참인 갈래 하나만 낸다. 단계를 나눌 때 범위식 없이 큰 기준부터 쓴다.
 - `&&` · `||` 는 없다 — 쓰면 던진다. `{{#if}}` 를 겹치거나 `{{else if}}` 로 나눈다. 값에 비교 기호나 `&&` 가 들어가면 따옴표로 감싼다.
 - 값은 변수의 종류대로 읽는다. 숫자 지표는 숫자와, 참거짓 지표는 `true` · `false` 와, `tension` 은 `calm` · `playful` · `tense` · `hostile` · `intimate` · `grief` 중 하나와 비교한다 (`tension == 긴장` 은 던진다). 문자열 지표와 `place` · `time` 은 적힌 글자 그대로 비교한다 (`place == 3` 은 장소 `"3"` 과 같다).
-- 모르는 변수 · 짝 안 맞는 태그 · `{{elif}}` 같은 모르는 제어 태그 · `{{else}` 처럼 `}` 가 빠진 태그는 **꺼진 갈래 안에 있어도** `buildTurn` 이 던진다 — 그 갈래가 처음 켜지는 턴에야 터지지 않게. 저장할 때는 `checkMacros(text, { indicatorDefs })` 로 같은 검사를 미리 돌린다 (`{ ok: true }` 또는 `{ ok: false, error }`).
+- 모르는 변수 · 짝 안 맞는 태그 · `{{elif}}` 같은 모르는 제어 태그 · `{{else}` 처럼 `}` 가 빠진 태그는 **꺼진 갈래 안에 있어도** `buildTurn` 이 던진다 — 그 갈래가 처음 켜지는 턴에야 터지지 않게. 저장할 때는 `checkMacros(text, { indicatorDefs })` 로 같은 검사를 미리 돌린다 (`{ ok: true }` 또는 `{ ok: false, error }`). 앞 갈래에 가려 영영 안 나오는 갈래(`{{#if 호감도 >= 50}}` 뒤의 `{{else if 호감도 >= 80}}`, 앞 조건이 모든 값을 덮은 `{{else}}`)가 있으면 `{ ok: true, warnings }` 로 알린다 — 경고는 저장을 막지 않고 조립 결과도 바꾸지 않는다.
 - `{{random}}` 은 `macroSeed`(기본: `messages` 길이)로 정해져 같은 턴을 다시 만들면 같은 값이 나온다. 시드는 `manifest.prompt.macroSeed` 에 남는다.
 - **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
-- system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.
+- system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다. 캐시 접두(첫 동적 블록 앞) 안 문구가 조건 · `{{var}}` · `{{random}}` 을 쓰면 `manifest.prompt.cacheWarnings` 에 `{ kind, id, reason: 'scene' | 'random', message }` 로 남는다 — 경고가 없는 턴에는 이 필드가 없다.
 - 프롬프트 설정의 블록 문구·시스템 문서에는 아직 쓸 수 없다(검증기가 거부한다). 거기서는 커스텀 블록에 쓴다.
 
 ## 기억 층
@@ -245,4 +249,4 @@ turn.manifest.prompt.blocks        // 블록 본문까지 값으로 들어 있�
 
 `buildTurn({ ...input, promptProfile })`로 캐릭터/작품마다 다른 블록 문구·순서·위치를 적용할 수 있다. `defaultPromptProfile()`과 `validatePromptProfile()`이 엔진 설정 계약을 제공한다. 설정 저장과 캐릭터 연결은 호스트 몫이다.
 
-`rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 시스템 프롬프트 문장 사이에 태그 캡슐을 넣고, 여러 설정을 브라우저에 저장하며 실제 조립 결과를 미리 본다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.
+`rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 시스템 프롬프트 문장 사이에 태그 캡슐을 넣고, 여러 설정을 브라우저에 저장하며 실제 조립 결과를 미리 본다. 미리보기는 가려진 갈래와 캐시 접두를 흔드는 매크로를 경고로 함께 보여 준다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.

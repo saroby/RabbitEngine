@@ -7,9 +7,9 @@
 // 된다. 조용히 틀리는 자리는 라이브러리가 닫는다.
 import { selectMemory } from './memory/index.js'
 import { selectContext } from './memory/legacy-strategies.js'
-import { compileBlocks } from './prompt/blocks.js'
+import { compileBlocks, macroSourcesOf } from './prompt/blocks.js'
 import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
-import { renderTurn, systemTextOf } from './prompt/render.js'
+import { renderTurn, systemTextOf, cachePrefixBlocks } from './prompt/render.js'
 import { isReal } from './memory/projection.js'
 import { presetOf } from './memory/presets.js'
 import { boundedSize } from './memory/assemble.js'
@@ -20,7 +20,7 @@ import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
 import { checkReply, stopSequencesFor } from './scene/reply.js'
 import { buildDirective } from './scene/directive.js'
-import { sceneMacroExpander } from './prompt/macros.js'
+import { sceneMacroExpander, volatileMacrosOf } from './prompt/macros.js'
 import { validatePromptProfile, validateCustomBlocks } from './prompt/profile.js'
 import { resolveTools } from './prompt/tools.js'
 
@@ -47,11 +47,28 @@ function widenWindow(config, legacy) {
   return { ...config, assembly: { ...config.assembly, windowSize: current + 1 } }
 }
 
+// 캐시 접두 안 문구가 시드나 장면 상태를 읽으면 그 블록부터 뒤가 턴마다 달라져 접두 캐시가 깨진다.
+// 조립 결과는 바꾸지 않고 증거에만 남긴다 — 옮길지는 작가가 정한다.
+const CACHE_ADVICE = Object.freeze({
+  random: '{{random}} 은 시드(기본: 이력 길이)가 바뀌는 턴마다 다른 값을 골라 이 블록부터 뒤의 프롬프트 캐시가 매 턴 깨집니다 — 대화 안 블록으로 옮긴다',
+  scene: '조건 · {{var}} 가 장면 상태를 읽어 값이 바뀌는 턴마다 이 블록부터 뒤의 프롬프트 캐시가 깨집니다 — 갈래 문장은 대화 안 블록으로 옮긴다',
+})
+
+function cacheWarningsOf(blocks, sources) {
+  const prefix = cachePrefixBlocks(blocks)
+  // 같은 종류의 블록은 한 규칙으로 함께 놓이므로 종류로 맞춘다. 커스텀 블록만 id 로 갈린다.
+  const inPrefix = (source) => prefix.some((block) => block.kind === source.kind && (block.kind !== 'custom' || block.customId === source.id))
+  return sources.filter(inPrefix).flatMap((source) => volatileMacrosOf(source.text).map((reason) => ({
+    kind: source.kind, id: source.id, reason, message: `${source.label}: ${CACHE_ADVICE[reason]}`,
+  })))
+}
+
 /**
  * 한 턴의 요청을 만든다. 이 라이브러리의 권장 진입점이다.
  * 모델은 부르지 않는다 — 돌려받은 system 과 messages 를 당신의 LLM 호출에 넣는다.
  * render() 가 주는 cachePrefixLength 는 system 전체가 아니라 첫 동적 블록
  * (worldbook · context_*) 앞까지의 길이다 — 그 뒤는 턴마다 달라져 캐시가 안 된다.
+ * 그 접두 안 문구가 {{random}} · 조건 · {{var}} 를 쓰면 manifest.prompt.cacheWarnings 에 남는다.
  * manifest.prompt.blocks 는 블록 본문을 값으로 복사해 담는다(근거를 나중에
  * 바뀔 수 있는 ID 로 남기지 않는다). 턴마다 통째로 저장한다면 프롬프트 한 벌
  * 크기가 그대로 더해지므로 보관 기간이나 저장 대상을 정해 두는 편이 좋다.
@@ -164,6 +181,9 @@ export async function buildTurn(input = {}, ctx = {}) {
     expandMacros,
   })
   const systemBlocks = compiled.blocks.filter((block) => block.slot === 'system')
+  const cacheWarnings = cacheWarningsOf(compiled.blocks, macroSourcesOf({
+    cards, playerCard: player, instructionText: instruction, longDescriptionText: raw.longDescription, customBlocks: raw.customBlocks ?? [],
+  }))
 
   // 임시 턴은 스캔에만 있었던 것이라 증거에 남기면 "있지도 않은 5번째 메시지를 골랐다" 가 된다.
   // 지운 사실 자체는 scene.userInputOrdinal 로 추적할 수 있게 남긴다.
@@ -233,6 +253,8 @@ export async function buildTurn(input = {}, ctx = {}) {
         worldbookManifest: compiled.worldbookManifest,
         worldbookScan: compiled.worldbookScan,
         macroSeed,
+        // 경고가 있을 때만 단다 — 없는 턴의 증거 모양은 이전과 같다.
+        ...(cacheWarnings.length ? { cacheWarnings } : {}),
       },
     },
   }

@@ -33,6 +33,29 @@ function expandLibrary(library, expandMacros) {
 }
 
 /**
+ * compileBlocks 가 매크로를 돌리는 사람의 문구를 블록 종류별로 모은다. 저장 전 검사와 캐시 경고가
+ * "어느 글에 매크로를 돌리나" 를 따로 들고 있지 않게 하는 자리다. 매크로가 없는 문구는 뺀다.
+ * @param {{ cards?: object[], playerCard?: object | null, instructionText?: string, longDescriptionText?: string, customBlocks?: Array<{ id: string, content?: string, messages?: Array<{ content: string }> }>, worldbooks?: object[] }} [input]
+ * @returns {Array<{ kind: string, id: string | null, label: string, text: string }>}
+ */
+export function macroSourcesOf({ cards = [], playerCard = null, instructionText = '', longDescriptionText = '', customBlocks = [], worldbooks = [] } = {}) {
+  /** @type {Array<{ kind: string, id: string | null, label: string, text: string }>} */
+  const sources = []
+  const add = (kind, id, label, text) => { if (typeof text === 'string' && text.includes('{{')) sources.push({ kind, id, label, text }) }
+  const addCard = (kind, source, label) => { for (const field of MACRO_CARD_FIELDS) add(kind, source.id || null, `${label} · ${field}`, source[field]) }
+  add('instruction', null, '지시문', instructionText)
+  add('long_description', null, '소개', longDescriptionText)
+  for (const source of cards ?? []) if (source) addCard('character', source, `캐릭터 ${source.name ?? ''}`.trim())
+  if (playerCard) addCard('player', playerCard, '플레이어')
+  for (const block of customBlocks ?? []) {
+    if (Array.isArray(block?.messages)) block.messages.forEach((message, index) => add('custom', block.id, `커스텀 블록 ${block.id} · 메시지 ${index + 1}`, message?.content))
+    else add('custom', block?.id ?? null, `커스텀 블록 ${block?.id}`, block?.content)
+  }
+  for (const [index, entry] of (worldbooks ?? []).entries()) add('worldbook', entry?.id ?? null, `로어북 ${entry?.id ?? index + 1}`, entry?.content)
+  return sources
+}
+
+/**
  * 프롬프트를 위치가 있는 블록 목록으로 조립한다.
  * @param {object} [options]
  * @param {object[]} [options.cards] 캐릭터 카드 목록. 첫 장이 주인공이다

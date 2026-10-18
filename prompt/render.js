@@ -13,6 +13,18 @@ export function systemTextOf(blocks) {
 }
 
 /**
+ * system 블록 중 캐시 접두가 되는 앞쪽 블록. 첫 동적 블록 앞까지다 — 블록 순서는 그대로 둔다.
+ * @template {{ kind: string, slot: unknown }} T
+ * @param {T[]} blocks
+ * @returns {T[]}
+ */
+export function cachePrefixBlocks(blocks = []) {
+  const systemBlocks = blocks.filter((b) => b.slot === 'system')
+  const cut = systemBlocks.findIndex((b) => isDynamicSystem(b.kind))
+  return cut < 0 ? systemBlocks : systemBlocks.slice(0, cut)
+}
+
+/**
  * 블록과 이력을 공급자에 넣을 { system, messages } 로 편다.
  * @param {Array<{ kind: string, slot: string | { depth: number }, content: string }>} [blocks]
  * @param {Array<{ role: string, text: string }>} [messages]
@@ -27,8 +39,7 @@ export function renderTurn(blocks = [], messages = [], { userInput = null, midRo
   const system = systemTextOf(systemBlocks)
   // 접두는 첫 동적 블록 앞까지다. 블록 순서는 그대로 두고 길이만 정직하게 센다 —
   // system.length 를 접두라고 하면 로어북이 하나 발동한 턴에 캐시가 통째로 깨진다.
-  const cut = systemBlocks.findIndex((b) => isDynamicSystem(b.kind))
-  const prefixBlocks = cut < 0 ? systemBlocks : systemBlocks.slice(0, cut)
+  const prefixBlocks = cachePrefixBlocks(blocks)
   // join 이므로 마지막 블록 뒤의 구분자(\n\n)는 접두에 들어가지 않는다.
   const cachePrefixLength = systemTextOf(prefixBlocks).length
   const base = messages.map((m) => ({ role: m.role, text: m.text }))

@@ -24,6 +24,7 @@ const PUBLIC = [
   // 막히므로, index.js 에 없으면 소비자가 쓸 방법이 아예 없다.
   'PROMPT_COMPILER_VERSION', 'prebuildMemory',
   'compileBlocks', 'BLOCK_COMPILER_VERSION', 'DEFAULT_DEPTHS', 'renderTurn',
+  'prefixFingerprint', 'sharedPrefix',
   'createMacroExpander', 'macroVarsOf', 'checkMacros',
   'emptySceneState', 'renderSceneState', 'applySceneDelta', 'validateIndicatorDefs',
   'initialIndicators', 'TENSIONS',

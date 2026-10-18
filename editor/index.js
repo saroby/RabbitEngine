@@ -1,4 +1,6 @@
 import { buildTurn } from '../build-turn.js'
+import { macroSourcesOf } from '../prompt/blocks.js'
+import { checkMacros } from '../prompt/macros.js'
 import { asteriskScript } from '../dialect/asterisk-script.js'
 import { emptySceneState } from '../scene/state.js'
 import {
@@ -105,7 +107,7 @@ const STYLE = `
 .rabbit-prompt-editor textarea{width:100%;resize:vertical;font:13px/1.6 ui-monospace,monospace}
 .rabbit-prompt-editor button{font:inherit;border:1px solid #8795a4;border-radius:5px;padding:6px 10px;background:#f5f7fa;color:#18212b;cursor:pointer}
 .rabbit-prompt-editor button:disabled{cursor:default;opacity:.5}.rabbit-prompt-editor :focus-visible{outline:3px solid #3874e5;outline-offset:2px}
-.rabbit-prompt-editor .rpe-error{color:#a11a24;white-space:pre-wrap}.rabbit-prompt-editor pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#f3f5f8;padding:12px;border-radius:5px;max-height:65vh;overflow:auto}
+.rabbit-prompt-editor .rpe-error{color:#a11a24;white-space:pre-wrap}.rabbit-prompt-editor .rpe-warnings{margin:8px 0;padding-left:20px;color:#8a4b00;font-size:13px;overflow-wrap:anywhere}.rabbit-prompt-editor pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#f3f5f8;padding:12px;border-radius:5px;max-height:65vh;overflow:auto}
 .rabbit-prompt-editor .rpe-preview{border:1px solid var(--rabbit-border);border-radius:8px;padding:14px;min-width:0;background:#fff}
 .rabbit-prompt-editor .rpe-preview details{margin-top:12px}.rabbit-prompt-editor .rpe-preview summary{padding:8px 0}
 .rabbit-prompt-editor .rpe-output-section{border:1px solid var(--rabbit-border);border-radius:6px;padding:12px;margin-top:12px;min-width:0}
@@ -290,6 +292,10 @@ export function mountPromptEditor(container, options) {
   }))
   const previewStatus = node('p', '', 'rpe-help')
   previewStatus.setAttribute('role', 'status')
+  // 조립은 되지만 작가가 알아야 할 것: 앞 갈래에 가려 안 나오는 갈래, 캐시 접두를 흔드는 매크로.
+  const warningList = node('ul', undefined, 'rpe-warnings')
+  warningList.setAttribute('aria-label', '조립 경고')
+  warningList.hidden = true
   const result = node('div')
   result.hidden = true
   const systemSection = node('section', undefined, 'rpe-output-section')
@@ -299,7 +305,7 @@ export function mountPromptEditor(container, options) {
   const messageList = node('div')
   messageSection.append(node('h3', '대화 메시지'), messageList)
   result.append(systemSection, messageSection)
-  preview.append(inputDetails, previewStatus, result)
+  preview.append(inputDetails, previewStatus, warningList, result)
   // 블록 종류별 {{content}} 원문(미리보기 데이터 기준). 문구를 고치는 바로 그 자리에서 보여 준다.
   let originalsByKind = new Map()
   layout.append(composerPane, preview)
@@ -1253,6 +1259,11 @@ export function mountPromptEditor(container, options) {
     if (!rendered.messages.length) messageList.append(node('p', '대화 메시지 없음', 'rpe-help'))
   }
 
+  const showWarnings = (messages) => {
+    warningList.replaceChildren(...messages.map((message) => node('li', message)))
+    warningList.hidden = !messages.length
+  }
+
   function schedulePreview() {
     clearTimeout(previewTimer)
     const revision = ++previewRevision
@@ -1262,20 +1273,30 @@ export function mountPromptEditor(container, options) {
         const valid = validatePromptProfile(value)
         // Preview never receives host LLM capabilities. Presets needing those fail visibly.
         const base = { ...input, dialect: input.dialect ?? dialect ?? asteriskScript }
+        const customBlocks = library.map(({ id, content, messages }) => (Array.isArray(messages) ? { id, messages } : { id, content }))
         const [current, original] = await Promise.all([
-          buildTurn({ ...base, promptProfile: valid, customBlocks: library.map(({ id, content, messages }) => (Array.isArray(messages) ? { id, messages } : { id, content })) }),
+          buildTurn({ ...base, promptProfile: valid, customBlocks }),
           buildTurn({ ...base, promptProfile: undefined }),
         ])
         if (destroyed || revision !== previewRevision) return
         const currentRendered = current.render()
         showOutput(currentRendered)
         setOriginals(original.blocks)
+        const sources = macroSourcesOf({
+          cards: base.cards, playerCard: base.player, instructionText: base.instruction, longDescriptionText: base.longDescription, customBlocks, worldbooks: base.worldbooks,
+        })
+        const branchWarnings = sources.flatMap((source) => {
+          const checked = checkMacros(source.text, { indicatorDefs: base.indicatorDefs ?? [] })
+          return checked.ok ? (checked.warnings ?? []).map((warning) => `${source.label}: ${warning}`) : []
+        })
+        showWarnings([...branchWarnings, ...(current.manifest.prompt.cacheWarnings ?? []).map((warning) => warning.message)])
         previewStatus.textContent = `조립 완료 · 시스템 ${currentRendered.system.length.toLocaleString()}자 · 메시지 ${currentRendered.messages.length}개`
       } catch (error) {
         if (destroyed || revision !== previewRevision) return
         previewStatus.textContent = `미리보기를 만들 수 없습니다: ${error.message}`
         showOutput()
         setOriginals([])
+        showWarnings([])
       }
     }, 150)
   }

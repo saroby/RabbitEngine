@@ -64,6 +64,27 @@ function checkEquality(name, value, right, expression) {
   if (typeof value === 'boolean' && typeof right !== 'boolean') throw new Error(`매크로: ${name} 는 참거짓이라 true · false 와 비교합니다 — {{#if ${expression}}}`)
 }
 
+// 조건 글을 { negate, name, op, raw } 로 읽는다. 변수 값과 상관없는 문법 검사만 한다.
+function parseCondition(expression) {
+  const text = expression.trim()
+  // 우변을 통째로 값으로 읽으므로 `a == b || a == c` 는 값 "b || a == c" 와의 비교가 돼 조용히 틀린다.
+  if (/&&|\|\|/u.test(text.replace(QUOTED_PARTS, ''))) {
+    throw new Error(`매크로: 조건에 && · || 를 쓸 수 없습니다 — {{#if}} 를 겹치거나 {{else if}} 로 나눈다 — {{#if ${text}}}`)
+  }
+  const m = COMPARE.exec(text)
+  if (!m) throw new Error(`매크로: 조건을 읽을 수 없습니다 — {{#if ${text}}}`)
+  const [, negate, name, op, raw] = m
+  if (negate && op) throw new Error(`매크로: ! 와 비교를 같이 쓸 수 없습니다 — {{#if ${text}}}`)
+  return { text, negate: Boolean(negate), name, op: op ?? null, raw: raw ?? null }
+}
+
+// 검사를 마친 조건을 값 하나로 평가한다. 값은 변수의 종류대로 읽는다 — 문자열 변수(값이 아직 없는
+// 장소·시각 포함)와는 적힌 글자 그대로 비교한다. 안 그러면 `place == 3` 의 3 이 숫자가 돼 장소 "3" 과 영영 같지 않다.
+function holds({ negate, op, raw }, value) {
+  if (!op) return negate ? !truthy(value) : truthy(value)
+  return compare(value, op, literal(raw, typeof value === 'string' || value === null || value === undefined))
+}
+
 /**
  * 매크로 확장기를 만든다. 변수 이름은 지표 key · 지표 label · place · time · tension 이다.
  * 모르는 변수 · 짝이 안 맞는 태그 · 읽을 수 없는 조건은 꺼진 갈래 안에 있어도 던진다 —
@@ -80,29 +101,20 @@ export function createMacroExpander({ vars = {}, seed = 0, choices = {} } = {}) 
   let randomIndex = 0
 
   const evaluate = (expression) => {
-    const text = expression.trim()
-    // 우변을 통째로 값으로 읽으므로 `a == b || a == c` 는 값 "b || a == c" 와의 비교가 돼 조용히 틀린다.
-    if (/&&|\|\|/u.test(text.replace(QUOTED_PARTS, ''))) {
-      throw new Error(`매크로: 조건에 && · || 를 쓸 수 없습니다 — {{#if}} 를 겹치거나 {{else if}} 로 나눈다 — {{#if ${text}}}`)
-    }
-    const m = COMPARE.exec(text)
-    if (!m) throw new Error(`매크로: 조건을 읽을 수 없습니다 — {{#if ${text}}}`)
-    const [, negate, name, op, raw] = m
-    if (negate && op) throw new Error(`매크로: ! 와 비교를 같이 쓸 수 없습니다 — {{#if ${text}}}`)
+    const condition = parseCondition(expression)
+    const { text, name, op, raw } = condition
     const value = lookup(name)
-    if (!op) return negate ? !truthy(value) : truthy(value)
+    if (!op) return holds(condition, value)
     if (!QUOTED.test(raw.trim()) && OPERATOR_IN_VALUE.test(raw)) {
       throw new Error(`매크로: 값에 비교 기호가 있습니다 — 글자 그대로 비교하려면 따옴표로 감싼다 — {{#if ${text}}}`)
     }
-    // 값은 변수의 종류대로 읽는다. 문자열 변수(값이 아직 없는 장소·시각 포함)와는 적힌 글자 그대로
-    // 비교한다 — 안 그러면 `place == 3` 의 3 이 숫자가 돼 장소 "3" 과 영영 같지 않다.
-    const right = literal(raw, typeof value === 'string' || value === null || value === undefined)
     if (op === '==' || op === '!=') {
+      const right = literal(raw, typeof value === 'string' || value === null || value === undefined)
       const allowed = Object.hasOwn(choices, name) ? choices[name] : null
       if (allowed && !allowed.includes(right)) throw new Error(`매크로: ${name} 는 ${allowed.join(' · ')} 중 하나와 비교합니다 (${JSON.stringify(right)}) — {{#if ${text}}}`)
       checkEquality(name, value, right, text)
     }
-    return compare(value, op, right)
+    return holds(condition, value)
   }
 
   return function expand(text) {
@@ -192,23 +204,126 @@ export function macroVarsOf(sceneState, indicatorDefs = []) {
  * @returns {(text: string) => string}
  */
 export function sceneMacroExpander(sceneState, indicatorDefs = [], seed = 0) {
+  return createMacroExpander({ ...sceneMacroOptions(sceneState, indicatorDefs), seed })
+}
+
+function sceneMacroOptions(sceneState, indicatorDefs) {
   // 지표 key 가 tension 이면 장면 긴장도를 가린다(macroVarsOf) — 그때는 허용값을 묻지 않는다.
   const shadowed = indicatorDefs.some((def) => def.key === 'tension')
-  return createMacroExpander({ vars: macroVarsOf(sceneState, indicatorDefs), seed, choices: shadowed ? {} : { tension: TENSIONS } })
+  return { vars: macroVarsOf(sceneState, indicatorDefs), choices: shadowed ? {} : { tension: TENSIONS } }
+}
+
+// 조건에 쓴 이름 → 값의 주인. 지표는 key 와 label 둘 다로 부르므로 둘을 한 변수로 본다.
+// macroVarsOf 와 같은 순서 · 같은 규칙으로 쌓아야 둘이 가리키는 값이 어긋나지 않는다.
+function ownersOf(indicatorDefs) {
+  const owners = new Map([['place', 'place'], ['time', 'time'], ['tension', 'tension']])
+  for (const def of indicatorDefs) {
+    owners.set(def.key, def.key)
+    if (def.label && !owners.has(def.label)) owners.set(def.label, def.key)
+  }
+  return owners
+}
+
+// 이 값들만 넣어 보면 모든 경우를 덮는다. 조건이 견주는 상수 사이의 값은 어느 조건에서나
+// 참 · 거짓이 같으므로 상수마다 하나, 상수 사이 · 바깥마다 하나면 된다.
+function samplesOf(owner, branches, { vars, choices }) {
+  if (Object.hasOwn(choices, owner)) return [...choices[owner]]
+  const value = vars[owner]
+  if (typeof value === 'boolean') return [true, false]
+  const written = branches.filter(({ condition }) => condition.op).map(({ condition }) => condition.raw)
+  if (typeof value === 'number') {
+    // 0 은 `{{#if 호감도}}` 같은 참거짓 조건의 경계다.
+    const points = [...new Set([0, ...written.map((raw) => Number(literal(raw))).filter(Number.isFinite)])].sort((a, b) => a - b)
+    const between = points.slice(1).map((point, index) => (points[index] + point) / 2)
+    return [points[0] - 1, ...points, ...between, points.at(-1) + 1]
+  }
+  // 글자 변수: 아직 값 없음 · 빈 글자 · 조건에 쓴 글자들 · 그 어느 것과도 다른 글자.
+  return [null, '', '\u0000', ...written.map((raw) => literal(raw, true))]
+}
+
+// 한 if 묶음에서 앞 갈래가 먼저 잡아 영영 안 나오는 갈래를 찾는다. 같은 변수를 보는 앞 조건만 견준다 —
+// 다른 변수의 조건은 덮는 범위를 넓힐 뿐이라 빼고 봐도 "안 나온다" 는 판정은 틀리지 않는다(놓칠 수는 있다).
+function unreachableIn(chain, scope) {
+  const ownerOf = ({ condition }) => scope.owners.get(condition.name) ?? condition.name
+  const warnings = []
+  chain.forEach((branch, index) => {
+    const before = chain.slice(0, index).filter((other) => other.condition)
+    try {
+      if (branch.condition) {
+        const same = before.filter((other) => ownerOf(other) === ownerOf(branch))
+        if (!same.length) return
+        const live = samplesOf(ownerOf(branch), [branch, ...same], scope).filter((value) => holds(branch.condition, value))
+        if (!live.every((value) => same.some((other) => holds(other.condition, value)))) return
+        const blockers = same.filter((other) => live.some((value) => holds(other.condition, value)))
+        warnings.push(blockers.length
+          ? `${branch.shown} 은 앞의 ${blockers.map((other) => other.shown).join(' · ')} 에 먼저 걸려 나오지 않습니다 — 좁은 조건을 위에 둔다`
+          : `${branch.shown} 은 참이 될 수 없어 나오지 않습니다`)
+        return
+      }
+      for (const owner of new Set(before.map(ownerOf))) {
+        const same = before.filter((other) => ownerOf(other) === owner)
+        if (samplesOf(owner, same, scope).every((value) => same.some((other) => holds(other.condition, value)))) {
+          warnings.push(`${branch.shown} 는 앞 조건들이 ${same[0].condition.name} 의 모든 값을 덮어 나오지 않습니다`)
+          return
+        }
+      }
+    } catch {
+      // 대표값으로 견줄 수 없는 조건(정의 없이 쓴 지표 등)은 판정하지 않는다. 경고는 빠뜨려도 틀리지는 않는다.
+    }
+  })
+  return warnings
+}
+
+// 문법 검사를 통과한 문구에서 if 묶음을 모아 갈래마다 판정한다.
+function unreachableBranches(text, scope) {
+  if (typeof text !== 'string' || !text.includes('{{')) return []
+  const warnings = []
+  const stack = []
+  for (const match of text.matchAll(TAG)) {
+    const [shown, tag] = match
+    if (/^#if\s/u.test(tag)) stack.push([{ shown, condition: parseCondition(tag.slice(3)) }])
+    else if (/^else\s+if\s/u.test(tag)) stack.at(-1)?.push({ shown, condition: parseCondition(tag.replace(/^else\s+if/u, '')) })
+    else if (tag === 'else') stack.at(-1)?.push({ shown, condition: null })
+    else if (tag === '/if') {
+      const chain = stack.pop()
+      if (chain) warnings.push(...unreachableIn(chain, scope))
+    }
+  }
+  return warnings
 }
 
 /**
  * 저장하기 전에 사람이 쓴 문구의 매크로를 검사한다. 지금 장면 상태와 상관없이 모든 갈래의
  * 문법 · 변수 이름 · 비교 값을 본다 — 같은 문구로 buildTurn 이 던질 오류를 미리 낸다.
+ * 오류가 없으면 앞 갈래에 가려 영영 안 나오는 갈래를 warnings 로 알린다. 경고는 저장을 막지 않는다 —
+ * 문구는 그대로 돌고, 작가가 의도했는지만 묻는다.
  * @param {string} text
  * @param {{ indicatorDefs?: import('../types.js').IndicatorDef[] }} [options]
- * @returns {{ ok: true } | { ok: false, error: string }}
+ * @returns {{ ok: true, warnings?: string[] } | { ok: false, error: string }}
  */
 export function checkMacros(text, { indicatorDefs = [] } = {}) {
+  const options = sceneMacroOptions(null, indicatorDefs)
   try {
-    sceneMacroExpander(null, indicatorDefs)(text)
-    return { ok: true }
+    createMacroExpander(options)(text)
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+  const warnings = unreachableBranches(text, { ...options, owners: ownersOf(indicatorDefs) })
+  return warnings.length ? { ok: true, warnings } : { ok: true }
+}
+
+/**
+ * 문구가 턴마다 달라질 수 있는 이유. random 은 시드(기본: 이력 길이)가 바뀌는 턴마다,
+ * scene 은 조건 · {{var}} 가 읽는 장면 상태가 바뀌는 턴마다 달라진다. 캐시 접두 안 문구를 가려내는 데 쓴다.
+ * @param {string} text
+ * @returns {Array<'random' | 'scene'>}
+ */
+export function volatileMacrosOf(text) {
+  if (typeof text !== 'string' || !text.includes('{{')) return []
+  const found = new Set()
+  for (const [, tag] of text.matchAll(TAG)) {
+    if (tag.startsWith('random::')) found.add('random')
+    else if (/^(?:#if\s|else\s+if\s|var:)/u.test(tag)) found.add('scene')
+  }
+  return ['random', 'scene'].filter((reason) => found.has(reason))
 }

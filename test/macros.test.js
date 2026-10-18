@@ -233,3 +233,55 @@ test('buildTurn — 이름에는 매크로를 돌리지 않는다', async () => 
   const turn = await buildTurn({ cards: [{ name: '{{random::a::b}}' }] })
   assert.match(turn.system, /이름: \{\{random::a::b\}\}/)
 })
+
+test('checkMacros — 앞 갈래에 가려 영영 안 나오는 갈래를 경고한다 (저장은 막지 않는다)', () => {
+  const defs = [{ key: 'affection', label: '호감도', type: 'number', initial: 0 }, { key: 'trust', label: '신뢰', type: 'number', initial: 0 }, { key: 'secret', type: 'boolean', initial: false }]
+  const check = (text) => checkMacros(text, { indicatorDefs: defs })
+  const shadowed = check('{{#if 호감도 >= 50}}신뢰{{else if 호감도 >= 80}}애정{{else}}경계{{/if}}')
+  assert.equal(shadowed.ok, true)
+  assert.deepEqual(shadowed.warnings, ['{{else if 호감도 >= 80}} 은 앞의 {{#if 호감도 >= 50}} 에 먼저 걸려 나오지 않습니다 — 좁은 조건을 위에 둔다'])
+  // 큰 기준부터 쓰면 경고가 없다. key 와 label 은 같은 변수다.
+  assert.deepEqual(check('{{#if 호감도 >= 80}}애정{{else if 호감도 >= 50}}신뢰{{else}}경계{{/if}}'), { ok: true })
+  assert.equal(check('{{#if affection >= 50}}a{{else if 호감도 >= 80}}b{{/if}}').warnings.length, 1)
+  // 경계값은 정확히 가른다 — 50 은 > 50 에 안 걸리므로 >= 50 은 나올 수 있다.
+  assert.deepEqual(check('{{#if 호감도 > 50}}a{{else if 호감도 >= 50}}b{{/if}}'), { ok: true })
+  assert.equal(check('{{#if 호감도 >= 50}}a{{else if 호감도 > 50}}b{{/if}}').warnings.length, 1)
+  assert.equal(check('{{#if 호감도 >= 50}}a{{else if 호감도 == "70"}}b{{/if}}').warnings.length, 1, '따옴표 숫자도 같은 값이다')
+  // 다른 변수를 보는 조건은 견주지 않는다.
+  assert.deepEqual(check('{{#if 호감도 >= 50}}a{{else if 신뢰 >= 80}}b{{/if}}'), { ok: true })
+})
+
+test('checkMacros — 앞 조건이 모든 값을 덮으면 {{else}} 가 안 나온다고 알린다', () => {
+  const defs = [{ key: 'affection', label: '호감도', type: 'number', initial: 0 }, { key: 'secret', label: '비밀', type: 'boolean', initial: false }]
+  const check = (text) => checkMacros(text, { indicatorDefs: defs })
+  assert.deepEqual(check('{{#if 호감도 >= 50}}a{{else if 호감도 < 50}}b{{else}}c{{/if}}').warnings, ['{{else}} 는 앞 조건들이 호감도 의 모든 값을 덮어 나오지 않습니다'])
+  assert.deepEqual(check('{{#if 호감도 > 50}}a{{else if 호감도 < 50}}b{{else}}딱 50{{/if}}'), { ok: true })
+  assert.equal(check('{{#if 비밀}}a{{else if !비밀}}b{{else}}c{{/if}}').warnings.length, 1)
+  assert.equal(check('{{#if 비밀 == true}}a{{else if 비밀}}b{{/if}}').warnings.length, 1)
+})
+
+test('checkMacros — tension 은 허용값, 장소 · 시각은 적힌 글자로 견준다', () => {
+  assert.equal(checkMacros('{{#if tension == hostile}}a{{else if tension == hostile}}b{{/if}}').warnings.length, 1)
+  assert.equal(checkMacros('{{#if tension != calm}}a{{else if tension == tense}}b{{/if}}').warnings.length, 1)
+  assert.deepEqual(checkMacros('{{#if tension != calm}}a{{else if tension == calm}}b{{/if}}'), { ok: true })
+  assert.equal(checkMacros('{{#if place == 도서관}}a{{else if place == "도서관"}}b{{/if}}').warnings.length, 1)
+  assert.deepEqual(checkMacros('{{#if place == 도서관}}a{{else if place == 서재}}b{{else}}c{{/if}}'), { ok: true })
+  assert.deepEqual(checkMacros('{{#if place}}a{{else if place == 서재}}b{{/if}}').warnings, ['{{else if place == 서재}} 은 앞의 {{#if place}} 에 먼저 걸려 나오지 않습니다 — 좁은 조건을 위에 둔다'])
+})
+
+test('checkMacros — 겹친 if 는 묶음마다 따로 보고, 오류가 있으면 오류만 낸다', () => {
+  const defs = [{ key: 'affection', label: '호감도', type: 'number', initial: 0 }]
+  const nested = checkMacros('{{#if tension == calm}}{{#if 호감도 >= 10}}a{{else if 호감도 >= 20}}b{{/if}}{{else if tension == calm}}c{{/if}}', { indicatorDefs: defs })
+  assert.deepEqual(nested.warnings, [
+    '{{else if 호감도 >= 20}} 은 앞의 {{#if 호감도 >= 10}} 에 먼저 걸려 나오지 않습니다 — 좁은 조건을 위에 둔다',
+    '{{else if tension == calm}} 은 앞의 {{#if tension == calm}} 에 먼저 걸려 나오지 않습니다 — 좁은 조건을 위에 둔다',
+  ])
+  assert.deepEqual(Object.keys(checkMacros('{{#if 호감도 >= 50}}a{{else if 호감도 >= 80}}{{var:호감돈}}{{/if}}', { indicatorDefs: defs })), ['ok', 'error'])
+})
+
+test('buildTurn — 가려진 갈래는 경고일 뿐 조립 결과를 바꾸지 않는다', async () => {
+  const card = { cards: [{ name: '서연', description: '{{#if 호감도 >= 50}}신뢰{{else if 호감도 >= 80}}애정{{/if}}' }], indicatorDefs, sceneState: sceneState(90) }
+  const turn = await buildTurn(card)
+  assert.match(turn.system, /신뢰/)
+  assert.doesNotMatch(turn.system, /애정/)
+})
