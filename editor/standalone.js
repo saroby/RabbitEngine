@@ -8,7 +8,6 @@ const SAMPLE_CUSTOM_BLOCKS = Object.freeze([
   { id: 'example-pair', name: '대화 예시 한 쌍', messages: [{ role: 'user', content: '테스트 요청: 짧게 답해 줘.' }, { role: 'assistant', content: '테스트 응답: 알겠습니다.' }] },
 ])
 const byId = (id) => document.getElementById(id)
-const message = byId('message')
 const list = byId('profiles')
 const listView = byId('list-view')
 const editView = byId('edit-view')
@@ -16,12 +15,20 @@ const editTitle = byId('edit-title')
 const name = byId('name')
 const save = byId('save')
 const revert = byId('revert')
+const duplicate = byId('duplicate')
+const remove = byId('delete')
+const addSheet = byId('add-sheet')
+const importFile = byId('import')
 let profiles = []
 let selectedId
+// 편집 화면을 연 시점의 설정. 되돌리기의 기준이며, 새 설정은 첫 저장 전까지 여기에만 있다.
+let opened
 let draft
 let dirty = false
 let valid = true
 let editor
+let addCard
+let loadError
 
 function readProfile(value) {
   if (!value || typeof value !== 'object' || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120) throw new Error('설정 이름은 1~120자여야 합니다.')
@@ -37,20 +44,50 @@ try {
     if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) throw new Error('저장된 설정 ID가 중복되었습니다.')
   }
 } catch (error) {
-  message.textContent = `저장된 설정을 읽을 수 없습니다. 기존 저장 데이터는 변경하지 않았습니다. ${error.message}`
+  loadError = `저장된 설정을 읽을 수 없습니다. 기존 저장 데이터는 변경하지 않았습니다. ${error.message}`
 }
 
 if (!profiles.length) profiles = [{ id: crypto.randomUUID(), name: '기본 설정', value: defaultPromptProfile() }]
 
+const unsaved = () => Boolean(selectedId) && !profiles.some((profile) => profile.id === selectedId)
+
 function status() {
   save.disabled = !selectedId || !valid || !name.value.trim()
   revert.disabled = !selectedId || !dirty
-  const draftStatus = selectedId ? `${dirty ? '저장하지 않은 변경이 있습니다' : '선택한 설정과 같습니다'} · ` : ''
-  byId('state').textContent = `${profiles.length}개 설정 · ${draftStatus}현재 브라우저에만 저장`
+  // 저장 전인 새 설정은 지울 것도, 원본으로 남길 것도 없다.
+  duplicate.disabled = remove.disabled = unsaved()
+}
+
+// 카드에서 설정끼리 구별할 수 있도록 사용 중인 블록 수와 시스템 프롬프트 작성 여부를 보여 준다.
+function profileSummary({ blocks, systemTemplate }) {
+  const engine = blocks.filter((block) => block.kind !== 'custom')
+  const custom = blocks.filter((block) => block.kind === 'custom' && block.enabled).length
+  const used = `엔진 블록 ${engine.filter((block) => block.enabled).length}/${engine.length}개 사용${custom ? ` · 커스텀 블록 ${custom}개` : ''}`
+  return [used, systemTemplate === undefined ? '기본 조립 순서' : '시스템 프롬프트 직접 작성']
+}
+
+// 목록 첫 칸의 + 카드. 새 설정·JSON 가져오기는 이 카드가 여는 시트에서 고른다.
+function renderAddCard() {
+  const item = document.createElement('li')
+  const icon = document.createElement('span')
+  const label = document.createElement('span')
+  addCard = document.createElement('button')
+  addCard.type = 'button'
+  addCard.className = 'profile-item profile-add'
+  addCard.setAttribute('aria-haspopup', 'dialog')
+  icon.className = 'profile-add-icon'
+  icon.setAttribute('aria-hidden', 'true')
+  icon.textContent = '+'
+  label.textContent = '설정 추가'
+  addCard.append(icon, label)
+  addCard.addEventListener('click', () => addSheet.showModal())
+  item.append(addCard)
+  list.append(item)
 }
 
 function renderList() {
   list.replaceChildren()
+  renderAddCard()
   for (const profile of profiles) {
     const item = document.createElement('li')
     const button = document.createElement('button')
@@ -58,9 +95,18 @@ function renderList() {
     const hint = document.createElement('span')
     button.type = 'button'
     button.className = 'profile-item'
+    title.className = 'profile-name'
     title.textContent = profile.name
+    title.title = profile.name // 긴 이름은 카드에서 두 줄로 잘린다
+    const meta = profileSummary(profile.value).map((text) => {
+      const line = document.createElement('span')
+      line.className = 'profile-meta'
+      line.textContent = text
+      return line
+    })
+    hint.className = 'profile-open'
     hint.textContent = '편집 →'
-    button.append(title, hint)
+    button.append(title, ...meta, hint)
     button.addEventListener('click', () => choose(profile.id))
     item.append(button)
     list.append(item)
@@ -68,13 +114,17 @@ function renderList() {
 }
 
 function choose(id, focus = true) {
-  const profile = profiles.find((item) => item.id === id)
-  selectedId = id
+  open(profiles.find((item) => item.id === id), focus)
+}
+
+function open(profile, focus = true) {
+  opened = profile
+  selectedId = profile.id
   name.value = profile.name
   draft = validatePromptProfile(profile.value)
   dirty = false
   valid = true
-  editTitle.textContent = `${profile.name} 편집`
+  editTitle.textContent = titleOf(profile)
   listView.hidden = true
   editView.hidden = false
   editor?.destroy()
@@ -85,14 +135,18 @@ function choose(id, focus = true) {
     onValidityChange(next) { valid = next; dirty = true; status() },
   })
   status()
-  message.textContent = ''
   if (focus) editTitle.focus()
+}
+
+function titleOf(profile) {
+  return `${profile.name} ${unsaved() ? '만들기' : '편집'}`
 }
 
 function showList() {
   editor?.destroy()
   editor = undefined
   selectedId = undefined
+  opened = undefined
   draft = undefined
   dirty = false
   valid = true
@@ -100,7 +154,6 @@ function showList() {
   listView.hidden = false
   renderList()
   status()
-  message.textContent = ''
   byId('list-title').focus()
 }
 
@@ -111,8 +164,9 @@ function persist(next) {
   profiles = next
 }
 
+// 목록 위 상태·오류 줄을 두지 않으므로 오류는 이동 확인(confirm)처럼 알림 창으로 띄운다.
 function attempt(action) {
-  try { action(); message.textContent = '' } catch (error) { message.textContent = String(error.message) }
+  try { action() } catch (error) { alert(String(error.message)) }
 }
 
 function mayDiscard() {
@@ -124,33 +178,35 @@ name.addEventListener('input', () => { dirty = true; status() })
 save.addEventListener('click', () => attempt(() => {
   if (!valid) throw new Error('잘못된 프롬프트 항목을 먼저 고쳐 주세요.')
   const next = readProfile({ id: selectedId, name: name.value.trim(), value: draft })
-  persist(profiles.map((profile) => profile.id === selectedId ? next : profile))
+  persist(unsaved() ? [...profiles, next] : profiles.map((profile) => profile.id === selectedId ? next : profile))
   choose(selectedId, false)
 }))
 revert.addEventListener('click', () => attempt(() => {
-  const profile = profiles.find((item) => item.id === selectedId)
-  const restored = validatePromptProfile(profile.value)
+  const restored = validatePromptProfile(opened.value)
   editor.setValue(restored)
-  name.value = profile.name
-  editTitle.textContent = `${profile.name} 편집`
+  name.value = opened.name
+  editTitle.textContent = titleOf(opened)
   draft = restored
   dirty = false
   valid = true
   status()
 }))
+addSheet.addEventListener('click', (event) => { if (event.target === addSheet) addSheet.close() }) // 배경을 누르면 닫는다
+// 고르지 않고 닫으면 + 카드로 초점을 돌린다. 새 설정을 고른 경우에는 편집 화면이 초점을 가져간다.
+addSheet.addEventListener('close', () => { if (!listView.hidden) addCard.focus() })
+byId('sheet-cancel').addEventListener('click', () => addSheet.close())
+// 새 설정은 편집 화면만 열고, 첫 저장 때 목록에 넣는다.
 byId('new').addEventListener('click', () => attempt(() => {
-  if (!mayDiscard()) return
-  const profile = { id: crypto.randomUUID(), name: '새 설정', value: defaultPromptProfile() }
-  persist([...profiles, profile])
-  choose(profile.id)
+  addSheet.close()
+  open({ id: crypto.randomUUID(), name: '새 설정', value: defaultPromptProfile() })
 }))
-byId('duplicate').addEventListener('click', () => attempt(() => {
+duplicate.addEventListener('click', () => attempt(() => {
   if (!valid) throw new Error('잘못된 프롬프트 항목을 먼저 고쳐 주세요.')
   const profile = readProfile({ id: crypto.randomUUID(), name: `${name.value.trim() || '설정'} 복사`.slice(0, 120), value: draft })
   persist([...profiles, profile])
   choose(profile.id)
 }))
-byId('delete').addEventListener('click', () => attempt(() => {
+remove.addEventListener('click', () => attempt(() => {
   if (!confirm(`“${name.value}” 설정을 이 브라우저에서 삭제할까요?`)) return
   let next = profiles.filter((profile) => profile.id !== selectedId)
   if (!next.length) next = [{ id: crypto.randomUUID(), name: '기본 설정', value: defaultPromptProfile() }]
@@ -168,20 +224,24 @@ byId('export').addEventListener('click', () => attempt(() => {
   anchor.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }))
-byId('import').addEventListener('change', async (event) => {
+byId('import-start').addEventListener('click', () => {
+  addSheet.close()
+  importFile.click()
+})
+importFile.addEventListener('change', async (event) => {
   const file = event.target.files[0]
   if (!file) return
   try {
     if (file.size > 1000000) throw new Error('1MB 이하의 JSON 파일을 선택해 주세요.')
     const profile = readProfile(JSON.parse(await file.text()))
-    if (!mayDiscard()) return
     profile.id = crypto.randomUUID()
     persist([...profiles, profile])
     choose(profile.id)
-    message.textContent = ''
-  } catch (error) { message.textContent = String(error.message) }
+  } catch (error) { alert(String(error.message)) }
   finally { event.target.value = '' }
 })
 window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = '' } })
 renderList()
 status()
+// 목록을 먼저 그린 뒤 알린다.
+if (loadError) setTimeout(() => alert(loadError))
