@@ -12,7 +12,6 @@ const byId = (id) => document.getElementById(id)
 const list = byId('profiles')
 const listView = byId('list-view')
 const editView = byId('edit-view')
-const editTitle = byId('edit-title')
 const name = byId('name')
 const save = byId('save')
 const cancel = byId('cancel')
@@ -66,7 +65,7 @@ function status() {
   byId('edit-actions').hidden = !editing
   byId('more-actions').hidden = editing
   name.readOnly = !editing
-  if (opened) editTitle.textContent = titleOf(opened)
+  if (opened) editView.setAttribute('aria-label', titleOf(opened))
 }
 
 // 더보기 메뉴: 복제 · JSON 내보내기 · 삭제. ↑/↓ · Home/End 로 옮기고 Esc 나 바깥을 누르면 닫는다.
@@ -168,7 +167,7 @@ function open(profile, { focus = true, edit: startEditing = false } = {}) {
     onValidityChange(next) { valid = next; dirty = true; status() },
   })
   status()
-  if (focus) editTitle.focus()
+  if (focus) editView.focus()
 }
 
 function titleOf(profile) {
