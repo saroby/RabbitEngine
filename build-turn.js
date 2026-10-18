@@ -20,6 +20,7 @@ import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
 import { analyzeUserInput } from './scene/input.js'
 import { checkReply, stopSequencesFor } from './scene/reply.js'
 import { buildDirective } from './scene/directive.js'
+import { createMacroExpander, macroVarsOf } from './prompt/macros.js'
 import { validatePromptProfile, validateCustomBlocks } from './prompt/profile.js'
 import { resolveTools } from './prompt/tools.js'
 
@@ -130,6 +131,12 @@ export async function buildTurn(input = {}, ctx = {}) {
     continuing: Boolean(raw.continuing),
   })
 
+  // {{random::…}} 은 시드로 정해진다. 기본 시드는 이력 길이라 턴마다 바뀌고, 같은 턴을 다시
+  // 만들면(재생성·디버깅) 같은 값이 나온다. 진짜 난수면 manifest 로 턴을 재현할 수 없다.
+  const macroSeed = raw.macroSeed ?? messages.length
+  if (!Number.isSafeInteger(macroSeed)) throw new Error('buildTurn: macroSeed 는 정수여야 합니다')
+  const expandMacros = createMacroExpander({ vars: macroVarsOf(raw.sceneState ?? null, indicatorDefs), seed: macroSeed })
+
   const compiled = compileBlocks({
     dialect,
     enforceFormat,
@@ -154,6 +161,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     events: raw.events ?? [],
     directive,
     userName,
+    expandMacros,
   })
   const systemBlocks = compiled.blocks.filter((block) => block.slot === 'system')
 
@@ -224,6 +232,7 @@ export async function buildTurn(input = {}, ctx = {}) {
         ...(compiled.profile ? { profile: compiled.profile } : {}),
         worldbookManifest: compiled.worldbookManifest,
         worldbookScan: compiled.worldbookScan,
+        macroSeed,
       },
     },
   }

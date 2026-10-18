@@ -149,6 +149,7 @@
  * @property {boolean} [continuing] 이어쓰기면 true — 사용자 행동 지시를 디렉티브에 넣지 않는다
  * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
  * @property {ToolSpec[]} [toolSpecs] 호스트 도구 명세. 카드의 tools 가 id 로 가리킨다
+ * @property {number} [macroSeed] {{random::…}} 의 시드. 기본은 messages 길이 — 같은 턴을 다시 만들면 같은 값이 나온다
  */
 
 /**
