@@ -7,10 +7,15 @@
 // 최근 몇 개를 스캔하는가. 손잡이로 내지 않는 이유는 위와 같다.
 export const SCAN_DEPTH = 6
 
-function keywordsOf(worldbook) {
-  const raw = Array.isArray(worldbook.keywords) ? worldbook.keywords : String(worldbook.keywords || '').split(',')
+function listOf(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split(',')
   return raw.map((keyword) => String(keyword).trim()).filter(Boolean)
 }
+const keywordsOf = (worldbook) => listOf(worldbook.keywords)
+
+// 우선순위는 예산을 나눌 때만 쓴다. 숫자가 아니면 0 — 저장된 항목이 문자열을 들고 있어도
+// 조용히 맨 뒤로 밀리지 않고 지금과 같은 자리에 선다.
+const priorityOf = (worldbook) => (Number.isFinite(worldbook.priority) ? worldbook.priority : 0)
 
 export const WORLDBOOK_INJECTORS = {
   always(worldbook) {
@@ -21,7 +26,14 @@ export const WORLDBOOK_INJECTORS = {
     // 과활성 자체가 이 기법의 성질이고, 최소 길이나 stopword 필터를 넣으면
     // 코퍼스에 따라 같은 전략의 의미가 달라져 재현성이 깨진다.
     const matchedKeywords = keywordsOf(worldbook).filter((keyword) => recentText.includes(keyword))
-    return { injected: matchedKeywords.length > 0 && Boolean(String(worldbook.content || '').trim()), matchedKeywords }
+    // 제외 키워드는 과매칭을 깎는 손잡이다. "열쇠" 로 깨우되 "열쇠고리" 가 보이면 재운다.
+    // 키워드가 걸렸을 때만 본다 — 안 걸린 항목에 제외 사유를 적으면 증거가 시끄러워진다.
+    const excludedBy = matchedKeywords.length ? listOf(worldbook.excludeKeywords).filter((keyword) => recentText.includes(keyword)) : []
+    return {
+      injected: matchedKeywords.length > 0 && excludedBy.length === 0 && Boolean(String(worldbook.content || '').trim()),
+      matchedKeywords,
+      excludedBy,
+    }
   },
 }
 
@@ -33,37 +45,49 @@ export function injectWorldbooksWithManifest(worldbooks = [], messages = [], ove
   const source = scanSource === 'raw' && Array.isArray(rawMessages) ? rawMessages : messages
   const recentText = source.slice(-SCAN_DEPTH).map((message) => message.text || '').join('\n')
 
-  const chunks = []
-  const manifest = []
-  let usedChars = 0
-  let truncated = 0
-
-  for (const worldbook of worldbooks) {
+  const decided = worldbooks.map((worldbook, index) => {
     const strategy = overrides[worldbook.id] || worldbook.strategy || 'always'
     const injector = WORLDBOOK_INJECTORS[strategy] || WORLDBOOK_INJECTORS.always
     const decision = injector(worldbook, recentText)
-    let injectedText = decision.injected ? `[설정: ${worldbook.name}]\n${worldbook.content}` : null
+    const text = decision.injected ? `[설정: ${worldbook.name}]\n${worldbook.content}` : null
+    return { worldbook, index, strategy, decision, text, priority: priorityOf(worldbook), overBudget: false }
+  })
 
-    // always 는 강태오 하나에서 37,904자를 넣는다 — 상한이 없으면 어떤 컨텍스트든
-    // 지배한다. 넘으면 버리되 몇 개를 버렸는지 남긴다 (조용히 자르지 않는다).
-    let overBudget = false
-    if (injectedText && budgetChars > 0 && usedChars + injectedText.length > budgetChars) {
-      overBudget = true
-      truncated += 1
-      injectedText = null
+  // always 는 강태오 하나에서 37,904자를 넣는다 — 상한이 없으면 어떤 컨텍스트든
+  // 지배한다. 넘으면 버리되 몇 개를 버렸는지 남긴다 (조용히 자르지 않는다).
+  // 예산은 우선순위가 높은 항목부터 나눈다. 같으면 원래 순서다 — sort 는 안정 정렬이라
+  // priority 를 아무도 안 쓰면 예전과 똑같이 앞에서부터 채운다.
+  let usedChars = 0
+  let truncated = 0
+  if (budgetChars > 0) {
+    const byPriority = decided.filter((item) => item.text).sort((a, b) => b.priority - a.priority)
+    for (const item of byPriority) {
+      if (usedChars + item.text.length > budgetChars) {
+        item.overBudget = true
+        item.text = null
+        truncated += 1
+      } else {
+        usedChars += item.text.length
+      }
     }
-    if (injectedText) { chunks.push(injectedText); usedChars += injectedText.length }
-
-    manifest.push({
-      id: worldbook.id,
-      revisionId: worldbook.revisionId || null,
-      name: worldbook.name,
-      strategy,
-      injected: Boolean(injectedText),
-      matchedKeywords: decision.matchedKeywords,
-      overBudget,
-      injectedText,
-    })
+  } else {
+    usedChars = decided.reduce((sum, item) => sum + (item.text ? item.text.length : 0), 0)
   }
+
+  // 내보내는 순서는 원래 순서다. 우선순위가 프롬프트 안의 자리까지 흔들면 캐시 접두가
+  // 매 턴 달라지고, compileBlocks 는 manifest 를 worldbooks 와 같은 색인으로 읽는다.
+  const chunks = decided.filter((item) => item.text).map((item) => item.text)
+  const manifest = decided.map(({ worldbook, strategy, decision, text, priority, overBudget }) => ({
+    id: worldbook.id,
+    revisionId: worldbook.revisionId || null,
+    name: worldbook.name,
+    strategy,
+    injected: Boolean(text),
+    matchedKeywords: decision.matchedKeywords,
+    ...(decision.excludedBy?.length ? { excludedBy: decision.excludedBy } : {}),
+    ...(priority !== 0 ? { priority } : {}),
+    overBudget,
+    injectedText: text,
+  }))
   return { chunks, manifest, scanSource, usedChars, truncated, budgetChars }
 }
