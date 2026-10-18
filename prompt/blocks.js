@@ -7,6 +7,7 @@ import { parserVersionOf } from '../dialect/define.js'
 import { injectWorldbooksWithManifest } from '../worldbook/strategies.js'
 import { MEMORY_LABEL } from '../memory/defaults.js'
 import { applyPromptProfile, validatePromptProfile, validateCustomBlocks, promptProfileHash } from './profile.js'
+import { createMacroExpander } from './macros.js'
 
 export const BLOCK_COMPILER_VERSION = 'blocks-v1'
 export const DEFAULT_DEPTHS = Object.freeze({ memory: 4, scene_state: 2, event: 0 })
@@ -17,6 +18,19 @@ const ENGINE_KINDS = new Set(['instruction', 'rating', 'pacing', 'user_boundary'
 const trustOf = (kind) => (ENGINE_KINDS.has(kind) ? 'engine' : 'curated')
 const sys = (kind, content, extra = {}) => ({ kind, role: 'system', slot: 'system', trust: trustOf(kind), content, ...extra })
 const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: { depth }, trust: trustOf(kind), content, ...extra })
+
+// renderCard · renderPlayerCard 가 읽는 문구 필드. name 은 매크로 대상이 아니다 — 화자 이름이 턴마다 바뀌면 안 된다.
+const MACRO_CARD_FIELDS = new Set(['description', 'personality', 'scenario', 'first_mes', 'mes_example', 'behavior'])
+
+function expandLibrary(library, expandMacros) {
+  const expanded = new Map()
+  for (const [id, source] of library) {
+    expanded.set(id, source.messages
+      ? { messages: source.messages.map((message) => ({ ...message, content: expandMacros(message.content) })) }
+      : { content: expandMacros(source.content) })
+  }
+  return expanded
+}
 
 /**
  * 프롬프트를 위치가 있는 블록 목록으로 조립한다.
@@ -44,6 +58,7 @@ const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: 
  * @param {object} [options.dialect] 대본 방언
  * @param {boolean} [options.enforceFormat] false 면 규약 블록을 넣지 않는다
  * @param {string} [options.userName] {{user}} 에 들어갈 이름
+ * @param {(text: string) => string} [options.expandMacros] 사람이 쓴 문구에 돌릴 매크로 확장기 (prompt/macros.js). 없으면 변수 없는 확장기
  * @returns {{ blocks: object[], names: { char: string, user: string }, compilerVersion: string, worldbookManifest: object[], worldbookScan: object, profile?: {version:number,hash:string} }}
  */
 export function compileBlocks({
@@ -53,16 +68,21 @@ export function compileBlocks({
   contextNotes = [], memoryNotes = null,
   sceneStateText = '', events = [], directive = '',
   dialect = koreanPlayscript, enforceFormat = true, userName = '유저',
+  expandMacros = createMacroExpander(),
 } = {}) {
   const profile = promptProfile === undefined ? null : validatePromptProfile(promptProfile)
   if (profile && !enforceFormat) throw new Error('PromptProfile: 출력 규약을 끌 수 없습니다')
-  const library = validateCustomBlocks(customBlocks)
-  const list = (cards?.length ? cards : [card]).filter(Boolean)
+  // 매크로는 사람이 쓴 문구에만 돌린다 — 카드·지시문·소개·로어북·커스텀 블록.
+  // 기억 노트와 이력은 모델이 쓴 문장이 섞여 있어 돌리지 않는다 (prompt/macros.js 머리 주석).
+  // 이름 치환보다 먼저 돌려야 {{user}} 가 들어간 이름이 매크로 문법으로 읽히지 않는다.
+  const expandCard = (source) => (source ? Object.fromEntries(Object.entries(source).map(([key, value]) => [key, MACRO_CARD_FIELDS.has(key) ? expandMacros(value) : value])) : source)
+  const library = expandLibrary(validateCustomBlocks(customBlocks), expandMacros)
+  const list = (cards?.length ? cards : [card]).filter(Boolean).map(expandCard)
   const names = namesOf({ card: list[0], playerCard, userName })
   const blocks = []
 
-  if (instructionText) blocks.push(sys('instruction', substitute(instructionText, names)))
-  if (longDescriptionText) blocks.push(sys('long_description', substitute(longDescriptionText, names)))
+  if (instructionText) blocks.push(sys('instruction', substitute(expandMacros(instructionText), names)))
+  if (longDescriptionText) blocks.push(sys('long_description', substitute(expandMacros(longDescriptionText), names)))
   if (ratingInstruction) blocks.push(sys('rating', ratingInstruction))
   if (pacingText) blocks.push(sys('pacing', pacingText))
   for (const source of list) {
@@ -71,7 +91,7 @@ export function compileBlocks({
   }
   const cast = renderCast(list)
   if (cast) blocks.push(sys('cast', cast))
-  const player = renderPlayerCard(substituteCard(playerCard, names), names)
+  const player = renderPlayerCard(substituteCard(expandCard(playerCard), names), names)
   if (player) blocks.push(sys('player', player, { sourceId: playerCard?.id || null, revisionId: playerCard?.revisionId || null }))
 
   // contextNotes(기억 층이 고른 노트)는 하위 호환으로 system 슬롯의 context_* 로 남긴다.
@@ -79,7 +99,9 @@ export function compileBlocks({
     if (String(note?.text || '').trim()) blocks.push(sys(`context_${note.kind}`, `${MEMORY_LABEL}\n${substitute(note.text, names)}`))
   }
 
-  const injected = injectWorldbooksWithManifest(worldbooks, messages, worldbookOverrides, { ...worldbookOptions, rawMessages: rawMessages || messages })
+  // 예산은 펼친 뒤의 길이로 잰다 — 실제로 프롬프트에 들어가는 것이 그것이다.
+  const expandedBooks = worldbooks.map((book) => (book && typeof book.content === 'string' ? { ...book, content: expandMacros(book.content) } : book))
+  const injected = injectWorldbooksWithManifest(expandedBooks, messages, worldbookOverrides, { ...worldbookOptions, rawMessages: rawMessages || messages })
   // manifest 는 worldbooks 와 1:1 로 같은 순서로 쌓이므로 색인으로 원본 항목을 찾는다.
   // manifest 에 depth 를 얹지 않는 이유는 그것이 증거 스냅샷의 모양을 바꾸기 때문이다.
   for (const [index, entry] of injected.manifest.entries()) {

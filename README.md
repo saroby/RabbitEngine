@@ -146,6 +146,24 @@ const check = authorizeToolCall(turn.tools, { name: call.name, input: call.input
 const result = check.ok ? await run(check.name, check.args, check.actor) : { error: check.message }  // 거부도 tool_result 로 돌려준다
 ```
 
+## 조건 문장과 매크로
+
+카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `longDescription` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
+
+```
+{{#if 호감도 >= 50}}서연은 {{user}}에게 마음을 열었다.{{else}}서연은 {{user}}를 경계한다.{{/if}}
+{{#if tension == hostile}}…{{/if}}    {{#if !비밀공개}}…{{/if}}    {{#if place == "현관"}}…{{/if}}
+지금 호감도: {{var:호감도}}
+{{random::비가 온다::눈이 온다::맑다}}
+```
+
+- 비교: `>=` `<=` `>` `<`(숫자끼리) · `==` `!=` · 변수만 쓰면 참거짓 · `!` 부정. 중첩되고, 한 줄을 차지한 태그는 빈 줄을 남기지 않는다.
+- 모르는 변수와 짝 안 맞는 태그는 `buildTurn` 이 던진다. 저장할 때 미리 보려면 `createMacroExpander({ vars: macroVarsOf(sceneState, indicatorDefs) })(text)` 를 돌려 본다.
+- `{{random}}` 은 `macroSeed`(기본: `messages` 길이)로 정해져 같은 턴을 다시 만들면 같은 값이 나온다. 시드는 `manifest.prompt.macroSeed` 에 남는다.
+- **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
+- system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.
+- 프롬프트 설정의 블록 문구·시스템 문서에는 아직 쓸 수 없다(검증기가 거부한다). 거기서는 커스텀 블록에 쓴다.
+
 ## 기억 층
 
 긴 이력은 고정된 청크로 잘라 닫힌 청크만 요약한다. 같은 재료로 만든 요약은 `recipeHash` 로 캐시에서 꺼내므로 LLM 을 다시 부르지 않고, 부른 호출은 전부 manifest 의 장부에 남는다. 요약에 쓰는 LLM 도 엔진이 직접 부르지 않는다 — 당신이 `ctx.llm` 으로 건넨 호출자를 쓴다.
