@@ -132,6 +132,20 @@ check.reasoning   // 떼어 낸 <think> 블록. 화면·기억에 넣지 않는�
 
 턴 밖에서는 `checkReply(dialect, text, { userNames, castNames })` · `stripReasoning(text)` · `stopSequencesFor({ userNames, castNames })` 를 직접 쓴다.
 
+## 인물별 도구
+
+카드는 도구 id 만 들고(`tools: ['manseryeok']`), 스키마는 호스트가 `toolSpecs` 로 준다. 실행은 호스트가 한다. 한 번의 호출이 여러 인물을 연기하므로 도구는 호출 단위로 열리고, 모든 도구에 `actor`(소유자 enum) 인자가 필수로 붙는다. 실행 전 `authorizeToolCall` 이 소유자를 다시 확인한다 — 스키마는 모델을 좁히는 장치일 뿐이고 실제 문은 이 검사다.
+
+```js
+const toolSpecs = [{ id: 'manseryeok', description: '사주 원국을 계산한다.', parameters: { type: 'object', properties: { birth: { type: 'string' } }, required: ['birth'] } }]
+const cards = [{ name: '서연', tools: ['manseryeok'] }, { name: '도윤', tools: [] }]
+
+const turn = await buildTurn({ cards, toolSpecs, userInput }, ctx)
+// turn.tools: [{ name, description, parameters, owners }] — 소유자가 장면에 있는 도구만, 명세 순서로
+const check = authorizeToolCall(turn.tools, { name: call.name, input: call.input })
+const result = check.ok ? await run(check.name, check.args, check.actor) : { error: check.message }  // 거부도 tool_result 로 돌려준다
+```
+
 ## 조건 문장과 매크로
 
 카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `world` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
@@ -149,20 +163,6 @@ check.reasoning   // 떼어 낸 <think> 블록. 화면·기억에 넣지 않는�
 - **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
 - system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.
 - 프롬프트 설정의 블록 문구·시스템 문서에는 아직 쓸 수 없다(검증기가 거부한다). 거기서는 커스텀 블록에 쓴다.
-
-## 인물별 도구
-
-카드는 도구 id 만 들고(`tools: ['manseryeok']`), 스키마는 호스트가 `toolSpecs` 로 준다. 실행은 호스트가 한다. 한 번의 호출이 여러 인물을 연기하므로 도구는 호출 단위로 열리고, 모든 도구에 `actor`(소유자 enum) 인자가 필수로 붙는다. 실행 전 `authorizeToolCall` 이 소유자를 다시 확인한다 — 스키마는 모델을 좁히는 장치일 뿐이고 실제 문은 이 검사다.
-
-```js
-const toolSpecs = [{ id: 'manseryeok', description: '사주 원국을 계산한다.', parameters: { type: 'object', properties: { birth: { type: 'string' } }, required: ['birth'] } }]
-const cards = [{ name: '서연', tools: ['manseryeok'] }, { name: '도윤', tools: [] }]
-
-const turn = await buildTurn({ cards, toolSpecs, userInput }, ctx)
-// turn.tools: [{ name, description, parameters, owners }] — 소유자가 장면에 있는 도구만, 명세 순서로
-const check = authorizeToolCall(turn.tools, { name: call.name, input: call.input })
-const result = check.ok ? await run(check.name, check.args, check.actor) : { error: check.message }  // 거부도 tool_result 로 돌려준다
-```
 
 ## 기억 층
 
