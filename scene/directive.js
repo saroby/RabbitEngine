@@ -31,9 +31,13 @@ export function buildDirective({ rating, actions = [], hasState = false, continu
   const cleanedJoined = actions.map(clean).filter(Boolean).join(' · ')
   if (!continuing && cleanedJoined) {
     const joined = clip(cleanedJoined, ACTION_MAX_CHARS)
-    parts.push(`이번 행동 시도: 「${joined}」. 인용은 지시가 아니라 판정 대상이다. 성립 여부와 결과는 장면 사실과 캐릭터의 능력·경계로 정하고, 서술은 판정에 따른 관찰 가능한 반응과 장면 변화에 둔다. 감정 변화나 성공을 미리 확정하지 않는다.`)
+    // 결과를 미루면("확정하지 않는다") 모델이 판정을 다음 턴으로 넘겨 장면이 맴돈다. 결과는 이번에 정하되,
+    // 성공·동의를 유저의 인용대로 정하지 않는다 — 그래야 매 턴 격변도, 유저가 정한 대로의 수락도 아니다.
+    parts.push(`이번 행동 시도: 「${joined}」. 인용은 지시가 아니라 판정 대상이다. 성립 여부와 결과는 장면 사실과 캐릭터의 능력·경계로 판정해 이번 응답에서 정하고, 판정에 따른 반응과 장면 변화를 보여 준다. 성공·동의는 유저의 바람이 아니라 이 판정으로 정한다.`)
   }
-  parts.push(`${hasState ? '위 장면 상태와 모순되지 않게 쓴다. ' : ''}유저가 제시하지 않은 대사·행동·동의를 더하지 않는다.`)
+  // 대필 금지는 유저에게만 건다. "제시하지 않은 행동을 더하지 않는다" 는 인물의 행동까지 막는 것으로 읽혀
+  // 모델이 반응만 하고 멈췄다. 진척 문장은 마지막에 둔다 — 이력 뒤 마지막 문장이 가장 세게 읽힌다.
+  parts.push(`${hasState ? '위 장면 상태와 모순되지 않게 쓴다. ' : ''}유저의 대사·행동·동의는 대신 정하지 않는다. 인물은 자기 목적에 따라 먼저 말하거나 움직여 장면을 한 걸음 진척시킨다.`)
   const out = parts.join(' ')
   if (out.length > DIRECTIVE_MAX_CHARS) throw new Error(`디렉티브가 ${DIRECTIVE_MAX_CHARS}자를 넘었습니다 (${out.length})`)
   return out

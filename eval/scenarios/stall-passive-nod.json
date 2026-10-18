@@ -1,0 +1,22 @@
+{
+  "id": "stall-passive-nod", "rating": "teen", "dialect": "asterisk-script",
+  "cards": [{ "name": "서연", "description": "폐교에 혼자 남은 교사. 밤마다 울리는 종의 비밀을 알고 있고, 믿을 만한 사람에게만 털어놓으려 한다." }],
+  "indicatorDefs": [],
+  "sceneState": {
+    "version": 1, "revision": 4, "place": "폐교 교무실", "time": "자정", "tension": "tense",
+    "characters": { "서연": { "body": [], "emotion": "망설임", "toward": { "유저": "반신반의" } } },
+    "threads": ["종소리의 정체"], "indicators": {}, "updatedAt": { "messageId": "m4" }
+  },
+  "history": [
+    { "role": "assistant", "text": "서연: 정말 기사를 쓸 거라면, 하나만 약속해요. 내 이름은 빼 줘요.\n*서연이 책상 서랍 손잡이를 쥔 채 멈춘다.*" }
+  ],
+  "userInput": "*고개를 끄덕인다*",
+  "expect": {
+    "directiveIncludes": ["이번 행동 시도: 「고개를 끄덕인다」", "이번 응답에서 정하고", "장면을 한 걸음 진척시킨다"],
+    "blocks": { "scene_state": true }
+  },
+  "judge": {
+    "stateDelta": { "tension": ["tense", "calm"], "bodyAddAny": {}, "forbid": ["약속을 다시 확인하며 장면을 멈춤", "유저의 감정을 단정"] },
+    "rubric": ["인물이 먼저 움직여 장면이 한 걸음 나아감", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}
