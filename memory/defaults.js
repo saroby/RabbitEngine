@@ -2,11 +2,6 @@
 // 값만 여기 둔다 — 화면 라벨과 렌더링 방식은 contract.js 에 남는다.
 // Rabbit Engine 추출 시 이 파일이 통째로 엔진의 memory/defaults.js 가 된다.
 
-// 기존 5종 전략의 기본 창 크기. server/context-strategies.js 의
-// boundedSize(value, fallback = 12) 가 쓰던 값이다. 새 프리셋의 기본값과
-// 반드시 갈라 둔다 — 합치면 "동작 변화 없음" 이라는 전제가 깨진다.
-export const LEGACY_WINDOW_SIZE = 12
-
 // 검색기(글자 겹침 · 임베딩)가 창 밖에서 끌어오는 옛 메시지 수의 기본값.
 export const DEFAULT_RETRIEVAL_LIMIT = 4
 

@@ -6,6 +6,7 @@
 // 선택을 밖으로 빼면 주입된 가짜 메시지 때문에 messages 배열과 entries 배열의
 // 색인이 어긋나 엉뚱한 메시지를 고르게 된다.
 import { DEFAULT_ASSEMBLY, MEMORY_LABEL } from './defaults.js'
+import { activeTextOf } from './projection.js'
 
 export { DEFAULT_ASSEMBLY, MEMORY_LABEL }
 
@@ -18,6 +19,32 @@ export function boundedSize(value, fallback) {
 }
 
 const renderMemory = (text) => `${MEMORY_LABEL}\n${text}`
+
+/**
+ * 한꺼번에 자르는 창의 시작점. 이력 글자 수가 maxChars 를 넘는 순간 오래된 메시지를
+ * targetChars 이하가 될 때까지 한 번에 버린다. 한 칸씩 미는 창은 맨 앞 메시지가 매 턴 바뀌어
+ * 접두 캐시를 매 턴 버리지만, 이 창은 넘칠 때만 움직이고 그 사이 턴은 앞부분이 그대로다.
+ *
+ * 처음부터 다시 따라가 정하므로 저장할 상태가 없다 — 이력이 뒤로만 자라면 매 턴 같은 시작점이
+ * 나온다. 옛 메시지를 고치거나 지우면 그 턴에 한 번 다시 정해진다. 가장 최근 메시지는 늘 남긴다.
+ * @param {number[]} sizes 메시지별 글자 수(오래된 것부터)
+ * @param {number} maxChars
+ * @param {number} targetChars
+ * @returns {number} 남길 첫 메시지의 색인
+ */
+export function batchTrimStart(sizes, maxChars, targetChars) {
+  let start = 0
+  let total = 0
+  for (let i = 0; i < sizes.length; i += 1) {
+    total += sizes[i]
+    if (total <= maxChars) continue
+    while (start < i && total > targetChars) {
+      total -= sizes[start]
+      start += 1
+    }
+  }
+  return start
+}
 
 // 예산은 실제로 프롬프트에 들어갈 문자열 길이로 센다. 본문만 세면 라벨과
 // 줄바꿈이 빠져 manifest 가 초과를 감지하지 못한다.
@@ -47,7 +74,14 @@ export function assemble({
   const messageByOrdinal = new Map(entries.map((entry, index) => [entry.ordinal, messages[index]]))
 
   const windowSize = boundedSize(assembly.windowSize, DEFAULT_ASSEMBLY.windowSize)
-  const windowStart = Math.max(0, entries.length - windowSize)
+  // historyMaxChars 가 있으면 개수 창 대신 한꺼번에 자르는 창을 쓴다 (selectMemory 가 조합을 검사한다).
+  const windowStart = assembly.historyMaxChars === undefined
+    ? Math.max(0, entries.length - windowSize)
+    : entries[batchTrimStart(
+      entries.map((entry) => activeTextOf(messageByOrdinal.get(entry.ordinal)).length),
+      assembly.historyMaxChars,
+      assembly.historyTargetChars,
+    )]?.ordinal ?? 0
   const pulled = new Set(retrieved.map((item) => item.ordinal))
 
   // 압축된 구간은 창 밖일 때만 숨긴다. 창 안은 원문이 남아야 한다.

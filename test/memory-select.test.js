@@ -11,8 +11,8 @@ const messages = [
   { id: '5', role: 'user', text: '열쇠는 어디 있지?' },
 ]
 
-test('full 과 legacy-window 가 등록되어 있다', () => {
-  for (const id of ['full', 'legacy-window']) {
+test('부품 없는 프리셋 full 과 batch-trim 이 등록되어 있다', () => {
+  for (const id of ['full', 'batch-trim']) {
     assert.ok(MEMORY_PRESETS[id], `${id} 가 없다`)
   }
 })

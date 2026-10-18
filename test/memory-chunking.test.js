@@ -50,7 +50,7 @@ test('창 검사는 압축기 + cut 조합에서만 건다', () => {
 
   // protect 는 숨김이 요약이 덮는 범위의 부분집합이라 구멍이 없다 — 실측 확인.
   assert.doesNotThrow(() => assertWindowInvariant({ ...small, windowMode: 'protect' }, policy, { hasCompactor: true }))
-  // 압축기가 없으면 옛 메시지를 버리는 것이 그 기법 자체다 (legacy-window 와 같다).
+  // 압축기가 없으면 옛 메시지를 버리는 것이 그 기법 자체다 (full 에 windowSize 를 준 것과 같다).
   assert.doesNotThrow(() => assertWindowInvariant(small, policy, { hasCompactor: false }))
   // 압축기 + cut 에서만 열린 chunk 가 창 밖으로 밀려 조용히 사라질 수 있다.
   assert.throws(() => assertWindowInvariant(small, policy, { hasCompactor: true }), /windowSize/)

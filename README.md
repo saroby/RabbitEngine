@@ -112,7 +112,7 @@ if (!next.stale) await saveSceneState(next.state)                     // CAS: re
 
 ### 프롬프트 캐시가 이어지는지 재기
 
-공급자의 접두 캐시는 지난 요청과 앞에서부터 같은 만큼만 다시 쓴다. `prefixFingerprint(turn.render())` 로 지문(해시와 길이만, 원문 없음)을 턴마다 남기고 `sharedPrefix(지난 지문, 이번 지문)` 으로 견주면 `{ chars, totalChars, messages, system }` 이 나온다. `system` 은 `'same'` · `'prefix'`(캐시 접두만 같다) · `'changed'` 중 하나고, `messages` 는 그대로 이어지는 앞 메시지 수다. 창이 한 칸씩 밀리는 기억 설정은 맨 앞 메시지가 매 턴 바뀌어 `messages: 0` 이 된다. 실제 적중은 공급자의 캐시 단위 · 수명 · 도구 정의에 달렸으니 `chars` 는 상한으로 읽는다.
+공급자의 접두 캐시는 지난 요청과 앞에서부터 같은 만큼만 다시 쓴다. `prefixFingerprint(turn.render())` 로 지문(해시와 길이만, 원문 없음)을 턴마다 남기고 `sharedPrefix(지난 지문, 이번 지문)` 으로 견주면 `{ chars, totalChars, messages, system }` 이 나온다. `system` 은 `'same'` · `'prefix'`(캐시 접두만 같다) · `'changed'` 중 하나고, `messages` 는 그대로 이어지는 앞 메시지 수다. 창이 한 칸씩 밀리는 기억 설정은 맨 앞 메시지가 매 턴 바뀌어 `messages: 0` 이 된다(`batch-trim` 은 넘치는 턴에만 그렇다). 실제 적중은 공급자의 캐시 단위 · 수명 · 도구 정의에 달렸으니 `chars` 는 상한으로 읽는다.
 
 ## 응답 검사
 
@@ -212,6 +212,8 @@ flowchart TB
 
 `buildTurn({ memory: { preset: '…' } })` 로 고른다. 없으면 `full` — 받은 이력을 자르지 않고 그대로 조립한다. 자르기를 호스트가 직접 할 때 쓴다.
 
+호스트가 자르지 않는다면 `batch-trim` 을 쓴다. 이력이 `historyMaxChars`(기본 24,000자)를 넘는 턴에 오래된 메시지를 `historyTargetChars`(기본 12,000자) 이하로 **한 번에** 버리고, 그 사이 턴에는 앞부분을 건드리지 않는다. 최근 N개만 남기는 창(`{ preset: 'full', assembly: { windowSize: N } }`)은 맨 앞 메시지가 매 턴 바뀌어 공급자의 접두 캐시를 매 턴 버리지만, `batch-trim` 은 넘치는 턴에만 버린다. 시작점은 이력을 처음부터 따라가 정하므로 저장할 상태가 없고, 이력이 뒤로만 자라면 매 턴 같은 답이 나온다. 압축기 · 검색기가 있는 프리셋과는 아직 섞을 수 없다(섞으면 던진다).
+
 | 프리셋 | 압축 | 접기 | 검색 | 밖에서 받는 것 |
 |---|---|---|---|---|
 | `full` | — | — | — | — |
@@ -221,7 +223,7 @@ flowchart TB
 | `memory-books` | 닫힌 씬 → 요약 | — | — | `ctx.llm` |
 | `memory-books-tiered` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | — | `ctx.llm` |
 | `semantic-books` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | 요약 중 닿는 것만 | `ctx.llm` · `ctx.embed` |
-| `legacy-window` | — | — | — | — |
+| `batch-trim` | — | — | — | — |
 
 **접기(digest)** 는 이진 카운터처럼 돈다. 최근 `keepLeaves` 개 씬 요약은 그대로 두고, 그보다 오래된 것을 앞에서부터 `fanout` 개씩 묶어 줄거리 하나로 접는다. 줄거리가 `fanout` 개 모이면 또 접는다. 묶음 경계가 0번 씬부터 고정이라 새 씬이 닫혀도 이미 만든 줄거리의 재료는 안 바뀌고, 캐시 키는 자식 요약의 `contentHash` 목록이라 옛 대사를 고치면 그 조상만 다시 만든다.
 

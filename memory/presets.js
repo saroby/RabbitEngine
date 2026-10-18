@@ -1,24 +1,23 @@
 // 겉으로 갈아끼우는 단위는 프리셋이다. 창 크기 · 놓는 자리 같은 조립값은
 // memory.assembly 로 덮어쓸 수 있다 — 예: { preset: 'full', assembly: { windowSize: 12 } } 는 최근 12개만 남긴다.
-import { DEFAULT_ASSEMBLY, LEGACY_WINDOW_SIZE } from './defaults.js'
+import { DEFAULT_ASSEMBLY } from './defaults.js'
 
-const legacyAssembly = (over = {}) => ({
+// 부품 없이 이력만 고르는 프리셋의 조립값. 창 밖을 버린다(cut) — 새 프리셋의
+// 'protect'(창 밖도 남기되 압축된 것만 뺀다)와 의미가 다르므로 명시한다.
+const plainAssembly = (over = {}) => ({
   ...DEFAULT_ASSEMBLY,
-  windowSize: LEGACY_WINDOW_SIZE,
+  windowSize: Number.MAX_SAFE_INTEGER,
+  windowMode: 'cut',
   hideCompacted: false,
   placement: 'note',
-  // 기존 5종은 창 밖을 버린다 (messages.slice(-windowSize)). 새 프리셋의
-  // 'protect'(창 밖도 남기되 압축된 것만 뺀다)와 의미가 다르므로 명시한다.
-  windowMode: 'cut',
   ...over,
 })
 
-const legacy = (id, over = {}) => ({
+const plain = (id, assembly) => ({
   id,
   compactor: null, reducer: null, retriever: null, tracker: null,
   usesLlm: false,
-  assembly: legacyAssembly(),
-  ...over,
+  assembly,
 })
 
 // 비-LLM 신규 프리셋 둘. 기억 압축은 없고 조립 정책만 다르다 — 그래서 LLM
@@ -36,13 +35,13 @@ const modern = (id, over = {}) => ({
 export const MEMORY_PRESETS = {
   // 받은 이력을 자르지 않고 그대로 조립한다. 기억 설정이 없을 때의 기본값이고, 자르기를 호스트가
   // 직접 할 때(시작점을 고정해 두고 예산에 닿을 때만 한꺼번에 줄이는 식) 쓴다. 조립값은 옛 full 전략 그대로다.
-  full: {
-    id: 'full',
-    compactor: null, reducer: null, retriever: null, tracker: null,
-    usesLlm: false,
-    // 창이 이력 전체라 cut 이어도 버리는 것이 없다. windowSize 를 주면 그만큼만 남기고 나머지는 버린다.
-    assembly: { ...DEFAULT_ASSEMBLY, windowSize: Number.MAX_SAFE_INTEGER, windowMode: 'cut', hideCompacted: false, placement: 'note' },
-  },
+  // 창이 이력 전체라 cut 이어도 버리는 것이 없다. windowSize 를 주면 그만큼만 남기고 나머지는 버린다.
+  full: plain('full', plainAssembly()),
+  // 직접 자르지 않는 호스트를 위한 길이 제한. 이력이 historyMaxChars 를 넘으면 오래된 메시지를
+  // historyTargetChars 이하로 한 번에 버린다 — 한 칸씩 미는 창과 달리 그 사이 턴은 앞부분이 그대로라
+  // 접두 캐시를 이어 쓴다. ai-chat-lab 이 방마다 시작점을 고정해 두고 예산에 닿을 때만 줄이는 것과
+  // 같은 발상을, 저장할 상태 없이 이력만 보고 매 턴 같은 답이 나오게 한 것이다 (memory/assemble.js).
+  'batch-trim': plain('batch-trim', plainAssembly({ historyMaxChars: 24000, historyTargetChars: 12000 })),
   // 기억 압축 0. 로어북 축만 켠 대조군이다.
   lorebook: modern('lorebook', {
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: false, placement: 'note' },
@@ -92,7 +91,6 @@ export const MEMORY_PRESETS = {
     embedder: { provider: 'openai', model: 'text-embedding-3-small', minScore: 0.35, targets: ['artifacts'], keepKinds: ['digest'] },
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: true, placement: 'note' },
   }),
-  'legacy-window': legacy('legacy-window'),
 }
 
 export function presetOf(id) {

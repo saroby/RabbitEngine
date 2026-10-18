@@ -70,17 +70,31 @@ export function chunkEntries(entries = [], texts = [], policy = DEFAULT_CHUNK_PO
   }
 }
 
+// 한꺼번에 자르는 창(historyMaxChars)의 조합 검사. 조용히 아무것도 안 자르거나 엇갈리는 조합을 막는다.
+//   protect : 창 밖도 남기는 모드라 자르는 일이 일어나지 않는다
+//   압축기 · 검색기 : 둘 다 개수 창(windowSize)으로 경계를 잡아, 글자 창과 경계가 어긋난다
+function assertBatchTrim(assembly, { hasCompactor, hasRetriever }) {
+  const max = Number(assembly.historyMaxChars)
+  const target = Number(assembly.historyTargetChars)
+  if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(target) || target <= 0 || target >= max) {
+    throw new Error(`historyMaxChars(${assembly.historyMaxChars}) 와 historyTargetChars(${assembly.historyTargetChars}) 는 양수이고 target 이 max 보다 작아야 합니다`)
+  }
+  if (assembly.windowMode !== 'cut') throw new Error("historyMaxChars 는 windowMode 'cut' 에서만 씁니다 — protect 는 창 밖을 버리지 않아 아무것도 안 잘린다")
+  if (hasCompactor || hasRetriever) throw new Error('historyMaxChars 는 압축기 · 검색기가 없는 프리셋에서만 씁니다 — 둘은 windowSize 로 경계를 잡는다')
+}
+
 // 창 크기 검사. 무조건 거는 규칙이 아니다 — 실측으로 좁혔다 (2026-08-27).
 //
 //   protect              : 숨김이 언제나 요약이 덮는 범위의 부분집합이라 구멍이 없다
-//   cut + 압축기 없음      : 옛 메시지를 버리는 것이 그 기법 자체다 (legacy-window 와 같다)
+//   cut + 압축기 없음      : 옛 메시지를 버리는 것이 그 기법 자체다 (full 에 windowSize 를 준 것과 같다)
 //   cut + 압축기 있음      : 여기서만 필요하다. 닫힌 chunk 는 요약이 덮지만 열린 chunk 는
 //                          덮지 않으므로, 열린 chunk 가 창 밖으로 밀리면 그 내용은
 //                          압축되지도 남지도 않고 조용히 사라진다
 //
 // 열린 chunk 의 최대 길이는 maxMessages - 1 이다 (maxMessages 에 닿으면 봉인되므로).
 // 창이 그만큼이면 열린 chunk 가 통째로 창 안에 들어온다.
-export function assertWindowInvariant(assembly = {}, policy = DEFAULT_CHUNK_POLICY, { hasCompactor = false } = {}) {
+export function assertWindowInvariant(assembly = {}, policy = DEFAULT_CHUNK_POLICY, { hasCompactor = false, hasRetriever = false } = {}) {
+  if (assembly.historyMaxChars !== undefined) assertBatchTrim(assembly, { hasCompactor, hasRetriever })
   if (!hasCompactor) return
   if (assembly.windowMode !== 'cut') return
   const windowSize = Number(assembly.windowSize)

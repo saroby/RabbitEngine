@@ -224,7 +224,7 @@ export async function selectMemory(messages = [], config = {}, ctx = {}) {
   const chunkPolicy = policyWith(config.dialect || koreanPlayscript, config.chunkPolicy || {})
   // 프리셋과 호출자 override 를 합친 뒤에 검사한다. 등록 시점 검사만으로는
   // 화면에서 창 크기를 바꾸는 runtime override 를 못 잡는다.
-  assertWindowInvariant(assembly, chunkPolicy, { hasCompactor: Boolean(preset.compactor) })
+  assertWindowInvariant(assembly, chunkPolicy, { hasCompactor: Boolean(preset.compactor), hasRetriever: Boolean(preset.retriever) })
 
   const real = (Array.isArray(messages) ? messages : []).filter(isReal)
   const entries = projectMessages(messages)

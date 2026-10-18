@@ -17,7 +17,7 @@ const PUBLIC = [
   'MEMORY_PRESETS', 'presetOf',
   'recipeHashOf', 'canonical', 'sha256Hex',
   'createMemoryArtifactStore', 'contentHashOf', 'indexKey', 'decorate',
-  'MEMORY_LABEL', 'DEFAULT_ASSEMBLY', 'LEGACY_WINDOW_SIZE',
+  'MEMORY_LABEL', 'DEFAULT_ASSEMBLY',
   'SCRIPT_FORMAT', 'namesOf', 'renderCard', 'renderCast', 'renderPlayerCard',
   'substitute', 'substituteCard',
   // 호스트가 실제로 쓰는 이름들. exports 가 "." 하나뿐이라 깊은 import 가

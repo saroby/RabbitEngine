@@ -18,7 +18,7 @@ export { definePart, validateCalls, PART_KINDS } from './memory/contract.js'
 export { MEMORY_PRESETS, presetOf } from './memory/presets.js'
 export { recipeHashOf, canonical } from './memory/recipe.js'
 export { sha256Hex } from './sha256.js'
-export { MEMORY_LABEL, DEFAULT_ASSEMBLY, LEGACY_WINDOW_SIZE } from './memory/defaults.js'
+export { MEMORY_LABEL, DEFAULT_ASSEMBLY } from './memory/defaults.js'
 export { createMemoryArtifactStore, contentHashOf, indexKey, decorate } from './memory/artifact-store.js'
 export { prebuildMemory } from './memory/prebuild.js'
 // 호스트가 기억 재료를 직접 다뤄야 하는 자리들 — 골든 생성기와 씬 표지 조사가
