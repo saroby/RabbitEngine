@@ -1,8 +1,10 @@
 # rabbit-engine
 
+[![CI](https://github.com/saroby/RabbitEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/saroby/RabbitEngine/actions/workflows/ci.yml)
+
 LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기억 층. 모델은 부르지 않는다.
 
-아직 만드는 중이다. 공개 API 는 `v0.1.0` 전까지 예고 없이 바뀐다.
+아직 만드는 중이다. 공개 API 는 `v1.0.0` 전까지 (`0.x` 동안) 예고 없이 바뀐다.
 
 ## 한 턴의 흐름
 
