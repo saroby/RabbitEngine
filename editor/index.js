@@ -48,11 +48,13 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-heading>label{display:inline;margin:0}.rabbit-prompt-editor .rpe-field-head{margin:10px 0 4px;font-weight:500}
 .rabbit-prompt-editor .rpe-heading-extra{margin-left:auto}
 .rabbit-prompt-editor .rpe-info-button{flex:none;width:20px;height:20px;padding:0;border-radius:50%;border:1px solid #9aa7b4;background:#fff;color:#526171;font:italic 600 12px/1 Georgia,serif;display:inline-grid;place-items:center}
-.rabbit-prompt-editor .rpe-info-button:hover,.rabbit-prompt-editor .rpe-info-button[aria-expanded=true]{background:#245dbd;border-color:#245dbd;color:#fff}
-.rabbit-prompt-editor .rpe-info-bubble{flex:1 0 100%;margin-top:4px;padding:10px 12px;border:1px solid #d9e2ef;border-radius:8px;background:#f3f6fb;color:#2b3846;font-size:13px;font-weight:400;line-height:1.6}
+.rabbit-prompt-editor .rpe-info-button:hover,.rabbit-prompt-editor .rpe-info-button.rpe-info-open{background:#245dbd;border-color:#245dbd;color:#fff}
+.rabbit-prompt-editor .rpe-info-bubble{position:fixed;inset:auto;margin:0;z-index:1000;box-sizing:border-box;width:max-content;max-width:min(360px,calc(100vw - 16px));overflow:visible;padding:10px 12px;border:0;border-radius:8px;background:#1f2a37;color:#f3f6fa;box-shadow:0 8px 24px rgba(15,25,40,.28);font:400 13px/1.6 system-ui,sans-serif;text-align:left;white-space:normal}
+.rabbit-prompt-editor .rpe-info-bubble::before{content:'';position:absolute;left:calc(var(--rpe-tip-arrow,50%) - 6px);width:12px;height:12px;background:inherit;border-radius:2px;transform:rotate(45deg)}
+.rabbit-prompt-editor .rpe-info-bubble[data-side=below]::before{top:-5px}.rabbit-prompt-editor .rpe-info-bubble[data-side=above]::before{bottom:-5px}
 .rabbit-prompt-editor .rpe-info-bubble p{margin:0}.rabbit-prompt-editor .rpe-info-bubble p+p,.rabbit-prompt-editor .rpe-info-bubble p+ul,.rabbit-prompt-editor .rpe-info-bubble ul+p{margin-top:6px}
 .rabbit-prompt-editor .rpe-info-bubble ul{margin:0;padding-left:18px}.rabbit-prompt-editor .rpe-info-bubble li+li{margin-top:4px}
-.rabbit-prompt-editor .rpe-info-bubble code{font:12px ui-monospace,monospace;background:#e6ecf4;padding:0 4px;border-radius:4px;overflow-wrap:anywhere}
+.rabbit-prompt-editor .rpe-info-bubble code{font:12px ui-monospace,monospace;background:rgba(255,255,255,.14);color:inherit;padding:0 4px;border-radius:4px;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-composer{min-height:340px;max-height:65vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace;border:1px solid #8795a4;border-radius:7px;padding:14px;background:#fff;outline:none}
 .rabbit-prompt-editor .rpe-composer.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
 .rabbit-prompt-editor .rpe-chip{display:inline-block;vertical-align:baseline;white-space:nowrap;border:1px solid #a9c4ed;border-radius:999px;padding:0 7px;background:#eaf2ff;color:#164c9e;font:12px/1.7 system-ui,sans-serif;user-select:all;cursor:grab}
@@ -196,8 +198,9 @@ export function mountPromptEditor(container, options) {
     label.append(control)
     return label
   }
-  // 설명은 화면에 늘 띄우지 않고 i 버튼 뒤에 둔다. 누르면 제목 줄 바로 아래에 펼쳐지고, 다시 누르거나 Esc 로 닫는다.
-  // 겹쳐 뜨는 말풍선이 아니라 줄 아래로 펼쳐지므로 팝업 · 접힌 블록 안에서도 잘리지 않는다.
+  // 설명은 화면에 늘 띄우지 않고 i 버튼의 툴팁으로 보인다. 마우스를 올리거나 키보드 초점이 가면 뜨고, 누르면
+  // 고정된다(터치). 다시 누르기 · 바깥 누르기 · Esc · 스크롤로 닫힌다. 툴팁은 화면 기준(fixed)으로 놓고, 되면
+  // popover 로 최상위 층에 올려 팝업 · 접힌 블록의 overflow 에 잘리지 않게 한다.
   const fieldId = (() => {
     const prefix = `rpe-${Math.random().toString(36).slice(2, 8)}`
     let count = 0
@@ -209,26 +212,85 @@ export function mountPromptEditor(container, options) {
     String(text).split('`').forEach((part, index) => { if (part) element.append(index % 2 ? node('code', part) : part) })
     return element
   }
+  const view = doc.defaultView
+  const supportsPopover = typeof view?.HTMLElement?.prototype?.showPopover === 'function'
+  /** @type {{ toggle: HTMLElement, bubble: HTMLElement, pinned: boolean } | undefined} */
+  let openTip
+  let tipTimer
+  const placeTip = ({ toggle, bubble }) => {
+    const gap = 8
+    const width = doc.documentElement.clientWidth
+    const anchor = toggle.getBoundingClientRect()
+    const box = bubble.getBoundingClientRect()
+    const left = Math.min(Math.max(gap, anchor.left + anchor.width / 2 - box.width / 2), Math.max(gap, width - box.width - gap))
+    // 아래에 자리가 없으면 위로 뒤집는다.
+    const below = anchor.bottom + gap
+    const top = below + box.height > view.innerHeight - gap && anchor.top - gap - box.height > gap ? anchor.top - gap - box.height : below
+    bubble.style.left = `${left}px`
+    bubble.style.top = `${top}px`
+    // 꼬리는 버튼 가운데를 가리킨다. 모서리 둥근 부분에 걸리지 않게 안쪽으로 당긴다.
+    bubble.style.setProperty('--rpe-tip-arrow', `${Math.min(Math.max(14, anchor.left + anchor.width / 2 - left), box.width - 14)}px`)
+    bubble.dataset.side = top === below ? 'below' : 'above'
+  }
+  const hideTip = () => {
+    clearTimeout(tipTimer)
+    if (!openTip) return
+    const { toggle, bubble } = openTip
+    openTip = undefined
+    toggle.classList.remove('rpe-info-open')
+    if (supportsPopover && bubble.matches(':popover-open')) bubble.hidePopover()
+    bubble.hidden = true
+  }
+  const showTip = (tip, pinned) => {
+    clearTimeout(tipTimer)
+    if (openTip && openTip.bubble !== tip.bubble) hideTip()
+    if (openTip) { openTip.pinned ||= pinned; return }
+    openTip = { ...tip, pinned }
+    tip.toggle.classList.add('rpe-info-open')
+    tip.bubble.hidden = false
+    if (supportsPopover) tip.bubble.showPopover()
+    placeTip(tip)
+  }
+  // 버튼에서 툴팁으로 마우스를 옮기는 사이에 닫히지 않게 조금 기다린다.
+  const hideTipSoon = () => { clearTimeout(tipTimer); if (openTip && !openTip.pinned) tipTimer = setTimeout(hideTip, 150) }
+  const onDocPointerDown = (event) => { if (openTip && !openTip.toggle.contains(event.target) && !openTip.bubble.contains(event.target)) hideTip() }
+  // 블록 팝업 안의 툴팁은 팝업의 cancel 에서 닫는다 — 여기서 닫으면 같은 Esc 가 팝업까지 닫는다.
+  const onDocKeyDown = (event) => { if (event.key === 'Escape' && openTip && !blockPanel.contains(openTip.toggle)) hideTip() }
+  const onDocScroll = (event) => { if (openTip && !openTip.bubble.contains(event.target)) hideTip() }
+  doc.addEventListener('pointerdown', onDocPointerDown)
+  doc.addEventListener('keydown', onDocKeyDown)
+  doc.addEventListener('scroll', onDocScroll, true)
+  view?.addEventListener('resize', hideTip)
   const infoRow = (title, label, content, extra = [], className = 'rpe-heading') => {
     const row = node('div', undefined, className)
     const toggle = node('button', 'i', 'rpe-info-button')
     toggle.type = 'button'
     toggle.setAttribute('aria-label', `${label} 설명`)
-    toggle.setAttribute('aria-expanded', 'false')
     const bubble = node('div', undefined, 'rpe-info-bubble')
     bubble.id = fieldId('info')
+    bubble.setAttribute('role', 'tooltip')
     bubble.hidden = true
-    toggle.setAttribute('aria-controls', bubble.id)
+    if (supportsPopover) bubble.popover = 'manual'
+    // 숨겨져 있어도 화면 읽기 프로그램은 초점이 갈 때 이 설명을 읽는다.
+    toggle.setAttribute('aria-describedby', bubble.id)
     for (const part of content) {
       if (!Array.isArray(part)) { bubble.append(richText('p', part)); continue }
       const list = node('ul')
       for (const item of part) list.append(richText('li', item))
       bubble.append(list)
     }
-    const show = (open) => { bubble.hidden = !open; toggle.setAttribute('aria-expanded', String(open)) }
-    toggle.addEventListener('click', () => show(bubble.hidden))
-    // 팝업 안에서도 Esc 는 설명만 먼저 닫는다 — 기본 동작을 막아 팝업의 cancel 로 번지지 않게 한다.
-    toggle.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !bubble.hidden) { event.preventDefault(); event.stopPropagation(); show(false) } })
+    const tip = { toggle, bubble }
+    toggle.addEventListener('click', () => (openTip?.bubble === bubble && openTip.pinned ? hideTip() : showTip(tip, true)))
+    toggle.addEventListener('pointerenter', (event) => {
+      if (event.pointerType !== 'mouse') return
+      clearTimeout(tipTimer)
+      if (openTip?.bubble !== bubble) tipTimer = setTimeout(() => showTip(tip, false), 120)
+    })
+    toggle.addEventListener('pointerleave', hideTipSoon)
+    bubble.addEventListener('pointerenter', () => clearTimeout(tipTimer))
+    bubble.addEventListener('pointerleave', hideTipSoon)
+    toggle.addEventListener('focus', () => { if (toggle.matches(':focus-visible')) showTip(tip, false) })
+    toggle.addEventListener('blur', () => { if (openTip?.bubble === bubble && !openTip.pinned) hideTip() })
     for (const element of extra) element.classList.add('rpe-heading-extra')
     row.append(title, toggle, ...extra, bubble)
     return row
@@ -318,11 +380,12 @@ export function mountPromptEditor(container, options) {
   blockPanel.setAttribute('aria-label', '블록 문구')
   blockPanel.addEventListener('cancel', (event) => {
     event.preventDefault()
-    // 펼친 설명이 있으면 Esc 는 그것부터 닫는다. 버튼을 마우스로 누르면 초점이 가지 않는 브라우저(WebKit)도 있어 여기서 처리한다.
-    const expanded = blockPanel.querySelector('.rpe-info-button[aria-expanded="true"]')
-    if (expanded) { expanded.click(); return }
+    // 팝업 안의 툴팁이 떠 있으면 Esc 는 그것부터 닫는다.
+    if (openTip && blockPanel.contains(openTip.toggle)) { hideTip(); return }
     closePanel(true)
   })
+  // 팝업이 닫히면 그 안에서 띄운 툴팁도 닫는다 — 최상위 층에 남지 않게.
+  blockPanel.addEventListener('close', () => { if (openTip && blockPanel.contains(openTip.toggle)) hideTip() })
   // 바깥(배경)을 누르면 닫는다. dialog 자신이 눌린 경우만 배경이다.
   blockPanel.addEventListener('click', (event) => { if (event.target === blockPanel) closePanel(true) })
   composerPane.append(tagPalette, composer, conversationZone.section, advanced)
@@ -1407,6 +1470,11 @@ export function mountPromptEditor(container, options) {
     },
     destroy() {
       destroyed = true
+      hideTip()
+      doc.removeEventListener('pointerdown', onDocPointerDown)
+      doc.removeEventListener('keydown', onDocKeyDown)
+      doc.removeEventListener('scroll', onDocScroll, true)
+      view?.removeEventListener('resize', hideTip)
       if (blockPanel.open) blockPanel.close()
       previewRevision += 1
       clearTimeout(previewTimer)
