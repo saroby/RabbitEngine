@@ -11,16 +11,16 @@ const messages = [
   { id: '5', role: 'user', text: '열쇠는 어디 있지?' },
 ]
 
-test('legacy 프리셋 다섯이 모두 등록되어 있다', () => {
-  for (const id of ['legacy-full', 'legacy-window', 'legacy-summary', 'legacy-memory', 'legacy-retrieval']) {
+test('legacy 프리셋 넷과 full 이 등록되어 있다', () => {
+  for (const id of ['full', 'legacy-window', 'legacy-summary', 'legacy-memory', 'legacy-retrieval']) {
     assert.ok(MEMORY_PRESETS[id], `${id} 가 없다`)
   }
 })
 
-test('legacy-full 은 전부 그대로 넘긴다', async () => {
-  const out = await selectMemory(messages, { preset: 'legacy-full' }, {})
+test('full 은 전부 그대로 넘긴다', async () => {
+  const out = await selectMemory(messages, { preset: 'full' }, {})
   assert.deepEqual(out.messages.map((m) => m.id), ['1', '2', '3', '4', '5'])
-  assert.equal(out.manifest.preset, 'legacy-full')
+  assert.equal(out.manifest.preset, 'full')
 })
 
 test('legacy-window 는 최근 N 개만 남긴다', async () => {

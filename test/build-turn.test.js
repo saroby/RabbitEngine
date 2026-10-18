@@ -35,7 +35,7 @@ test('buildTurn — system 과 messages 와 manifest 를 준다', async () => {
   const turn = await buildTurn({ cards: [card], messages: history })
   assert.equal(typeof turn.system, 'string')
   assert.deepEqual(turn.messages.map((m) => m.role), ['assistant', 'user'])
-  assert.equal(turn.manifest.preset, 'legacy-full')
+  assert.equal(turn.manifest.preset, 'full')
 })
 
 test('buildTurn — 기억 설정을 안 주면 이력을 전부 보낸다', async () => {
@@ -131,7 +131,7 @@ test('buildTurn — enforceFormat:false 면 대본 규약 층이 빠진다', asy
 
 test('buildTurn — memory·ctx·dialect 가 null 이어도 견딘다', async () => {
   const turn = await buildTurn({ cards: [card], messages: history, memory: null, dialect: null }, null)
-  assert.equal(turn.manifest.preset, 'legacy-full')
+  assert.equal(turn.manifest.preset, 'full')
   assert.deepEqual(turn.manifest.dialect, { id: 'korean-playscript', version: 1 })
 })
 

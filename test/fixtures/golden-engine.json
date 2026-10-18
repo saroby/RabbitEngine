@@ -157,7 +157,7 @@
     ],
     "notes": [],
     "manifest": {
-      "preset": "legacy-full",
+      "preset": "full",
       "worldbook": {
         "scanSource": "selected",
         "budgetChars": 0

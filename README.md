@@ -210,10 +210,11 @@ flowchart TB
 
 ## 기억 프리셋
 
-`buildTurn({ memory: { preset: '…' } })` 로 고른다. 없으면 `legacy-full`(이력 전부).
+`buildTurn({ memory: { preset: '…' } })` 로 고른다. 없으면 `full` — 받은 이력을 자르지 않고 그대로 조립한다. 자르기를 호스트가 직접 할 때 쓴다.
 
 | 프리셋 | 압축 | 접기 | 검색 | 밖에서 받는 것 |
 |---|---|---|---|---|
+| `full` | — | — | — | — |
 | `lorebook` | — | — | — | — |
 | `vector` | — | — | 글자 bigram | — |
 | `semantic` | — | — | 임베딩 코사인 | `ctx.embed` |

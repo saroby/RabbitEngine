@@ -1,11 +1,11 @@
-// 기존 5종 전략 이름을 legacy 프리셋으로 옮기는 어댑터. 파일을 지우지 않는
+// 기존 5종 전략 이름을 프리셋으로 옮기는 어댑터(full 은 full, 나머지는 legacy-*). 파일을 지우지 않는
 // 이유는 저장된 세션과 과거 Study 가 아직 이 이름을 들고 있기 때문이다.
 import { selectMemory } from './index.js'
 import { LEGACY_WINDOW_SIZE, LEGACY_RETRIEVAL_LIMIT } from './defaults.js'
 import { boundedSize } from './assemble.js'
 
 const PRESET_OF = {
-  full: 'legacy-full',
+  full: 'full',
   window: 'legacy-window',
   summary: 'legacy-summary',
   memory: 'legacy-memory',
@@ -27,9 +27,9 @@ export function selectContext(messages = [], config = {}, ctx = {}) {
       // 정규화를 boundedSize 로 유지한다. Number() 로 바꾸면 0·"2abc"·Infinity
       // 에서 선택 메시지 수가 조용히 달라진다 — 기존 동작이 parseInt 였다.
       // 창 크기는 풀린 프리셋을 보고 정한다. config.strategy 를 보면 오타 난
-      // 이름이 manifest 에는 legacy-full 로 찍히면서 실제로는 12개만 나가
+      // 이름이 manifest 에는 full 로 찍히면서 실제로는 12개만 나가
       // 기록이 거짓말을 한다.
-      windowSize: preset === 'legacy-full'
+      windowSize: preset === 'full'
         ? Number.MAX_SAFE_INTEGER
         : boundedSize(config.windowSize, LEGACY_WINDOW_SIZE),
       retrievalLimit: boundedSize(config.retrievalLimit, LEGACY_RETRIEVAL_LIMIT),

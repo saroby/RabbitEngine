@@ -36,6 +36,9 @@ const modern = (id, over = {}) => ({
 })
 
 export const MEMORY_PRESETS = {
+  // 받은 이력을 자르지 않고 그대로 조립한다. 기억 설정이 없을 때의 기본값이고, 자르기를 호스트가
+  // 직접 할 때(시작점을 고정해 두고 예산에 닿을 때만 한꺼번에 줄이는 식) 쓴다. 조립값은 옛 full 전략 그대로다.
+  full: legacy('full', { assembly: legacyAssembly({ windowSize: Number.MAX_SAFE_INTEGER }) }),
   // 기억 압축 0. 로어북 축만 켠 대조군이다.
   lorebook: modern('lorebook', {
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: false, placement: 'note' },
@@ -85,7 +88,6 @@ export const MEMORY_PRESETS = {
     embedder: { provider: 'openai', model: 'text-embedding-3-small', minScore: 0.35, targets: ['artifacts'], keepKinds: ['digest'] },
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: true, placement: 'note' },
   }),
-  'legacy-full': legacy('legacy-full', { assembly: legacyAssembly({ windowSize: Number.MAX_SAFE_INTEGER }) }),
   'legacy-window': legacy('legacy-window'),
   'legacy-summary': legacy('legacy-summary', { userNote: 'summary' }),
   'legacy-memory': legacy('legacy-memory', { userNote: 'memoryNote' }),

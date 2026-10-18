@@ -42,7 +42,7 @@ function widenWindow(config, legacy) {
   // 프리셋 경로도 assemble 과 같은 정규화를 쓴다. Number() 면 "6abc" 가 NaN 이라
   // 보정이 통째로 빠지는데, 정작 기억 층은 parseInt 로 6 을 읽어 한 칸을 잃는다.
   const current = boundedSize(config.assembly?.windowSize, fallback)
-  // legacy-full 의 MAX_SAFE_INTEGER 처럼 "창이 없음" 을 뜻하는 값은 건드리지 않는다.
+  // full 의 MAX_SAFE_INTEGER 처럼 "창이 없음" 을 뜻하는 값은 건드리지 않는다.
   if (!Number.isFinite(current) || current >= Number.MAX_SAFE_INTEGER) return config
   return { ...config, assembly: { ...config.assembly, windowSize: current + 1 } }
 }
@@ -115,7 +115,7 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 전부 보낸다. 조용히 잘라내는 기본값은 "왜 앞 내용을 잊었지" 를 라이브러리
   // 탓으로 만든다.
   const select = !memory.preset && memory.strategy ? selectContext : selectMemory
-  const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'legacy-full' }
+  const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'full' }
 
   // 이번 턴 입력은 기억 선택과 로어북 스캔에는 보여야 한다 — 안 보이면 "정전이야?" 가
   // 정전 로어북을 못 깨우고 검색 질의가 직전 턴이 된다. 다만 돌려주는 messages 와
