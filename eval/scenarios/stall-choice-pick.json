@@ -1,0 +1,16 @@
+{
+  "id": "stall-choice-pick", "rating": "all", "dialect": "asterisk-script",
+  "cards": [{ "name": "지아", "description": "거리 마술사. 손님에게 봉투 세 개 중 하나를 고르게 하고 그 안의 것을 건네는 공연을 한다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "지아: 빨강, 파랑, 노랑. 하나만 골라요.\n*봉투 세 개를 부채처럼 펼친다.*" }],
+  "userInput": "빨간 봉투.",
+  "expect": {
+    "directiveIncludes": ["장면을 한 걸음 진척시킨다"],
+    "directiveExcludes": ["행동 시도"],
+    "blocks": { "scene_state": false }
+  },
+  "judge": {
+    "stateDelta": { "tension": ["calm", "playful"], "bodyAddAny": {}, "forbid": ["봉투를 열지 않고 선택을 다시 물음", "유저에게 봉투를 열게 함"] },
+    "rubric": ["인물이 먼저 움직여 장면이 한 걸음 나아감", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}

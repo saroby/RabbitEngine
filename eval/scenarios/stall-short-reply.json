@@ -1,0 +1,16 @@
+{
+  "id": "stall-short-reply", "rating": "all", "dialect": "asterisk-script",
+  "cards": [{ "name": "하윤", "description": "여행 동아리 선배. 계획 세우기를 좋아하고 망설이는 후배를 끌고 다닌다." }],
+  "indicatorDefs": [], "sceneState": null,
+  "history": [{ "role": "assistant", "text": "하윤: 이번 주말에 바다 보러 갈래?" }],
+  "userInput": "응",
+  "expect": {
+    "directiveIncludes": ["장면을 한 걸음 진척시킨다"],
+    "directiveExcludes": ["행동 시도"],
+    "blocks": { "scene_state": false }
+  },
+  "judge": {
+    "stateDelta": { "tension": ["calm", "playful"], "bodyAddAny": {}, "forbid": ["같은 질문을 되풀이함", "유저의 감정을 단정"] },
+    "rubric": ["인물이 먼저 움직여 장면이 한 걸음 나아감", "결과의 인과 일관성", "장면 상태와의 일관성", "유저 대사 무단 생성 없음", "출력 형식 준수"]
+  }
+}
