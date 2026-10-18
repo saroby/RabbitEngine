@@ -27,7 +27,7 @@ const PUBLIC = [
   'emptySceneState', 'renderSceneState', 'applySceneDelta', 'validateIndicatorDefs',
   'initialIndicators', 'TENSIONS',
   'RATINGS', 'RATING_TEXT', 'assertRating', 'ratingInstruction', 'ratingDirective',
-  'analyzeUserInput', 'buildDirective', 'DIRECTIVE_MAX_CHARS',
+  'analyzeUserInput', 'checkReply', 'stripReasoning', 'stopSequencesFor', 'buildDirective', 'DIRECTIVE_MAX_CHARS',
   'extractionRecipe', 'applyExtraction', 'parseExtractionOutput', 'EXTRACTION_VERSION',
   'MAX_EXTRACTION_EXCHANGES',
   'PACING_TEXT',
