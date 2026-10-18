@@ -44,11 +44,15 @@ test('buildTurn — 기억 설정을 안 주면 이력을 전부 보낸다', asy
   assert.equal(turn.messages.length, 40)
 })
 
-test('buildTurn — 옛 전략 이름도 받는다', async () => {
+test('buildTurn — full 에 windowSize 를 주면 최근 N 개만 보낸다', async () => {
   const long = Array.from({ length: 40 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
-  const turn = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window', windowSize: 6 } })
+  const turn = await buildTurn({ cards: [card], messages: long, memory: { preset: 'full', assembly: { windowSize: 6 } } })
   assert.equal(turn.messages.length, 6)
-  assert.equal(turn.manifest.preset, 'legacy-window')
+  assert.equal(turn.manifest.preset, 'full')
+})
+
+test('buildTurn — 없어진 memory.strategy 는 조용히 전부 보내지 않고 던진다', async () => {
+  await assert.rejects(buildTurn({ cards: [card], messages: history, memory: { strategy: 'window', windowSize: 6 } }), /memory\.strategy 는 없어졌습니다/)
 })
 
 test('buildTurn — 대본 규약이 system 에 들어간다', async () => {
@@ -66,11 +70,12 @@ test('buildTurn — 방언을 바꾸면 규약과 manifest 가 같이 바뀐다'
 })
 
 test('buildTurn — manifest.injectedText 가 모델에 나간 그대로 채워진다', async () => {
-  const turn = await buildTurn({
-    cards: [card], messages: history, userName: '루이',
-    memory: { preset: 'legacy-summary', summary: '{{user}} 가 비 오는 날 왔다' },
-  })
-  assert.equal(turn.manifest.injectedText, `${MEMORY_LABEL}\n루이 가 비 오는 날 왔다`)
+  // 닫힌 씬 요약이 note 로 system 에 들어가는 경로. 요약 안의 {{user}} 도 치환된 값이 증거에 남아야 한다.
+  const long = Array.from({ length: 42 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', text: `대사 ${i}` }))
+  const llm = async () => ({ text: '요약: {{user}} 가 비 오는 날 왔다\n핵심어: 비', provider: 'stub', latencyMs: 1, usage: { input: 1, output: 1 } })
+  const turn = await buildTurn({ cards: [card], messages: long, userName: '루이', memory: { preset: 'memory-books' } }, { llm })
+  assert.ok(turn.manifest.injectedText.startsWith(`${MEMORY_LABEL}\n`))
+  assert.match(turn.manifest.injectedText, /루이 가 비 오는 날 왔다/)
   assert.ok(turn.system.includes(turn.manifest.injectedText), 'manifest 의 증거가 실제 프롬프트와 다르다')
 })
 
@@ -246,11 +251,8 @@ test('buildTurn — userInput 의 임시 턴은 manifest ordinal 에 남지 않�
 
 test('buildTurn — userInput 이 있어도 창 크기만큼의 이력이 남는다', async () => {
   const long = Array.from({ length: 40 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: `줄 ${i}` }))
-  const legacy = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window', windowSize: 6 }, userInput: '정전이야?' })
-  assert.equal(legacy.messages.length, 6)
-  // 창 크기를 안 주면 legacy 기본값 12 다 — 그 경우에도 한 칸을 뺏기지 않는다.
-  const defaulted = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window' }, userInput: '정전이야?' })
-  assert.equal(defaulted.messages.length, 12)
+  const full = await buildTurn({ cards: [card], messages: long, memory: { preset: 'full', assembly: { windowSize: 6 } }, userInput: '정전이야?' })
+  assert.equal(full.messages.length, 6)
   // 프리셋 경로. lorebook 은 압축기·검색기가 없어 창 크기가 그대로 남는 수가 된다.
   const preset = await buildTurn({ cards: [card], messages: long, memory: { preset: 'lorebook', assembly: { windowSize: 6, windowMode: 'cut' } }, userInput: '정전이야?' })
   assert.equal(preset.messages.length, 6)
@@ -270,6 +272,6 @@ test('buildTurn — 창 크기가 숫자 아닌 문자열이어도 보정이 빠
   // 기억 층은 parseInt 로 6 으로 읽는다. 보정이 Number() 였다면 NaN 이라 건너뛰고 5 개만 남는다.
   const preset = await buildTurn({ cards: [card], messages: long, memory: { preset: 'lorebook', assembly: { windowSize: '6abc', windowMode: 'cut' } }, userInput: '정전이야?' })
   assert.equal(preset.messages.length, 6)
-  const legacy = await buildTurn({ cards: [card], messages: long, memory: { strategy: 'window', windowSize: '6abc' }, userInput: '정전이야?' })
-  assert.equal(legacy.messages.length, 6)
+  const full = await buildTurn({ cards: [card], messages: long, memory: { preset: 'full', assembly: { windowSize: '6abc' } }, userInput: '정전이야?' })
+  assert.equal(full.messages.length, 6)
 })

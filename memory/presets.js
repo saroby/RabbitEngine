@@ -1,7 +1,5 @@
-// 겉으로 갈아끼우는 단위는 프리셋이다. 기존 5종을 "매핑" 이 아니라 일급
-// 프리셋으로 두는 이유는 summary·memory 가 사용자 작성 본문을 그대로
-// 주입하는 것이라 새 기법 중 정확한 등가물이 없기 때문이다. 없는 등가물을
-// 억지로 만들면 하위호환이 아니라 조용한 동작 변경이 된다.
+// 겉으로 갈아끼우는 단위는 프리셋이다. 창 크기 · 놓는 자리 같은 조립값은
+// memory.assembly 로 덮어쓸 수 있다 — 예: { preset: 'full', assembly: { windowSize: 12 } } 는 최근 12개만 남긴다.
 import { DEFAULT_ASSEMBLY, LEGACY_WINDOW_SIZE } from './defaults.js'
 
 const legacyAssembly = (over = {}) => ({
@@ -38,7 +36,13 @@ const modern = (id, over = {}) => ({
 export const MEMORY_PRESETS = {
   // 받은 이력을 자르지 않고 그대로 조립한다. 기억 설정이 없을 때의 기본값이고, 자르기를 호스트가
   // 직접 할 때(시작점을 고정해 두고 예산에 닿을 때만 한꺼번에 줄이는 식) 쓴다. 조립값은 옛 full 전략 그대로다.
-  full: legacy('full', { assembly: legacyAssembly({ windowSize: Number.MAX_SAFE_INTEGER }) }),
+  full: {
+    id: 'full',
+    compactor: null, reducer: null, retriever: null, tracker: null,
+    usesLlm: false,
+    // 창이 이력 전체라 cut 이어도 버리는 것이 없다. windowSize 를 주면 그만큼만 남기고 나머지는 버린다.
+    assembly: { ...DEFAULT_ASSEMBLY, windowSize: Number.MAX_SAFE_INTEGER, windowMode: 'cut', hideCompacted: false, placement: 'note' },
+  },
   // 기억 압축 0. 로어북 축만 켠 대조군이다.
   lorebook: modern('lorebook', {
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: false, placement: 'note' },
@@ -89,9 +93,6 @@ export const MEMORY_PRESETS = {
     assembly: { ...DEFAULT_ASSEMBLY, hideCompacted: true, placement: 'note' },
   }),
   'legacy-window': legacy('legacy-window'),
-  'legacy-summary': legacy('legacy-summary', { userNote: 'summary' }),
-  'legacy-memory': legacy('legacy-memory', { userNote: 'memoryNote' }),
-  'legacy-retrieval': legacy('legacy-retrieval', { retriever: 'bigram' }),
 }
 
 export function presetOf(id) {

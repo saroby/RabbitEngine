@@ -11,8 +11,8 @@ const messages = [
   { id: '5', role: 'user', text: '열쇠는 어디 있지?' },
 ]
 
-test('legacy 프리셋 넷과 full 이 등록되어 있다', () => {
-  for (const id of ['full', 'legacy-window', 'legacy-summary', 'legacy-memory', 'legacy-retrieval']) {
+test('full 과 legacy-window 가 등록되어 있다', () => {
+  for (const id of ['full', 'legacy-window']) {
     assert.ok(MEMORY_PRESETS[id], `${id} 가 없다`)
   }
 })
@@ -23,21 +23,13 @@ test('full 은 전부 그대로 넘긴다', async () => {
   assert.equal(out.manifest.preset, 'full')
 })
 
-test('legacy-window 는 최근 N 개만 남긴다', async () => {
-  const out = await selectMemory(messages, { preset: 'legacy-window', assembly: { windowSize: 2 } }, {})
+test('full 에 windowSize 를 주면 최근 N 개만 남긴다', async () => {
+  const out = await selectMemory(messages, { preset: 'full', assembly: { windowSize: 2 } }, {})
   assert.deepEqual(out.messages.map((m) => m.id), ['4', '5'])
-})
-
-test('legacy-summary 는 사용자 본문을 note 로 내보낸다', async () => {
-  const out = await selectMemory(messages, { preset: 'legacy-summary', assembly: { windowSize: 2 }, summary: '열쇠를 찾는 중' }, {})
-  assert.deepEqual(out.messages.map((m) => m.id), ['4', '5'])
-  assert.equal(out.notes.length, 1)
-  assert.equal(out.notes[0].kind, 'summary')
-  assert.ok(out.notes[0].text.includes('열쇠를 찾는 중'))
 })
 
 test('manifest 는 선택 근거를 값으로 담는다', async () => {
-  const out = await selectMemory(messages, { preset: 'legacy-window', assembly: { windowSize: 2 } }, {})
+  const out = await selectMemory(messages, { preset: 'full', assembly: { windowSize: 2 } }, {})
   assert.deepEqual(out.manifest.selectedOrdinals, [3, 4])
   assert.deepEqual(out.manifest.selectedMessageIds, ['4', '5'])
   assert.deepEqual(out.manifest.memoryCalls, [])
@@ -50,7 +42,7 @@ test('id 가 없는 경로에서도 retrieval 이 옛 메시지를 끌어온다'
   // 검색 결과가 통째로 사라지는데 아무 에러도 안 난다 — 가장 조용한 실패다.
   const noIds = messages.map(({ role, text }) => ({ role, text }))
   const out = await selectMemory(noIds, {
-    preset: 'legacy-retrieval',
+    preset: 'vector',
     assembly: { windowSize: 2, retrievalLimit: 2 },
   }, {})
   assert.deepEqual(out.messages.map((m) => m.text), ['붉은 열쇠를 찾자', '비가 내린다', '열쇠는 어디 있지?'])

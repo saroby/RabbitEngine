@@ -6,14 +6,12 @@
 // 호출자가 그 빈칸을 채우게 두면, 안 채워도 대화는 잘 돌아가고 증거만 반쪽이
 // 된다. 조용히 틀리는 자리는 라이브러리가 닫는다.
 import { selectMemory } from './memory/index.js'
-import { selectContext } from './memory/legacy-strategies.js'
 import { compileBlocks, macroSourcesOf } from './prompt/blocks.js'
 import { PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 import { renderTurn, systemTextOf, cachePrefixBlocks } from './prompt/render.js'
 import { isReal } from './memory/projection.js'
 import { presetOf } from './memory/presets.js'
 import { boundedSize } from './memory/assemble.js'
-import { LEGACY_WINDOW_SIZE } from './memory/defaults.js'
 import { koreanPlayscript } from './dialect/korean-playscript.js'
 import { assertRating, ratingInstruction } from './scene/rating.js'
 import { renderSceneState, validateIndicatorDefs } from './scene/state.js'
@@ -34,10 +32,7 @@ export const PACING_TEXT = Object.freeze({
 // 이번 턴 입력은 스캔 목록에 임시 턴으로 들어가므로 창 한 칸을 먹는다. 창 크기를
 // 1 늘려 이력이 한 칸 밀려나지 않게 한다 — 안 그러면 userInput 을 주는 것만으로
 // 창이 조용히 줄어드는 off-by-one 이 남는다.
-// legacy 는 selectContext 와 같은 정규화(boundedSize)를 쓴다. 안 그러면 창 크기를
-// 생략한 호출(기본 12)이 보정에서 빠져 11 개만 남는다.
-function widenWindow(config, legacy) {
-  if (legacy) return { ...config, windowSize: boundedSize(config.windowSize, LEGACY_WINDOW_SIZE) + 1 }
+function widenWindow(config) {
   const fallback = presetOf(config.preset).assembly.windowSize
   // 프리셋 경로도 assemble 과 같은 정규화를 쓴다. Number() 면 "6abc" 가 NaN 이라
   // 보정이 통째로 빠지는데, 정작 기억 층은 parseInt 로 6 을 읽어 한 칸을 잃는다.
@@ -110,12 +105,13 @@ export async function buildTurn(input = {}, ctx = {}) {
   // 도구 명세·카드 참조 오류는 기억 층이 호스트 LLM 을 부르기 전에 잡는다.
   const tools = resolveTools(cards, raw.toolSpecs ?? [])
 
-  // 프리셋이 있으면 그것이 이기고, 옛 전략 이름만 있으면 어댑터로 간다 —
-  // 저장된 세션이 { strategy: 'window' } 꼴을 들고 있다. 둘 다 없으면 이력을
-  // 전부 보낸다. 조용히 잘라내는 기본값은 "왜 앞 내용을 잊었지" 를 라이브러리
-  // 탓으로 만든다.
-  const select = !memory.preset && memory.strategy ? selectContext : selectMemory
-  const config = memory.preset || memory.strategy ? memory : { ...memory, preset: 'full' }
+  // 프리셋이 없으면 이력을 전부 보낸다. 조용히 잘라내는 기본값은 "왜 앞 내용을 잊었지" 를
+  // 라이브러리 탓으로 만든다. 옛 { strategy } 설정은 없앴다 — 받아서 full 로 흘리면
+  // 창을 기대한 호스트가 모르는 새 이력 전부를 보내게 되므로 던진다.
+  if (memory.strategy !== undefined) {
+    throw new Error("buildTurn: memory.strategy 는 없어졌습니다 — memory.preset 을 쓴다 (최근 N개만: { preset: 'full', assembly: { windowSize: N } })")
+  }
+  const config = memory.preset ? memory : { ...memory, preset: 'full' }
 
   // 이번 턴 입력은 기억 선택과 로어북 스캔에는 보여야 한다 — 안 보이면 "정전이야?" 가
   // 정전 로어북을 못 깨우고 검색 질의가 직전 턴이 된다. 다만 돌려주는 messages 와
@@ -126,8 +122,8 @@ export async function buildTurn(input = {}, ctx = {}) {
   // manifest 의 ordinal 계열은 스캔 배열 기준이라 임시 턴이 유령으로 남는다. 그 번호를
   // projection 과 같은 방식(isReal 로 거른 뒤의 길이)으로 구해 두고 아래에서 걷어낸다.
   const transientOrdinal = transient ? messages.filter(isReal).length : null
-  const scanConfig = transient ? widenWindow(config, select === selectContext) : config
-  const selected = await select(scanMessages, { ...scanConfig, dialect }, context)
+  const scanConfig = transient ? widenWindow(config) : config
+  const selected = await selectMemory(scanMessages, { ...scanConfig, dialect }, context)
   // 참조 동일성이 아니라 표식으로 거른다 — 기억 층이 객체를 복사해도 살아남게.
   const visibleMessages = transient ? selected.messages.filter((m) => m?.transient !== true) : selected.messages
 

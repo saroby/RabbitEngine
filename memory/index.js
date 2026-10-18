@@ -13,7 +13,7 @@ import { digestReducer, planFold, DEFAULT_FANOUT, DEFAULT_KEEP_LEAVES } from './
 import { recipeHashOf, withLock } from './recipe.js'
 import { validateCalls } from './contract.js'
 import { contentHashOf } from './artifact-store.js'
-import { LEGACY_RETRIEVAL_LIMIT } from './defaults.js'
+import { DEFAULT_RETRIEVAL_LIMIT } from './defaults.js'
 
 const COMPACTORS = { scene: sceneCompactor }
 const REDUCERS = { digest: digestReducer }
@@ -170,7 +170,7 @@ async function gatherDigests({ preset, leaves, ctx }) {
 async function gatherRetrieval({ preset, entries, texts, artifacts, assembly, ctx }) {
   const empty = { messages: [], artifacts: null, calls: [], cold: [], cacheHit: true, recipeHashes: [] }
   const windowSize = boundedSize(assembly.windowSize, assembly.windowSize)
-  const limit = boundedSize(assembly.retrievalLimit, LEGACY_RETRIEVAL_LIMIT)
+  const limit = boundedSize(assembly.retrievalLimit, DEFAULT_RETRIEVAL_LIMIT)
 
   if (preset.retriever === 'bigram') {
     return { ...empty, messages: bigramRetrieve({ entries, texts, windowSize, limit }) }
@@ -210,7 +210,7 @@ async function gatherRetrieval({ preset, entries, texts, artifacts, assembly, ct
 /**
  * 긴 이력을 접는다. 프리셋이 정한 방식으로 메시지를 고르고 기억 노트를 만든다.
  * @param {Array<{ role: string, text: string }>} messages
- * @param {object} [config] `{ preset, dialect, assembly, chunkPolicy, worldbook, summary, memoryNote }`
+ * @param {object} [config] `{ preset, dialect, assembly, chunkPolicy, worldbook }`
  * @param {import('../types.js').EngineContext} [ctx]
  * @returns {Promise<{ messages: object[], notes: Array<{ kind: string, text: string }>, manifest: object }>}
  */
@@ -244,13 +244,7 @@ export async function selectMemory(messages = [], config = {}, ctx = {}) {
     retrievedArtifacts: retrieval.artifacts,
   })
 
-  // legacy 프리셋은 사용자가 쓴 본문 하나만 note 로 나간다. kind 를 보존하는
-  // 이유는 prompt-compiler 가 층 이름(`context_summary` / `context_memory`)을
-  // 그것으로 만들기 때문이다 — 층 이름이 바뀌면 과거 스냅샷과 구조 비교가 안 된다.
-  const userNoteText = preset.userNote ? String(config[preset.userNote] || '').trim() : ''
-  const notes = userNoteText
-    ? [{ kind: preset.userNote === 'summary' ? 'summary' : 'memory', text: userNoteText }]
-    : assembled.notes
+  const notes = assembled.notes
 
   const stages = [gathered, folded, retrieval]
   const memoryCalls = stages.flatMap((stage) => stage.calls)

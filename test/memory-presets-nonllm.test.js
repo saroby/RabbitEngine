@@ -44,8 +44,8 @@ test('두 프리셋은 로어북을 원본 이력에서 스캔한다 — 기억 
   }
 })
 
-test('legacy 프리셋은 기존대로 선택된 이력을 스캔한다', async () => {
-  const out = await selectMemory(messages, { preset: 'legacy-window' }, {})
+test('full 은 기존대로 선택된 이력을 스캔한다', async () => {
+  const out = await selectMemory(messages, { preset: 'full', assembly: { windowSize: 12 } }, {})
   assert.equal(out.manifest.worldbook.scanSource, 'selected')
   assert.equal(out.manifest.worldbook.budgetChars, 0)
 })

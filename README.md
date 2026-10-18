@@ -221,7 +221,7 @@ flowchart TB
 | `memory-books` | 닫힌 씬 → 요약 | — | — | `ctx.llm` |
 | `memory-books-tiered` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | — | `ctx.llm` |
 | `semantic-books` | 닫힌 씬 → 요약 | 오래된 요약 → 줄거리 | 요약 중 닿는 것만 | `ctx.llm` · `ctx.embed` |
-| `legacy-*` | — | — | (`legacy-retrieval` 만 bigram) | — |
+| `legacy-window` | — | — | — | — |
 
 **접기(digest)** 는 이진 카운터처럼 돈다. 최근 `keepLeaves` 개 씬 요약은 그대로 두고, 그보다 오래된 것을 앞에서부터 `fanout` 개씩 묶어 줄거리 하나로 접는다. 줄거리가 `fanout` 개 모이면 또 접는다. 묶음 경계가 0번 씬부터 고정이라 새 씬이 닫혀도 이미 만든 줄거리의 재료는 안 바뀌고, 캐시 키는 자식 요약의 `contentHash` 목록이라 옛 대사를 고치면 그 조상만 다시 만든다.
 

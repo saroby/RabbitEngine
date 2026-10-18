@@ -5,7 +5,6 @@ import { koreanPlayscript } from '../dialect/korean-playscript.js'
 import { defineDialect } from '../dialect/define.js'
 import { recipeHashOf } from '../memory/recipe.js'
 import { selectMemory } from '../memory/index.js'
-import { selectContext } from '../memory/legacy-strategies.js'
 
 const asterisk = defineDialect({
   id: 'asterisk', version: 1, spec: '*행동* 으로 쓴다. 장면이 바뀌면 --- 한 줄을 쓴다.',
@@ -59,10 +58,4 @@ test('selectMemory — manifest 에 방언 객체가 새지 않는다', async ()
   assert.equal('dialect' in result.manifest.chunkPolicy, false)
   assert.equal(result.manifest.chunkPolicy.parserVersion, 'asterisk-v1')
   assert.doesNotThrow(() => JSON.stringify(result.manifest))
-})
-
-test('selectContext — 옛 전략 이름으로 불러도 방언이 전달된다', async () => {
-  const messages = [{ role: 'assistant', text: '유리: 어서 오세요.' }]
-  const result = await selectContext(messages, { strategy: 'window', dialect: asterisk })
-  assert.equal(result.manifest.chunkPolicy.parserVersion, 'asterisk-v1')
 })

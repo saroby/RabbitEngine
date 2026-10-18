@@ -3,7 +3,6 @@
 // 그건 이 작업에서 일어나면 안 되는 일이다.
 import { writeFileSync } from 'node:fs'
 import { compilePrompt } from '../prompt/compile.js'
-import { selectContext } from '../memory/legacy-strategies.js'
 import { selectMemory } from '../memory/index.js'
 import { recipeHashOf } from '../memory/recipe.js'
 import { hashText } from '../memory/projection.js'
@@ -36,7 +35,7 @@ const messages = [
   { role: 'user', text: '고마워요.' },
 ]
 
-// 컴팩터가 실제로 도는 유일한 케이스. 나머지 15건은 전부 압축기 없는
+// 컴팩터가 실제로 도는 유일한 케이스. 나머지 12건은 전부 압축기 없는
 // 프리셋이라 recipeHashes 가 [] 였다 — 캐시 키의 재료가 어디에도 못박히지
 // 않았다는 뜻이다. 42개 중 21번째에 씬 표지를 하나 넣어 chunking 의 sceneSnap
 // 경로까지 함께 지난다 (닫힌 chunk 3개 → recipeHash 3개).
@@ -65,11 +64,8 @@ export const CASES = {
     contextNotes: [{ kind: 'summary', text: '{{char}} 와 처음 만났다.' }],
   }),
   'compile:치환없음': () => compilePrompt({ cards: [card], messages, enforceFormat: false }),
-  'context:full': () => selectContext(messages, { strategy: 'full' }),
-  'context:window': () => selectContext(messages, { strategy: 'window', windowSize: 3 }),
-  'context:summary': () => selectContext(messages, { strategy: 'summary', summary: '비가 왔다' }),
-  'context:memory': () => selectContext(messages, { strategy: 'memory', memoryNote: '3층은 폐가' }),
-  'context:retrieval': () => selectContext(messages, { strategy: 'retrieval', retrievalLimit: 2 }),
+  'memory:full': () => selectMemory(messages, { preset: 'full' }),
+  'memory:full-window': () => selectMemory(messages, { preset: 'full', assembly: { windowSize: 3 } }),
   'memory:lorebook': () => selectMemory(messages, { preset: 'lorebook' }),
   'memory:vector': () => selectMemory(messages, { preset: 'vector' }),
   'memory:memory-books': () => selectMemory(compactorMessages, { preset: 'memory-books' }, {

@@ -128,7 +128,7 @@
       "budgetChars": 0
     }
   },
-  "context:full": {
+  "memory:full": {
     "messages": [
       {
         "role": "assistant",
@@ -175,8 +175,7 @@
         "placement": "note",
         "budgetChars": 6000,
         "retain": 5,
-        "minScore": 1,
-        "retrievalLimit": 4
+        "minScore": 1
       },
       "chunkPolicy": {
         "by": "messages",
@@ -223,7 +222,7 @@
       }
     }
   },
-  "context:window": {
+  "memory:full-window": {
     "messages": [
       {
         "role": "user",
@@ -240,7 +239,7 @@
     ],
     "notes": [],
     "manifest": {
-      "preset": "legacy-window",
+      "preset": "full",
       "worldbook": {
         "scanSource": "selected",
         "budgetChars": 0
@@ -258,8 +257,7 @@
         "placement": "note",
         "budgetChars": 6000,
         "retain": 5,
-        "minScore": 1,
-        "retrievalLimit": 4
+        "minScore": 1
       },
       "chunkPolicy": {
         "by": "messages",
@@ -274,301 +272,6 @@
         5
       ],
       "selectedOrdinals": [
-        3,
-        4,
-        5
-      ],
-      "selectedMessageIds": [],
-      "retrievedOrdinals": [],
-      "retrievedMessageIds": [],
-      "retrievedArtifactIds": [],
-      "retrievalScores": [],
-      "hiddenOrdinals": [],
-      "artifacts": [],
-      "coldChunks": [],
-      "recipeHashes": [],
-      "trackerState": null,
-      "injectedMessages": [],
-      "injectedText": null,
-      "budgetChars": 6000,
-      "usedChars": 0,
-      "truncated": 0,
-      "memoryCalls": [],
-      "cacheHit": true,
-      "callsIncurredHere": {
-        "calls": 0,
-        "promptTokens": 0,
-        "completionTokens": 0,
-        "ms": 0
-      }
-    }
-  },
-  "context:summary": {
-    "messages": [
-      {
-        "role": "assistant",
-        "text": "유리: 어서 오세요."
-      },
-      {
-        "role": "user",
-        "text": "오늘도 비가 오네요."
-      },
-      {
-        "role": "assistant",
-        "text": "(창밖을 본다)\n유리: 그러네요."
-      },
-      {
-        "role": "user",
-        "text": "3층에 가봐도 될까요?"
-      },
-      {
-        "role": "assistant",
-        "text": "[장면: 같은 날 저녁, 3층 계단]\n유리: 조심하세요."
-      },
-      {
-        "role": "user",
-        "text": "고마워요."
-      }
-    ],
-    "notes": [
-      {
-        "kind": "summary",
-        "text": "비가 왔다"
-      }
-    ],
-    "manifest": {
-      "preset": "legacy-summary",
-      "worldbook": {
-        "scanSource": "selected",
-        "budgetChars": 0
-      },
-      "parts": {
-        "compactor": null,
-        "reducer": null,
-        "retriever": null,
-        "tracker": null
-      },
-      "assembly": {
-        "windowSize": 12,
-        "windowMode": "cut",
-        "hideCompacted": false,
-        "placement": "note",
-        "budgetChars": 6000,
-        "retain": 5,
-        "minScore": 1,
-        "retrievalLimit": 4
-      },
-      "chunkPolicy": {
-        "by": "messages",
-        "maxMessages": 20,
-        "sceneSnap": true,
-        "parserVersion": "script-v1"
-      },
-      "chunkBoundaries": [
-        4
-      ],
-      "openChunkOrdinals": [
-        5
-      ],
-      "selectedOrdinals": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
-      "selectedMessageIds": [],
-      "retrievedOrdinals": [],
-      "retrievedMessageIds": [],
-      "retrievedArtifactIds": [],
-      "retrievalScores": [],
-      "hiddenOrdinals": [],
-      "artifacts": [],
-      "coldChunks": [],
-      "recipeHashes": [],
-      "trackerState": null,
-      "injectedMessages": [],
-      "injectedText": null,
-      "budgetChars": 6000,
-      "usedChars": 0,
-      "truncated": 0,
-      "memoryCalls": [],
-      "cacheHit": true,
-      "callsIncurredHere": {
-        "calls": 0,
-        "promptTokens": 0,
-        "completionTokens": 0,
-        "ms": 0
-      }
-    }
-  },
-  "context:memory": {
-    "messages": [
-      {
-        "role": "assistant",
-        "text": "유리: 어서 오세요."
-      },
-      {
-        "role": "user",
-        "text": "오늘도 비가 오네요."
-      },
-      {
-        "role": "assistant",
-        "text": "(창밖을 본다)\n유리: 그러네요."
-      },
-      {
-        "role": "user",
-        "text": "3층에 가봐도 될까요?"
-      },
-      {
-        "role": "assistant",
-        "text": "[장면: 같은 날 저녁, 3층 계단]\n유리: 조심하세요."
-      },
-      {
-        "role": "user",
-        "text": "고마워요."
-      }
-    ],
-    "notes": [
-      {
-        "kind": "memory",
-        "text": "3층은 폐가"
-      }
-    ],
-    "manifest": {
-      "preset": "legacy-memory",
-      "worldbook": {
-        "scanSource": "selected",
-        "budgetChars": 0
-      },
-      "parts": {
-        "compactor": null,
-        "reducer": null,
-        "retriever": null,
-        "tracker": null
-      },
-      "assembly": {
-        "windowSize": 12,
-        "windowMode": "cut",
-        "hideCompacted": false,
-        "placement": "note",
-        "budgetChars": 6000,
-        "retain": 5,
-        "minScore": 1,
-        "retrievalLimit": 4
-      },
-      "chunkPolicy": {
-        "by": "messages",
-        "maxMessages": 20,
-        "sceneSnap": true,
-        "parserVersion": "script-v1"
-      },
-      "chunkBoundaries": [
-        4
-      ],
-      "openChunkOrdinals": [
-        5
-      ],
-      "selectedOrdinals": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
-      "selectedMessageIds": [],
-      "retrievedOrdinals": [],
-      "retrievedMessageIds": [],
-      "retrievedArtifactIds": [],
-      "retrievalScores": [],
-      "hiddenOrdinals": [],
-      "artifacts": [],
-      "coldChunks": [],
-      "recipeHashes": [],
-      "trackerState": null,
-      "injectedMessages": [],
-      "injectedText": null,
-      "budgetChars": 6000,
-      "usedChars": 0,
-      "truncated": 0,
-      "memoryCalls": [],
-      "cacheHit": true,
-      "callsIncurredHere": {
-        "calls": 0,
-        "promptTokens": 0,
-        "completionTokens": 0,
-        "ms": 0
-      }
-    }
-  },
-  "context:retrieval": {
-    "messages": [
-      {
-        "role": "assistant",
-        "text": "유리: 어서 오세요."
-      },
-      {
-        "role": "user",
-        "text": "오늘도 비가 오네요."
-      },
-      {
-        "role": "assistant",
-        "text": "(창밖을 본다)\n유리: 그러네요."
-      },
-      {
-        "role": "user",
-        "text": "3층에 가봐도 될까요?"
-      },
-      {
-        "role": "assistant",
-        "text": "[장면: 같은 날 저녁, 3층 계단]\n유리: 조심하세요."
-      },
-      {
-        "role": "user",
-        "text": "고마워요."
-      }
-    ],
-    "notes": [],
-    "manifest": {
-      "preset": "legacy-retrieval",
-      "worldbook": {
-        "scanSource": "selected",
-        "budgetChars": 0
-      },
-      "parts": {
-        "compactor": null,
-        "reducer": null,
-        "retriever": "bigram",
-        "tracker": null
-      },
-      "assembly": {
-        "windowSize": 12,
-        "windowMode": "cut",
-        "hideCompacted": false,
-        "placement": "note",
-        "budgetChars": 6000,
-        "retain": 5,
-        "minScore": 1,
-        "retrievalLimit": 2
-      },
-      "chunkPolicy": {
-        "by": "messages",
-        "maxMessages": 20,
-        "sceneSnap": true,
-        "parserVersion": "script-v1"
-      },
-      "chunkBoundaries": [
-        4
-      ],
-      "openChunkOrdinals": [
-        5
-      ],
-      "selectedOrdinals": [
-        0,
-        1,
-        2,
         3,
         4,
         5

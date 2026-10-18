@@ -101,7 +101,7 @@ test('sharedPrefix — 창이 한 칸씩 밀리면 메시지는 하나도 이어
   const history = (count) => Array.from({ length: count }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', text: `${index % 2 ? '서연' : '민준'}: 대사 ${index}` }))
   const card = { cards: [{ name: '서연' }] }
   const turnOf = async (count, memory) => prefixFingerprint((await buildTurn({ ...card, messages: history(count), memory })).render())
-  const sliding = sharedPrefix(await turnOf(10, { strategy: 'window', windowSize: 4 }), await turnOf(11, { strategy: 'window', windowSize: 4 }))
+  const sliding = sharedPrefix(await turnOf(10, { preset: 'full', assembly: { windowSize: 4 } }), await turnOf(11, { preset: 'full', assembly: { windowSize: 4 } }))
   assert.equal(sliding.system, 'same')
   assert.equal(sliding.messages, 0)
   const full = sharedPrefix(await turnOf(10), await turnOf(11))

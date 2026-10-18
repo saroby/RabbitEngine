@@ -6,7 +6,9 @@
 // boundedSize(value, fallback = 12) 가 쓰던 값이다. 새 프리셋의 기본값과
 // 반드시 갈라 둔다 — 합치면 "동작 변화 없음" 이라는 전제가 깨진다.
 export const LEGACY_WINDOW_SIZE = 12
-export const LEGACY_RETRIEVAL_LIMIT = 4
+
+// 검색기(글자 겹침 · 임베딩)가 창 밖에서 끌어오는 옛 메시지 수의 기본값.
+export const DEFAULT_RETRIEVAL_LIMIT = 4
 
 // 새 기억 프리셋의 조립 기본값.
 export const DEFAULT_ASSEMBLY = {
