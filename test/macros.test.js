@@ -89,6 +89,23 @@ test('같음 비교 — 숫자 변수는 숫자와, 참거짓 변수는 true · 
   assert.equal(createMacroExpander({ vars: { place: null } })('{{#if place == "현관"}}x{{else}}아직{{/if}}'), '아직', '값이 없는 장소는 묻지 않는다')
 })
 
+test('같음 비교 — 문자열 변수와는 적힌 글자 그대로 비교한다', () => {
+  const text = createMacroExpander({ vars: { place: '3', time: 'true', 별명: '007', 메모: null } })
+  assert.equal(text('{{#if place == 3}}맞음{{/if}}'), '맞음', '3 을 숫자로 바꾸지 않는다')
+  assert.equal(text('{{#if time == true}}맞음{{/if}}'), '맞음', 'true 를 참거짓으로 바꾸지 않는다')
+  assert.equal(text('{{#if 별명 == 007}}맞음{{/if}}{{#if 별명 != 7}}!{{/if}}'), '맞음!', '앞자리 0 을 지우지 않는다')
+  assert.equal(text('{{#if 메모 == 3}}x{{else}}없음{{/if}}'), '없음', '값이 없으면 무엇과도 같지 않다')
+  assert.throws(() => text('{{#if place > 2}}x{{/if}}'), /숫자끼리만/, '크기 비교는 여전히 숫자끼리만')
+})
+
+test('} 하나를 빠뜨린 태그는 원문이 새지 않게 던진다', () => {
+  for (const text of ['{{#if 호감도 > 1}}A{{else}B{{/if}}', '{{#if 호감도 > 1}A{{/if}', '호감도 {{var:호감도}', '{{random::a::b}', '{{#if 비밀공개}}{{elif x}{{/if}}']) {
+    assert.throws(() => expand(text), /닫히지 않은 태그/, text)
+  }
+  assert.throws(() => expand('{{#if 비밀공개}}꺼진 갈래 {{else}}{{/if}}'.replace('{{else}}', '{{else}')), /닫히지 않은 태그/, '꺼진 갈래 안이어도 본다')
+  assert.equal(expand('{{// 메모} 와 {{user} 는 매크로가 아니다'), '{{// 메모} 와 {{user} 는 매크로가 아니다')
+})
+
 test('choices — 허용값 밖의 값과 비교하면 던진다', () => {
   const scene = createMacroExpander({ vars: { tension: 'tense' }, choices: { tension: ['calm', 'tense'] } })
   assert.equal(scene('{{#if tension == tense}}긴장{{/if}}{{#if tension != "calm"}}!{{/if}}'), '긴장!')

@@ -175,8 +175,8 @@ const result = check.ok ? await run(check.name, check.args, check.actor) : { err
 - 비교: `>=` `<=` `>` `<`(숫자끼리) · `==` `!=` · 변수만 쓰면 참거짓 · `!` 부정. 중첩되고, 한 줄을 차지한 태그는 빈 줄을 남기지 않는다.
 - `{{else if}}` 는 위에서부터 처음 참인 갈래 하나만 낸다. 단계를 나눌 때 범위식 없이 큰 기준부터 쓴다.
 - `&&` · `||` 는 없다 — 쓰면 던진다. `{{#if}}` 를 겹치거나 `{{else if}}` 로 나눈다. 값에 비교 기호나 `&&` 가 들어가면 따옴표로 감싼다.
-- 값의 종류도 본다. 숫자 지표는 숫자와, 참거짓 지표는 `true` · `false` 와, `tension` 은 `calm` · `playful` · `tense` · `hostile` · `intimate` · `grief` 중 하나와 비교한다 (`tension == 긴장` 은 던진다).
-- 모르는 변수 · 짝 안 맞는 태그 · `{{elif}}` 같은 모르는 제어 태그는 **꺼진 갈래 안에 있어도** `buildTurn` 이 던진다 — 그 갈래가 처음 켜지는 턴에야 터지지 않게. 저장할 때는 `checkMacros(text, { indicatorDefs })` 로 같은 검사를 미리 돌린다 (`{ ok: true }` 또는 `{ ok: false, error }`).
+- 값은 변수의 종류대로 읽는다. 숫자 지표는 숫자와, 참거짓 지표는 `true` · `false` 와, `tension` 은 `calm` · `playful` · `tense` · `hostile` · `intimate` · `grief` 중 하나와 비교한다 (`tension == 긴장` 은 던진다). 문자열 지표와 `place` · `time` 은 적힌 글자 그대로 비교한다 (`place == 3` 은 장소 `"3"` 과 같다).
+- 모르는 변수 · 짝 안 맞는 태그 · `{{elif}}` 같은 모르는 제어 태그 · `{{else}` 처럼 `}` 가 빠진 태그는 **꺼진 갈래 안에 있어도** `buildTurn` 이 던진다 — 그 갈래가 처음 켜지는 턴에야 터지지 않게. 저장할 때는 `checkMacros(text, { indicatorDefs })` 로 같은 검사를 미리 돌린다 (`{ ok: true }` 또는 `{ ok: false, error }`).
 - `{{random}}` 은 `macroSeed`(기본: `messages` 길이)로 정해져 같은 턴을 다시 만들면 같은 값이 나온다. 시드는 `manifest.prompt.macroSeed` 에 남는다.
 - **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
 - system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.

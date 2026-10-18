@@ -19,6 +19,8 @@ const QUOTED = /^(?:"[^"]*"|'[^']*')$/u
 const QUOTED_PARTS = /"[^"]*"|'[^']*'/gu
 // 따옴표 없는 값 안의 비교 기호. `tension == tense == calm` 을 값 "tense == calm" 으로 읽지 않게 한다.
 const OPERATOR_IN_VALUE = /==|!=|>=|<=|[<>]/u
+// TAG 에 안 걸린 채 남은 매크로 머리. 거의 늘 `{{else}` 처럼 } 하나를 빠뜨린 것이고, 그대로 두면 원문이 샌다.
+const BROKEN_TAG = /\{\{\s*(?:#|\/(?!\/)|el(?:se?)?if\b|else\b|var:|random::)/u
 
 // 같은 시드면 같은 결과. 암호용이 아니라 고르게 흩어지기만 하면 된다 (FNV-1a 32bit).
 function hash32(text) {
@@ -30,10 +32,12 @@ function hash32(text) {
   return h
 }
 
-function literal(raw) {
+// asText 면 따옴표만 벗기고 글자 그대로 둔다 — 문자열 변수와 비교할 때다.
+function literal(raw, asText = false) {
   const text = raw.trim()
   const quoted = /^"(.*)"$/u.exec(text) || /^'(.*)'$/u.exec(text)
   if (quoted) return quoted[1]
+  if (asText) return text
   if (text === 'true') return true
   if (text === 'false') return false
   if (text !== '' && Number.isFinite(Number(text))) return Number(text)
@@ -90,7 +94,9 @@ export function createMacroExpander({ vars = {}, seed = 0, choices = {} } = {}) 
     if (!QUOTED.test(raw.trim()) && OPERATOR_IN_VALUE.test(raw)) {
       throw new Error(`매크로: 값에 비교 기호가 있습니다 — 글자 그대로 비교하려면 따옴표로 감싼다 — {{#if ${text}}}`)
     }
-    const right = literal(raw)
+    // 값은 변수의 종류대로 읽는다. 문자열 변수(값이 아직 없는 장소·시각 포함)와는 적힌 글자 그대로
+    // 비교한다 — 안 그러면 `place == 3` 의 3 이 숫자가 돼 장소 "3" 과 영영 같지 않다.
+    const right = literal(raw, typeof value === 'string' || value === null || value === undefined)
     if (op === '==' || op === '!=') {
       const allowed = Object.hasOwn(choices, name) ? choices[name] : null
       if (allowed && !allowed.includes(right)) throw new Error(`매크로: ${name} 는 ${allowed.join(' · ')} 중 하나와 비교합니다 (${JSON.stringify(right)}) — {{#if ${text}}}`)
@@ -106,10 +112,17 @@ export function createMacroExpander({ vars = {}, seed = 0, choices = {} } = {}) 
     // taken 은 "이 if 묶음에서 이미 한 갈래를 냈는가" 다 — else if · else 는 앞 갈래가 안 났을 때만 난다.
     const stack = []
     const emitting = () => stack.every((frame) => frame.active)
+    // 태그 사이 글자에 매크로 머리가 남아 있으면 깨진 태그다. 꺼진 갈래 안이어도 본다.
+    const plain = (segment) => {
+      const broken = BROKEN_TAG.exec(segment)
+      if (broken) throw new Error(`매크로: 닫히지 않은 태그 — "${segment.slice(broken.index, broken.index + 24)}" 의 }} 를 확인한다`)
+      return segment
+    }
     let out = ''
     let last = 0
     for (const match of source.matchAll(TAG)) {
-      if (emitting()) out += source.slice(last, match.index)
+      const segment = plain(source.slice(last, match.index))
+      if (emitting()) out += segment
       last = match.index + match[0].length
       const tag = match[1]
       // 꺼진 갈래 안의 조건과 변수도 평가한다 — 값은 버리고 오류만 본다. 변수는 지표 정의에서
@@ -148,8 +161,9 @@ export function createMacroExpander({ vars = {}, seed = 0, choices = {} } = {}) 
         throw new Error(`매크로: 알 수 없는 태그 {{${tag}}} — {{#if 조건}} · {{else if 조건}} · {{else}} · {{/if}} 를 쓴다`)
       }
     }
+    const tail = plain(source.slice(last))
     if (stack.length) throw new Error('매크로: 닫히지 않은 {{#if}}')
-    return out + source.slice(last)
+    return out + tail
   }
 }
 
