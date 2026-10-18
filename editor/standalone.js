@@ -53,8 +53,10 @@ if (!profiles.length) profiles = [{ id: crypto.randomUUID(), name: '기본 설�
 const unsaved = () => Boolean(selectedId) && !profiles.some((profile) => profile.id === selectedId)
 
 function status() {
-  save.disabled = !selectedId || !valid || !name.value.trim()
+  // 바뀐 것이 없으면 저장을 끈다. 저장 전인 새 설정만은 바뀐 것이 없어도 저장할 수 있다.
+  save.disabled = !selectedId || !valid || !name.value.trim() || (!dirty && !unsaved())
   revert.disabled = !selectedId || !dirty
+  byId('dirty').hidden = !dirty
   // 저장 전인 새 설정은 지울 것도, 원본으로 남길 것도 없다.
   duplicate.disabled = remove.disabled = unsaved()
 }

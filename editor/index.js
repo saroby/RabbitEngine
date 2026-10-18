@@ -9,6 +9,7 @@ import {
 } from '../prompt/profile.js'
 import { blockSnippet } from './snippet.js'
 import { BLOCK_LABELS } from './labels.js'
+import { BLOCK_SPECS } from './block-docs.js'
 import {
   POST_HISTORY, MAX_DEPTH, positionOf, positionText, slotAt, historyLength, timelineRows, foldRows, gapAbove, gapBelow, keyboardStep,
 } from './timeline.js'
@@ -39,11 +40,19 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
 .rabbit-prompt-editor .rpe-composer-pane{min-width:0}
 .rabbit-prompt-editor .rpe-tags{margin:12px 0}
-.rabbit-prompt-editor .rpe-tag-group{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
-.rabbit-prompt-editor .rpe-tag-group-label{flex:0 0 76px;font-size:12px;font-weight:600;color:var(--rabbit-muted)}
+.rabbit-prompt-editor .rpe-tag-group{position:relative;display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0;padding-left:82px;min-height:32px}
+.rabbit-prompt-editor .rpe-tag-group-label{position:absolute;left:0;top:7px;width:76px;font-size:12px;font-weight:600;color:var(--rabbit-muted)}
 .rabbit-prompt-editor .rpe-tag-empty{font-size:12px;margin:0}
-.rabbit-prompt-editor .rpe-guide{margin:4px 0 12px}.rabbit-prompt-editor .rpe-guide summary{padding:2px 0;font-weight:500;color:var(--rabbit-muted)}
-.rabbit-prompt-editor .rpe-guide ul{margin:6px 0;padding-left:20px;color:var(--rabbit-muted)}
+.rabbit-prompt-editor .rpe-heading{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px}
+.rabbit-prompt-editor .rpe-heading>h2,.rabbit-prompt-editor .rpe-heading>h3,.rabbit-prompt-editor .rpe-heading>h4{margin:0}
+.rabbit-prompt-editor .rpe-heading>label{display:inline;margin:0}.rabbit-prompt-editor .rpe-field-head{margin:10px 0 4px;font-weight:500}
+.rabbit-prompt-editor .rpe-heading-extra{margin-left:auto}
+.rabbit-prompt-editor .rpe-info-button{flex:none;width:20px;height:20px;padding:0;border-radius:50%;border:1px solid #9aa7b4;background:#fff;color:#526171;font:italic 600 12px/1 Georgia,serif;display:inline-grid;place-items:center}
+.rabbit-prompt-editor .rpe-info-button:hover,.rabbit-prompt-editor .rpe-info-button[aria-expanded=true]{background:#245dbd;border-color:#245dbd;color:#fff}
+.rabbit-prompt-editor .rpe-info-bubble{flex:1 0 100%;margin-top:4px;padding:10px 12px;border:1px solid #d9e2ef;border-radius:8px;background:#f3f6fb;color:#2b3846;font-size:13px;font-weight:400;line-height:1.6}
+.rabbit-prompt-editor .rpe-info-bubble p{margin:0}.rabbit-prompt-editor .rpe-info-bubble p+p,.rabbit-prompt-editor .rpe-info-bubble p+ul,.rabbit-prompt-editor .rpe-info-bubble ul+p{margin-top:6px}
+.rabbit-prompt-editor .rpe-info-bubble ul{margin:0;padding-left:18px}.rabbit-prompt-editor .rpe-info-bubble li+li{margin-top:4px}
+.rabbit-prompt-editor .rpe-info-bubble code{font:12px ui-monospace,monospace;background:#e6ecf4;padding:0 4px;border-radius:4px;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-composer{min-height:340px;max-height:65vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace;border:1px solid #8795a4;border-radius:7px;padding:14px;background:#fff;outline:none}
 .rabbit-prompt-editor .rpe-composer.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px}
 .rabbit-prompt-editor .rpe-chip{display:inline-block;vertical-align:baseline;white-space:nowrap;border:1px solid #a9c4ed;border-radius:999px;padding:0 7px;background:#eaf2ff;color:#164c9e;font:12px/1.7 system-ui,sans-serif;user-select:all;cursor:grab}
@@ -93,7 +102,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-panel-section h4{margin:0 0 4px;font-size:13px}
 .rabbit-prompt-editor .rpe-panel-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .rabbit-prompt-editor .rpe-danger{color:#a11a24;border-color:#e3a1a7;background:#fff}
-.rabbit-prompt-editor .rpe-advanced{margin-top:18px;border-top:1px solid var(--rabbit-border)}
+.rabbit-prompt-editor .rpe-advanced{margin-top:18px;padding-top:14px;border-top:1px solid var(--rabbit-border)}
 .rabbit-prompt-editor .rpe-block{border:1px solid var(--rabbit-border);border-radius:8px;margin:10px 0;background:#fff;overflow:hidden}
 .rabbit-prompt-editor summary{cursor:pointer;font-weight:600;padding:12px;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-block-body{padding:0 12px 12px}.rabbit-prompt-editor label{display:grid;gap:4px;margin:10px 0;font-weight:500}
@@ -187,20 +196,45 @@ export function mountPromptEditor(container, options) {
     label.append(control)
     return label
   }
+  // 설명은 화면에 늘 띄우지 않고 i 버튼 뒤에 둔다. 누르면 제목 줄 바로 아래에 펼쳐지고, 다시 누르거나 Esc 로 닫는다.
+  // 겹쳐 뜨는 말풍선이 아니라 줄 아래로 펼쳐지므로 팝업 · 접힌 블록 안에서도 잘리지 않는다.
+  const fieldId = (() => {
+    const prefix = `rpe-${Math.random().toString(36).slice(2, 8)}`
+    let count = 0
+    return (name) => `${prefix}-${name}-${count += 1}`
+  })()
+  // `코드` 는 <code> 로 보인다. 블록 설명은 엔진 스펙 탭과 같은 문장(block-docs.js)을 쓴다.
+  const richText = (tag, text) => {
+    const element = node(tag)
+    String(text).split('`').forEach((part, index) => { if (part) element.append(index % 2 ? node('code', part) : part) })
+    return element
+  }
+  const infoRow = (title, label, content, extra = [], className = 'rpe-heading') => {
+    const row = node('div', undefined, className)
+    const toggle = node('button', 'i', 'rpe-info-button')
+    toggle.type = 'button'
+    toggle.setAttribute('aria-label', `${label} 설명`)
+    toggle.setAttribute('aria-expanded', 'false')
+    const bubble = node('div', undefined, 'rpe-info-bubble')
+    bubble.id = fieldId('info')
+    bubble.hidden = true
+    toggle.setAttribute('aria-controls', bubble.id)
+    for (const part of content) {
+      if (!Array.isArray(part)) { bubble.append(richText('p', part)); continue }
+      const list = node('ul')
+      for (const item of part) list.append(richText('li', item))
+      bubble.append(list)
+    }
+    const show = (open) => { bubble.hidden = !open; toggle.setAttribute('aria-expanded', String(open)) }
+    toggle.addEventListener('click', () => show(bubble.hidden))
+    // 팝업 안에서도 Esc 는 설명만 먼저 닫는다 — 기본 동작을 막아 팝업의 cancel 로 번지지 않게 한다.
+    toggle.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !bubble.hidden) { event.preventDefault(); event.stopPropagation(); show(false) } })
+    for (const element of extra) element.classList.add('rpe-heading-extra')
+    row.append(title, toggle, ...extra, bubble)
+    return row
+  }
+  const heading = (tag, title, content, extra) => infoRow(node(tag, title), title, content, extra)
   root.append(node('style', STYLE))
-  root.append(node('p', '태그로 블록을 배치하고, 캡슐이나 대화 안 카드를 누르면 팝업에서 문구를 고칩니다.', 'rpe-help'))
-  const guide = node('details', undefined, 'rpe-guide')
-  const guideList = node('ul')
-  for (const text of [
-    '블록은 시스템 프롬프트와 대화 안에 넣기 중 한 곳에만 있습니다. 두 구역 사이로 끌어 옮기거나 팝업의 버튼을 쓰세요.',
-    '캡슐을 누르거나 초점을 맞춘 뒤 Enter를 누르면 블록 문구가 열립니다. Esc나 닫기 버튼으로 닫습니다.',
-    '시스템 프롬프트의 캡슐은 Alt+←/→로 순서를 바꾸고 Backspace/Delete로 뺍니다. 뺀 블록은 위 태그 줄에 + 버튼으로 다시 나타나며, 누르거나 원하는 구역으로 끌어 다시 넣습니다.',
-    '대화 안에 넣기는 위가 오래된 대화, 맨 아래가 이번 입력인 대화 흐름입니다. 카드를 말풍선 사이 칸에 끌어 놓으면 그 자리에 들어갑니다.',
-    '카드에 초점을 맞추고 Alt+↑/↓를 누르면 같은 칸 안에서 먼저 순서를 바꾸고, 칸의 맨 위·맨 아래에서는 이웃 칸으로 넘어갑니다. 카드를 누르거나 Enter를 누르면 팝업에서 문구·역할·위치를 고칩니다.',
-    '커스텀 블록은 호스트의 커스텀 블록 목록에서 만든 문구입니다. 대화 안에 넣으면 카드 팝업에서 메시지 역할을 고르거나 다른 커스텀 블록으로 교체합니다.',
-  ]) guideList.append(node('li', text))
-  guide.append(node('summary', '도움말'), guideList)
-  root.append(guide)
   const status = node('p')
   status.setAttribute('role', 'status')
   const errors = node('p', '', 'rpe-error')
@@ -214,8 +248,16 @@ export function mountPromptEditor(container, options) {
   layout.disabled = disabled
   const composerPane = node('section', undefined, 'rpe-composer-pane')
   composerPane.setAttribute('aria-label', '시스템 프롬프트 편집')
-  composerPane.append(node('h2', '시스템 프롬프트'))
-  composerPane.append(node('p', '직접 쓴 문장과 태그가 표시된 순서대로 조립됩니다. 출력 규약 태그는 반드시 한 번 포함해야 합니다.', 'rpe-help'))
+  composerPane.append(heading('h2', '시스템 프롬프트', [
+    '직접 쓴 문장과 태그가 표시된 순서대로 조립됩니다. 출력 규약 태그는 반드시 한 번 포함해야 합니다.',
+    [
+      '태그 줄의 버튼을 누르면 커서 위치에 블록 캡슐이 들어갑니다. 엔진 블록은 아직 배치하지 않은 것만 보입니다.',
+      '캡슐을 누르거나 초점을 맞춘 뒤 Enter를 누르면 블록 문구 팝업이 열립니다. Esc나 닫기 버튼으로 닫습니다.',
+      'Alt+←/→로 캡슐 순서를 바꾸고 Backspace/Delete로 뺍니다. 뺀 블록은 태그 줄에 + 버튼으로 다시 나타납니다.',
+      '블록은 시스템 프롬프트와 대화 안에 넣기 중 한 곳에만 있습니다. 두 구역 사이로 끌어 옮기거나 팝업의 버튼을 쓰세요.',
+      '커스텀 블록(주황)은 호스트의 커스텀 블록 목록에서 만든 문구이고, 변수(초록)는 캐릭터 · 사용자 이름으로 바뀝니다.',
+    ],
+  ]))
   const tagPalette = node('div', undefined, 'rpe-tags')
   tagPalette.setAttribute('aria-label', '태그 삽입')
   const composer = node('div', undefined, 'rpe-composer')
@@ -230,10 +272,18 @@ export function mountPromptEditor(container, options) {
     section.dataset.zone = name
     section.setAttribute('aria-label', title)
     const list = node('div')
-    section.append(node('h2', title), node('p', help, 'rpe-help'), list)
+    section.append(heading('h2', title, help), list)
     return { section, list }
   }
-  const conversationZone = zone('대화 안에 넣기', '모델이 최근 대화 가까이에서 읽을 블록입니다. 위가 오래된 대화, 맨 아래가 이번 입력입니다. 블록 하나가 대화 메시지 하나로 들어갑니다 — 오른쪽 카드는 사용자 쪽, 왼쪽 카드는 모델 쪽 메시지입니다(메모도 사용자 쪽). 같은 쪽 메시지가 이어지면 공급자에 따라 하나로 합쳐 보내질 수 있습니다. 마지막 메시지 뒤 칸의 블록은 따로 메시지가 되지 않고 [진행 메모]로 감싸 이번 입력 끝에 붙습니다.', 'conversation')
+  const conversationZone = zone('대화 안에 넣기', [
+    '모델이 최근 대화 가까이에서 읽을 블록입니다. 위가 오래된 대화, 맨 아래가 이번 입력입니다.',
+    [
+      '블록 하나가 대화 메시지 하나로 들어갑니다. 오른쪽 카드는 사용자 쪽, 왼쪽 카드는 모델 쪽 메시지입니다(메모도 사용자 쪽). 같은 쪽 메시지가 이어지면 공급자에 따라 하나로 합쳐 보내질 수 있습니다.',
+      '마지막 메시지 뒤 칸의 블록은 따로 메시지가 되지 않고 [진행 메모]로 감싸 이번 입력 끝에 붙습니다.',
+      '카드를 말풍선 사이 칸에 끌어 놓으면 그 자리에 들어갑니다. 카드에 초점을 맞추고 Alt+↑/↓를 누르면 같은 칸 안에서 먼저 순서를 바꾸고, 칸의 맨 위·맨 아래에서는 이웃 칸으로 넘어갑니다.',
+      '카드를 누르거나 Enter를 누르면 팝업에서 문구 · 역할 · 위치를 고칩니다. 커스텀 블록은 메시지 역할을 고르거나 다른 커스텀 블록으로 교체할 수 있습니다.',
+    ],
+  ], 'conversation')
   conversationZone.list.className = 'rpe-timeline'
   conversationZone.list.setAttribute('role', 'group')
   conversationZone.list.setAttribute('aria-label', '대화 흐름 (위가 오래된 대화)')
@@ -245,17 +295,32 @@ export function mountPromptEditor(container, options) {
   let requestedHistory = 0
   // 블록이 없어 접혀 있던 구간 중 펼친 자리. "이전 대화 접기"가 비운다.
   const unfolded = new Set()
-  const advanced = node('details', undefined, 'rpe-advanced')
-  advanced.append(node('summary', '모든 블록 문구'))
-  advanced.append(node('p', '{{content}}는 해당 블록의 엔진 원문입니다. 블록의 자리는 위 구역에서 정합니다. 캡슐이나 대화 안 카드를 누르면 그 블록의 문구만 팝업으로 열립니다.', 'rpe-help'))
-  const blockList = node('section')
+  // 모든 블록 문구는 평소에 접어 둔다. 하나씩 고칠 때는 캡슐 · 카드의 팝업이 더 가깝다.
+  const advanced = node('section', undefined, 'rpe-advanced')
+  const blockList = node('div')
+  blockList.id = fieldId('blocks')
+  blockList.setAttribute('role', 'group')
   blockList.setAttribute('aria-label', '모든 블록 문구')
-  advanced.append(blockList)
+  blockList.hidden = true
+  const advancedToggle = button('펼치기', () => {
+    blockList.hidden = !blockList.hidden
+    advancedToggle.textContent = blockList.hidden ? '펼치기' : '접기'
+    advancedToggle.setAttribute('aria-expanded', String(!blockList.hidden))
+  })
+  advancedToggle.setAttribute('aria-expanded', 'false')
+  advancedToggle.setAttribute('aria-controls', blockList.id)
+  advanced.append(heading('h2', '모든 블록 문구', [
+    '모든 블록의 문구를 한 화면에서 고칩니다. 블록의 자리는 위 두 구역에서 정합니다.',
+    '`{{content}}`는 그 블록의 엔진 원문입니다. 캡슐이나 대화 안 카드를 누르면 그 블록의 문구만 팝업으로 열립니다.',
+  ], [advancedToggle]), blockList)
   // 선택한 블록의 문구는 팝업(모달 dialog)으로 연다. 화면 안에 끼워 넣으면 누를 때마다 레이아웃이 밀린다.
   const blockPanel = node('dialog', undefined, 'rpe-block-panel')
   blockPanel.setAttribute('aria-label', '블록 문구')
   blockPanel.addEventListener('cancel', (event) => {
     event.preventDefault()
+    // 펼친 설명이 있으면 Esc 는 그것부터 닫는다. 버튼을 마우스로 누르면 초점이 가지 않는 브라우저(WebKit)도 있어 여기서 처리한다.
+    const expanded = blockPanel.querySelector('.rpe-info-button[aria-expanded="true"]')
+    if (expanded) { expanded.click(); return }
     closePanel(true)
   })
   // 바깥(배경)을 누르면 닫는다. dialog 자신이 눌린 경우만 배경이다.
@@ -263,8 +328,10 @@ export function mountPromptEditor(container, options) {
   composerPane.append(tagPalette, composer, conversationZone.section, advanced)
   const preview = node('section', undefined, 'rpe-preview')
   preview.setAttribute('aria-label', '프롬프트 미리보기')
-  preview.append(node('h2', '실제 조립 결과'))
-  preview.append(node('p', '예시 데이터를 같은 RabbitEngine 조립 코드에 넣습니다. LLM 호출 없이 시스템과 대화 메시지를 확인합니다.', 'rpe-help'))
+  preview.append(heading('h2', '실제 조립 결과', [
+    '예시 데이터를 같은 RabbitEngine 조립 코드에 넣습니다. LLM 호출 없이 시스템 프롬프트와 대화 메시지를 확인합니다.',
+    '미리보기 데이터 수정에서 캐릭터 · 세계관 · 대화(JSON)를 바꿀 수 있습니다. 미리보기에만 쓰이고 설정에는 저장되지 않습니다.',
+  ]))
   const inputDetails = node('details')
   inputDetails.append(node('summary', '미리보기 데이터 수정'))
   const inputEditor = node('textarea')
@@ -1113,9 +1180,10 @@ export function mountPromptEditor(container, options) {
     if (block.kind === 'custom') {
       const source = library.find((item) => item.id === block.id)
       const href = source ? options.customBlockHref?.(block.id) : undefined
-      parts.push(node('p', !source ? '커스텀 블록 목록에 이 블록이 없습니다. 삭제하거나 목록에 다시 만들어야 저장한 설정을 적용할 수 있습니다.'
-        : href ? '커스텀 블록 문구는 여기서 읽기만 합니다. 커스텀 블록에서 고치면 이 블록을 쓰는 모든 설정에 반영됩니다.'
-          : '커스텀 블록 문구는 이 설정이 아니라 커스텀 블록 목록에서 고칩니다. 고치면 이 블록을 쓰는 모든 설정에 반영됩니다.', 'rpe-help'))
+      parts.push(infoRow(node('span', '커스텀 블록 문구 · 읽기 전용'), '커스텀 블록 문구', [href
+        ? '커스텀 블록 문구는 여기서 읽기만 합니다. 커스텀 블록에서 고치면 이 블록을 쓰는 모든 설정에 반영됩니다.'
+        : '커스텀 블록 문구는 이 설정이 아니라 커스텀 블록 목록에서 고칩니다. 고치면 이 블록을 쓰는 모든 설정에 반영됩니다.'], [], 'rpe-heading rpe-field-head'))
+      if (!source) parts.push(node('p', '커스텀 블록 목록에 이 블록이 없습니다. 삭제하거나 목록에 다시 만들어야 저장한 설정을 적용할 수 있습니다.', 'rpe-error'))
       if (source) parts.push(node('pre', Array.isArray(source.messages)
         ? source.messages.map((message) => `[${message.role}] ${message.content}`).join('\n\n')
         : source.content))
@@ -1142,16 +1210,27 @@ export function mountPromptEditor(container, options) {
       }
       refreshSnippets()
     })
-    parts.push(field(`${LABELS[block.kind]} 문구`, template))
+    template.id = fieldId('template')
+    const label = node('label', `${LABELS[block.kind]} 문구`)
+    label.htmlFor = template.id
+    parts.push(infoRow(label, LABELS[block.kind], blockDocs(block.kind), [], 'rpe-heading rpe-field-head'), template)
     const original = node('details', undefined, 'rpe-original')
     original.append(node('summary', '{{content}} 원문 — 미리보기 데이터에서 이 자리에 들어가는 내용'), node('pre'))
     original.dataset.originalFor = block.kind
     fillOriginal(original)
     parts.push(original)
-    if (block.kind === 'output_contract') parts.push(node('p', '응답 파서와 맞물리는 출력 문법은 {{content}}로 한 번 유지합니다. 앞뒤의 추가 지시는 편집할 수 있습니다.', 'rpe-help'))
-    if (['cast', 'context', 'worldbook', 'memory', 'scene_state', 'event'].includes(block.kind)) parts.push(node('p', '해당 데이터가 있을 때만 생성됩니다. 같은 종류의 블록이 여러 개면 이 설정이 각각 적용됩니다.', 'rpe-help'))
-    if (block.kind === 'worldbook') parts.push(node('p', '시스템 프롬프트에 둔 로어북도 항목에 자체 depth가 있으면 그 항목만 대화 안의 해당 자리로 들어갑니다.', 'rpe-help'))
     return parts
+  }
+
+  // 블록 문구 i 버튼의 설명: 엔진 스펙 탭과 같은 블록 설명에 이 편집기에서 지킬 점을 더한다.
+  function blockDocs(kind) {
+    const spec = BLOCK_SPECS[kind]
+    const notes = [spec.about, [`재료: ${spec.input}`, `생기는 조건: ${spec.when}`]]
+    if (kind === 'output_contract') notes.push('응답 파서와 맞물리는 출력 문법은 `{{content}}`로 한 번 유지합니다. 앞뒤의 추가 지시는 편집할 수 있습니다.')
+    if (['cast', 'context', 'worldbook', 'memory', 'scene_state', 'event'].includes(kind)) notes.push('같은 종류의 블록이 여러 개면 이 문구가 각각 적용됩니다.')
+    if (kind === 'worldbook') notes.push('시스템 프롬프트에 둔 로어북도 항목에 자체 depth가 있으면 그 항목만 대화 안의 해당 자리로 들어갑니다.')
+    notes.push('`{{content}}`는 엔진 원문, `{{char}}` · `{{user}}`는 이름으로 바뀝니다.')
+    return notes
   }
 
   function renderTemplates() {
