@@ -10,6 +10,7 @@ export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/compat.
 export { compilePrompt, PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 export { compileBlocks, BLOCK_COMPILER_VERSION, DEFAULT_DEPTHS } from './prompt/blocks.js'
 export { renderTurn } from './prompt/render.js'
+export { createMacroExpander, macroVarsOf } from './prompt/macros.js'
 export { SCRIPT_FORMAT, namesOf, renderCard, renderCast, renderPlayerCard, substitute, substituteCard } from './prompt/parts.js'
 export { selectMemory } from './memory/index.js'
 export { selectContext, LEGACY_STRATEGIES } from './memory/legacy-strategies.js'

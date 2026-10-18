@@ -108,6 +108,24 @@ const next = applyExtraction(sceneState, raw, { indicatorDefs, names, expectedRe
 if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
 
+## 조건 문장과 매크로
+
+카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `world` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
+
+```
+{{#if 호감도 >= 50}}서연은 {{user}}에게 마음을 열었다.{{else}}서연은 {{user}}를 경계한다.{{/if}}
+{{#if tension == hostile}}…{{/if}}    {{#if !비밀공개}}…{{/if}}    {{#if place == "현관"}}…{{/if}}
+지금 호감도: {{var:호감도}}
+{{random::비가 온다::눈이 온다::맑다}}
+```
+
+- 비교: `>=` `<=` `>` `<`(숫자끼리) · `==` `!=` · 변수만 쓰면 참거짓 · `!` 부정. 중첩되고, 한 줄을 차지한 태그는 빈 줄을 남기지 않는다.
+- 모르는 변수와 짝 안 맞는 태그는 `buildTurn` 이 던진다. 저장할 때 미리 보려면 `createMacroExpander({ vars: macroVarsOf(sceneState, indicatorDefs) })(text)` 를 돌려 본다.
+- `{{random}}` 은 `macroSeed`(기본: `messages` 길이)로 정해져 같은 턴을 다시 만들면 같은 값이 나온다. 시드는 `manifest.prompt.macroSeed` 에 남는다.
+- **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
+- system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.
+- 프롬프트 설정의 블록 문구·시스템 문서에는 아직 쓸 수 없다(검증기가 거부한다). 거기서는 커스텀 블록에 쓴다.
+
 ## 인물별 도구
 
 카드는 도구 id 만 들고(`tools: ['manseryeok']`), 스키마는 호스트가 `toolSpecs` 로 준다. 실행은 호스트가 한다. 한 번의 호출이 여러 인물을 연기하므로 도구는 호출 단위로 열리고, 모든 도구에 `actor`(소유자 enum) 인자가 필수로 붙는다. 실행 전 `authorizeToolCall` 이 소유자를 다시 확인한다 — 스키마는 모델을 좁히는 장치일 뿐이고 실제 문은 이 검사다.
