@@ -28,12 +28,15 @@ export { chunkEntries } from './memory/chunking.js'
 export { emptySceneState, renderSceneState, applySceneDelta, validateIndicatorDefs, initialIndicators, TENSIONS } from './scene/state.js'
 export { RATINGS, RATING_TEXT, assertRating, ratingInstruction, ratingDirective } from './scene/rating.js'
 export { analyzeUserInput } from './scene/input.js'
+export { checkReply, stripReasoning, stopSequencesFor } from './scene/reply.js'
 export { buildDirective, DIRECTIVE_MAX_CHARS } from './scene/directive.js'
 export { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VERSION, MAX_EXTRACTION_EXCHANGES } from './scene/extraction.js'
 export { buildTurn, PACING_TEXT } from './build-turn.js'
 export { resolveTools, authorizeToolCall, TOOL_ACTOR_KEY } from './prompt/tools.js'
 
 export { defaultPromptProfile, validatePromptProfile, validateCustomBlocks, promptProfileHash, PROMPT_PROFILE_VERSION, PROMPT_PROFILE_KINDS, PROMPT_PROFILE_LIMITS } from './prompt/profile.js'
+/** @typedef {import('./types.js').ReplyCheck} ReplyCheck */
+/** @typedef {import('./types.js').ReplyIssue} ReplyIssue */
 /** @typedef {import('./types.js').PromptProfile} PromptProfile */
 /** @typedef {import('./types.js').PromptProfileBlock} PromptProfileBlock */
 /** @typedef {import('./types.js').PromptProfileCustomBlock} PromptProfileCustomBlock */

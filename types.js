@@ -175,6 +175,29 @@
  * @property {(options?: { midRole?: string, userFirst?: boolean, openingTurn?: string, userInput?: string | null, mergeSameRole?: boolean }) => { system: string, messages: Array<{ role: string, text: string }>, cachePrefixLength: number, cachePrefixKinds: string[] }} render 블록과 이력을 공급자에 넣을 모양으로 편다. cachePrefixLength 는 첫 동적 블록(worldbook·context_*) 앞까지의 길이다
  * @property {ToolDefinition[]} tools 이번 턴에 열 도구. 장면 카드가 가리킨 것만, 명세 순서로
  * @property {object} manifest 이 턴을 무엇으로 만들었는지. ID 가 아니라 값으로 동결돼 있다
+ * @property {(text: string) => ReplyCheck} checkReply 이번 턴의 방언·등장인물·유저 이름으로 응답을 검사한다
+ * @property {string[]} stopSequences 생성 API 의 stop 인자. 모델이 새 줄에서 유저 라벨을 쓰면 멈춘다
+ */
+
+/**
+ * 응답 검사 결과 하나.
+ * @typedef {object} ReplyIssue
+ * @property {'user_dialogue' | 'user_action' | 'unknown_speaker' | 'empty'} kind
+ * @property {'error' | 'warn'} severity error 는 그대로 내보내면 안 되고, warn 은 오탐이 있을 수 있는 신호다
+ * @property {number} index segments 안의 위치
+ * @property {string} [speaker]
+ * @property {string} text
+ */
+
+/**
+ * checkReply 의 출력.
+ * @typedef {object} ReplyCheck
+ * @property {boolean} ok error 가 하나도 없으면 true
+ * @property {ReplyIssue[]} issues
+ * @property {ScriptSegment[]} segments 추론 블록을 뗀 응답의 전체 조각
+ * @property {ScriptSegment[]} safeSegments 첫 error 조각 바로 앞까지
+ * @property {string} text 추론 블록을 뗀 응답
+ * @property {string} reasoning 떼어 낸 추론 블록. 없으면 빈 문자열
  */
 
 /**

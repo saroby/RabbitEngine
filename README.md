@@ -1,8 +1,10 @@
 # rabbit-engine
 
+[![CI](https://github.com/saroby/RabbitEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/saroby/RabbitEngine/actions/workflows/ci.yml)
+
 LLM 롤플레잉 대화 엔진 — 대본 문법 · 프롬프트 조립 · 기억 층. 모델은 부르지 않는다.
 
-아직 만드는 중이다. 공개 API 는 `v0.1.0` 전까지 예고 없이 바뀐다.
+아직 만드는 중이다. 공개 API 는 `v1.0.0` 전까지 (`0.x` 동안) 예고 없이 바뀐다.
 
 ## 한 턴의 흐름
 
@@ -107,6 +109,28 @@ const raw = await ctx.llm(recipe)                                     // { text,
 const next = applyExtraction(sceneState, raw, { indicatorDefs, names, expectedRevision: sceneState.revision })
 if (!next.stale) await saveSceneState(next.state)                     // CAS: revision 이 어긋나면 버린다
 ```
+
+## 응답 검사
+
+프롬프트에 "유저의 대사를 대신 쓰지 않는다" 를 넣어도 모델은 종종 유저 줄을 지어낸다. `turn.stopSequences` 로 생성 중에 막고, 끝난 응답은 `turn.checkReply` 로 확인한다. 자를지 다시 부를지는 당신의 코드가 정한다.
+
+```js
+const replyText = await callYourLLM({ system, messages: rendered, stop: turn.stopSequences })  // 새 줄의 "민준:" 에서 멈춘다
+const check = turn.checkReply(replyText)
+if (!check.ok && check.safeSegments.length) await saveToUI(check.safeSegments)  // 대필 직전까지만 보여 준다
+else if (!check.ok) /* 첫 줄부터 대필이거나 빈 응답 — 다시 부른다 */
+else await saveToUI(check.segments)
+check.reasoning   // 떼어 낸 <think> 블록. 화면·기억에 넣지 않는다
+```
+
+| kind | severity | 뜻 |
+|---|---|---|
+| `user_dialogue` | error | 유저 이름(또는 `유저` · `user`)으로 된 대사·속마음 |
+| `empty` | error | 추론 블록을 떼고 나면 이야기가 없다 |
+| `user_action` | warn | 지문에서 유저가 주어("민준이 고개를 끄덕인다"). 오탐이 있을 수 있어 `ok` 에 영향 없음 |
+| `unknown_speaker` | warn | 카드에 없는 화자 |
+
+턴 밖에서는 `checkReply(dialect, text, { userNames, castNames })` · `stripReasoning(text)` · `stopSequencesFor({ userNames, castNames })` 를 직접 쓴다.
 
 ## 로어북
 
