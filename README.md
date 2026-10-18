@@ -163,7 +163,7 @@ const result = check.ok ? await run(check.name, check.args, check.actor) : { err
 
 ## 조건 문장과 매크로
 
-카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `world` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
+카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `longDescription` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
 
 ```
 {{#if 호감도 >= 50}}서연은 {{user}}에게 마음을 열었다.{{else}}서연은 {{user}}를 경계한다.{{/if}}

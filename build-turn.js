@@ -143,7 +143,7 @@ export async function buildTurn(input = {}, ctx = {}) {
     cards,
     playerCard: player,
     instructionText: instruction,
-    worldText: raw.world,
+    longDescriptionText: raw.longDescription,
     promptProfile,
     customBlocks: raw.customBlocks ?? [],
     ratingInstruction: ratingInstruction(rating),

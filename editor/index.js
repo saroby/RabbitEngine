@@ -11,7 +11,7 @@ import {
 } from './timeline.js'
 
 const LABELS = {
-  instruction: '엔진 지시문', world: '세계관', rating: '콘텐츠 등급', pacing: '진행 속도',
+  instruction: '엔진 지시문', long_description: '소개', rating: '콘텐츠 등급', pacing: '진행 속도',
   character: '캐릭터', cast: '등장인물', player: '사용자 캐릭터', context: '선택된 기억',
   worldbook: '로어북', user_boundary: '사용자 역할 경계', output_contract: '출력 규약',
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
@@ -121,7 +121,7 @@ const STYLE = `
 export function promptEditorSampleInput() {
   return {
     instruction: '인물의 성격과 기존 사건을 지키며 한 장면씩 이야기를 이어 간다.',
-    world: '## 세계관\n비 오는 밤, 작은 항구 마을의 오래된 도서관.',
+    longDescription: '## 세계관\n비 오는 밤, 작은 항구 마을의 오래된 도서관.',
     cards: [{ name: '유리', description: '기록을 지키는 사서. 낯선 사람에게도 차분하고 신중하다.' }, { name: '도윤', description: '사라진 항해일지를 찾는 선원.' }],
     player: { name: '여행자', description: '항구에 처음 도착했다.' },
     messages: [{ role: 'user', text: '이 책을 본 적 있나요?' }, { role: 'assistant', text: '유리: 이 표지는 기억나요. 어디서 찾으셨죠?\n*유리가 책 표지를 살핀다.*' }],

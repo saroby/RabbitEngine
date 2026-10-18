@@ -56,7 +56,7 @@ test('random — 한 문구 안의 두 random 은 같은 시드여도 따로 고
 })
 
 test('이름 · 블록 태그와 매크로가 없는 문구는 그대로 둔다', () => {
-  assert.equal(expand('{{user}} 와 {{char}} — {{content}} {{block:world}}'), '{{user}} 와 {{char}} — {{content}} {{block:world}}')
+  assert.equal(expand('{{user}} 와 {{char}} — {{content}} {{block:long_description}}'), '{{user}} 와 {{char}} — {{content}} {{block:long_description}}')
   assert.equal(expand('그냥 문장'), '그냥 문장')
 })
 
@@ -80,12 +80,12 @@ test('macroVarsOf — 지표는 key 와 label 로, 값이 없으면 initial, 장
 const indicatorDefs = [{ key: 'affection', label: '호감도', type: 'number', initial: 0 }]
 const sceneState = (affection) => ({ version: 1, revision: 1, place: null, time: null, tension: 'calm', characters: {}, threads: [], indicators: { affection }, updatedAt: null })
 
-test('buildTurn — 카드 · 지시문 · 세계관 · 로어북 · 커스텀 블록에서 지표로 문장이 바뀐다', async () => {
+test('buildTurn — 카드 · 지시문 · 소개 · 로어북 · 커스텀 블록에서 지표로 문장이 바뀐다', async () => {
   const input = (affection) => ({
     cards: [{ name: '서연', description: '{{#if 호감도 >= 50}}{{user}}에게 마음을 열었다{{else}}{{user}}를 경계한다{{/if}}' }],
     userName: '민준',
     instruction: '호감도는 {{var:호감도}}이다.',
-    world: '{{#if affection >= 50}}봄{{else}}겨울{{/if}}',
+    longDescription: '{{#if affection >= 50}}봄{{else}}겨울{{/if}}',
     worldbooks: [{ id: 'w', name: '비밀', strategy: 'always', content: '{{#if 호감도 >= 80}}서연은 공주다{{/if}}' }],
     indicatorDefs,
     sceneState: sceneState(affection),

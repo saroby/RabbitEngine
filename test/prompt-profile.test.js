@@ -27,7 +27,7 @@ test('two independent profiles control wording, order and placement without muta
   rule(calm, 'instruction').template = '천천히 관찰한다.\n{{content}}'
   rule(active, 'instruction').template = '적극적으로 움직인다.'
   rule(active, 'character').template = '[인물 설정]\n{{content}}'
-  rule(active, 'world').slot = { depth: 1 }
+  rule(active, 'long_description').slot = { depth: 1 }
   rule(active, 'user_boundary').enabled = false
   rule(active, 'memory').slot = 'system'
   active.blocks.unshift(active.blocks.splice(active.blocks.findIndex((block) => block.kind === 'output_contract'), 1)[0])
@@ -39,7 +39,7 @@ test('two independent profiles control wording, order and placement without muta
   assert.equal(b.blocks[0].kind, 'output_contract')
   assert.equal(b.blocks.find((block) => block.kind === 'instruction').content, '적극적으로 움직인다.')
   assert.equal(b.blocks.some((block) => block.kind === 'user_boundary'), false)
-  assert.deepEqual(b.blocks.find((block) => block.kind === 'world').slot, { depth: 1 })
+  assert.deepEqual(b.blocks.find((block) => block.kind === 'long_description').slot, { depth: 1 })
   assert.ok(b.render().messages.some((message) => message.text.includes('항구 마을')))
   assert.equal(b.blocks.filter((block) => block.kind === 'character').length, 2)
   assert.ok(b.blocks.filter((block) => block.kind === 'character').every((block) => block.content.startsWith('[인물 설정]')))
@@ -145,9 +145,19 @@ test('system document preserves dynamic cache boundary and compilePrompt text', 
   assert.equal(compiled.system, `고정${character.content}끝후속${turn.blocks.find((block) => block.kind === 'output_contract').content}`)
 })
 
+test('the work long description is its own long_description block, and the old world kind is rejected', async () => {
+  const turn = await buildTurn({ cards: [{ name: '가' }], longDescription: '## 소개\n비 오는 항구 마을.' })
+  assert.equal(turn.blocks.find((block) => block.kind === 'long_description')?.content, '## 소개\n비 오는 항구 마을.')
+  assert.equal(turn.blocks.some((block) => block.kind === 'world'), false)
+  assert.equal(rule(defaultPromptProfile(), 'world'), undefined)
+  const legacy = defaultPromptProfile()
+  legacy.systemTemplate = '{{block:world}}\n\n{{block:output_contract}}'
+  assert.throws(() => validatePromptProfile(legacy), /알 수 없는 시스템 태그/)
+})
+
 test('missing optional capsule removes its blank paragraph', async () => {
   const profile = defaultPromptProfile()
-  profile.systemTemplate = '{{block:character}}\n\n{{block:world}}\n\n{{block:cast}}\n\n{{block:output_contract}}'
+  profile.systemTemplate = '{{block:character}}\n\n{{block:long_description}}\n\n{{block:cast}}\n\n{{block:output_contract}}'
   const turn = await buildTurn({ cards: [{ name: '가' }], promptProfile: profile })
   const character = turn.blocks.find((block) => block.kind === 'character')
   const contract = turn.blocks.find((block) => block.kind === 'output_contract')
@@ -173,16 +183,16 @@ const assembleRaw = (options, profile) => {
 }
 
 test('each block has one place: stale tags and untagged system blocks are normalized without changing output', () => {
-  const options = { cards: [{ name: '가' }], instructionText: '지시', worldText: '세계', pacingText: '호흡', memoryNotes: [{ text: '기억' }] }
+  const options = { cards: [{ name: '가' }], instructionText: '지시', longDescriptionText: '소개', pacingText: '호흡', memoryNotes: [{ text: '기억' }] }
   const stale = defaultPromptProfile()
-  // pacing: 비활성인데 태그가 남았다. memory: 대화 위치인데 태그가 남았다. world: 시스템 위치인데 태그가 없다.
+  // pacing: 비활성인데 태그가 남았다. memory: 대화 위치인데 태그가 남았다. long_description: 시스템 위치인데 태그가 없다.
   stale.systemTemplate = '머리\n\n{{block:instruction}}\n\n{{block:pacing}}\n\n{{block:character}}{{block:memory}}\n\n{{block:output_contract}}'
   rule(stale, 'pacing').enabled = false
   rule(stale, 'memory').slot = { depth: 1 }
   const normalized = validatePromptProfile(stale)
   // memory 앞은 캡슐이라 뒤쪽 빈 문단을 가져간다 — 조립할 때 비는 태그와 같은 규칙이다.
   assert.equal(normalized.systemTemplate, '머리\n\n{{block:instruction}}\n\n{{block:character}}{{block:output_contract}}')
-  assert.equal(rule(normalized, 'world').enabled, false)
+  assert.equal(rule(normalized, 'long_description').enabled, false)
   assert.equal(rule(normalized, 'user_boundary').enabled, false)
   assert.equal(rule(normalized, 'memory').enabled, true)
   assert.deepEqual(rule(normalized, 'memory').slot, { depth: 1 })
@@ -209,7 +219,7 @@ test('normalizing a stale tag keeps the blank-paragraph result of assembling it'
   for (const systemTemplate of cases) {
     const profile = { ...defaultPromptProfile(), systemTemplate }
     rule(profile, 'memory').slot = { depth: 2 }
-    for (const kind of ['instruction', 'world', 'rating', 'pacing', 'player', 'context', 'worldbook', 'user_boundary']) rule(profile, kind).enabled = false
+    for (const kind of ['instruction', 'long_description', 'rating', 'pacing', 'player', 'context', 'worldbook', 'user_boundary']) rule(profile, kind).enabled = false
     const before = systemTextOf(assembleRaw(options, profile).filter((block) => block.slot === 'system'))
     const after = systemTextOf(compileBlocks({ ...options, promptProfile: profile }).blocks.filter((block) => block.slot === 'system'))
     assert.equal(after, before, systemTemplate)

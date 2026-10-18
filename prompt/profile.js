@@ -5,7 +5,7 @@ import { canonical } from '../memory/recipe.js'
 
 export const PROMPT_PROFILE_VERSION = 1
 export const PROMPT_PROFILE_KINDS = Object.freeze([
-  'instruction', 'world', 'rating', 'pacing', 'character', 'cast', 'player',
+  'instruction', 'long_description', 'rating', 'pacing', 'character', 'cast', 'player',
   'context', 'worldbook', 'user_boundary', 'output_contract', 'memory',
   'scene_state', 'event', 'directive',
 ])
