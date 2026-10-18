@@ -1,4 +1,5 @@
 import { mountPromptEditor, defaultPromptProfile, validatePromptProfile } from './index.js'
+import { specHtml } from './spec.js'
 
 const KEY = 'rabbit-engine.prompt-profiles.v1'
 // 호스트가 관리하는 커스텀 블록 목록의 예시. 독립 페이지에서는 고칠 수 없고 미리보기에만 쓴다.
@@ -240,6 +241,52 @@ importFile.addEventListener('change', async (event) => {
   } catch (error) { alert(String(error.message)) }
   finally { event.target.value = '' }
 })
+// 탭: 프롬프트 설정 / 엔진 스펙. 스펙 탭은 처음 열 때 한 번 만들고, 주소의 #spec… 으로 다시 열 수 있다.
+// 탭을 바꿔도 편집 화면은 그대로 남아 저장하지 않은 변경을 잃지 않는다.
+const tabs = [...document.querySelectorAll('[role="tab"]')]
+const specTab = byId('tab-spec')
+const specPanel = byId('panel-spec')
+let specReady
+
+function renderSpec() {
+  specReady ??= specHtml().then((html) => { specPanel.innerHTML = html }).catch((error) => { specPanel.textContent = `엔진 스펙을 만들지 못했습니다. ${error.message}` })
+  return specReady
+}
+
+function selectTab(tab, focus = false) {
+  for (const each of tabs) {
+    const selected = each === tab
+    each.setAttribute('aria-selected', String(selected))
+    each.tabIndex = selected ? 0 : -1
+    byId(each.getAttribute('aria-controls')).hidden = !selected
+  }
+  if (focus) tab.focus()
+  if (tab === specTab) return renderSpec()
+}
+
+const isSpecHash = () => location.hash.startsWith('#spec')
+for (const tab of tabs) {
+  tab.addEventListener('click', () => {
+    selectTab(tab)
+    // 탭 전환은 기록을 쌓지 않고 주소만 바꾼다 — 새로고침해도 같은 탭이 열린다.
+    history.replaceState(null, '', tab === specTab ? '#spec' : location.pathname + location.search)
+  })
+  tab.addEventListener('keydown', (event) => {
+    const index = tabs.indexOf(tab)
+    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 }[event.key]
+    if (next === undefined) return
+    event.preventDefault()
+    tabs[(next + tabs.length) % tabs.length].click()
+    tabs[(next + tabs.length) % tabs.length].focus()
+  })
+}
+// 목차 링크(#spec-…)나 뒤로 가기로 주소가 바뀌면 그 탭을 연다.
+window.addEventListener('hashchange', () => selectTab(isSpecHash() ? specTab : tabs[0]))
+if (isSpecHash()) {
+  // 스펙은 비동기로 그려지므로, #spec-blocks 처럼 절을 가리키면 다 그린 뒤 그 절로 옮긴다.
+  selectTab(specTab)?.then(() => byId(location.hash.slice(1))?.scrollIntoView())
+}
+
 window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = '' } })
 renderList()
 status()
