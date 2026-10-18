@@ -131,7 +131,7 @@
  * @property {string} [world] 별도 세계관 블록
  * @property {PromptProfile} [promptProfile] 블록 문구·순서·위치 설정
  * @property {CustomBlockSource[]} [customBlocks] 프로필의 커스텀 블록이 id 로 참조하는 호스트 문구. 참조한 id 가 없으면 오류다
- * @property {object[]} [worldbooks] 로어북
+ * @property {WorldbookEntry[]} [worldbooks] 로어북
  * @property {object} [worldbookOverrides]
  * @property {object} [worldbookOptions]
  * @property {Array<{ role: string, text: string }>} [messages] 대화 이력
@@ -150,6 +150,20 @@
  * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
  * @property {ToolSpec[]} [toolSpecs] 호스트 도구 명세. 카드의 tools 가 id 로 가리킨다
  * @property {number} [macroSeed] {{random::…}} 의 시드. 기본은 messages 길이 — 같은 턴을 다시 만들면 같은 값이 나온다
+ */
+
+/**
+ * 로어북 항목 하나.
+ * @typedef {object} WorldbookEntry
+ * @property {string} id
+ * @property {string} name
+ * @property {string} content
+ * @property {'always' | 'keyword'} [strategy] 기본 'always'
+ * @property {string | string[]} [keywords] keyword 전략에서 최근 대화에 하나라도 있으면 발동한다. 쉼표 문자열도 받는다
+ * @property {string | string[]} [excludeKeywords] 키워드가 걸려도 이 중 하나가 최근 대화에 있으면 넣지 않는다
+ * @property {number} [priority] 예산(budgetChars)이 모자랄 때 큰 것부터 자리를 차지한다. 기본 0. 프롬프트 안의 순서는 바꾸지 않는다
+ * @property {number} [depth] 정수면 이 항목만 그 depth 에 둔다
+ * @property {string} [revisionId]
  */
 
 /**

@@ -132,6 +132,21 @@ check.reasoning   // 떼어 낸 <think> 블록. 화면·기억에 넣지 않는�
 
 턴 밖에서는 `checkReply(dialect, text, { userNames, castNames })` · `stripReasoning(text)` · `stopSequencesFor({ userNames, castNames })` 를 직접 쓴다.
 
+## 로어북
+
+최근 6개 메시지(이번 턴 입력 포함)를 스캔한다. `always` 는 늘, `keyword` 는 키워드가 하나라도 보이면 들어간다. 한국어는 어절 경계가 없어 키워드가 넓게 걸리므로 `excludeKeywords` 로 깎는다. `worldbookOptions.budgetChars` 를 넘으면 `priority` 가 큰 항목부터 자리를 차지하고, 밀려난 항목은 manifest 에 `overBudget` 으로 남는다. 프롬프트 안의 순서는 원래 순서 그대로다(캐시 접두가 흔들리지 않게).
+
+```js
+const worldbooks = [
+  { id: 'key', name: '열쇠', strategy: 'keyword', keywords: '열쇠', excludeKeywords: ['열쇠고리'], content: '…' },
+  { id: 'core', name: '핵심 설정', strategy: 'always', priority: 10, depth: 2, content: '…' },
+]
+await buildTurn({ cards, worldbooks, worldbookOptions: { budgetChars: 4000 }, userInput }, ctx)
+turn.manifest.prompt.worldbookManifest  // 항목별 injected · matchedKeywords · excludedBy · overBudget
+```
+
+재귀 스캔과 scanDepth 손잡이는 실측 후 일부러 뺐다 (`worldbook/strategies.js` 머리 주석).
+
 ## 인물별 도구
 
 카드는 도구 id 만 들고(`tools: ['manseryeok']`), 스키마는 호스트가 `toolSpecs` 로 준다. 실행은 호스트가 한다. 한 번의 호출이 여러 인물을 연기하므로 도구는 호출 단위로 열리고, 모든 도구에 `actor`(소유자 enum) 인자가 필수로 붙는다. 실행 전 `authorizeToolCall` 이 소유자를 다시 확인한다 — 스키마는 모델을 좁히는 장치일 뿐이고 실제 문은 이 검사다.

@@ -69,3 +69,49 @@ test('예산 0 은 무제한이다 — 기존 동작', () => {
 test('스캔 깊이는 손잡이가 아니라 상수다', () => {
   assert.equal(SCAN_DEPTH, 6)
 })
+
+test('제외 키워드가 보이면 키워드가 걸려도 넣지 않고 사유를 남긴다', () => {
+  const book = { id: 'k', name: '열쇠', strategy: 'keyword', keywords: '열쇠', excludeKeywords: ['열쇠고리', '자동차 열쇠'], content: '열쇠는 붉다' }
+  const hit = injectWorldbooksWithManifest([book], [{ text: '서랍에서 열쇠를 꺼냈다' }])
+  assert.equal(hit.manifest[0].injected, true)
+  assert.equal('excludedBy' in hit.manifest[0], false)
+
+  const miss = injectWorldbooksWithManifest([book], [{ text: '가방에 열쇠고리가 달려 있다' }])
+  assert.equal(miss.manifest[0].injected, false)
+  assert.deepEqual(miss.manifest[0].matchedKeywords, ['열쇠'])
+  assert.deepEqual(miss.manifest[0].excludedBy, ['열쇠고리'])
+  assert.deepEqual(miss.chunks, [])
+})
+
+test('제외 키워드는 쉼표 문자열도 받고, 키워드가 안 걸리면 보지 않는다', () => {
+  const book = { id: 'k', name: '열쇠', strategy: 'keyword', keywords: '열쇠', excludeKeywords: '열쇠고리, 고리', content: 'x' }
+  assert.deepEqual(injectWorldbooksWithManifest([book], [{ text: '열쇠고리' }]).manifest[0].excludedBy, ['열쇠고리', '고리'])
+  assert.equal('excludedBy' in injectWorldbooksWithManifest([book], [{ text: '고리만 있다' }]).manifest[0], false)
+})
+
+test('예산이 모자라면 priority 가 높은 항목이 먼저 자리를 차지한다', () => {
+  const entry = (id, priority) => ({ id, name: id, strategy: 'always', content: 'x'.repeat(100), ...(priority === undefined ? {} : { priority }) })
+  const out = injectWorldbooksWithManifest([entry('low'), entry('mid', 5), entry('high', 10)], [], {}, { budgetChars: 250 })
+  const injected = out.manifest.filter((m) => m.injected).map((m) => m.id)
+  assert.deepEqual(injected, ['mid', 'high'], '내보내는 순서는 원래 순서다')
+  assert.equal(out.manifest.find((m) => m.id === 'low').overBudget, true)
+  assert.equal(out.truncated, 1)
+  assert.equal(out.chunks.length, 2)
+  assert.ok(out.chunks[0].startsWith('[설정: mid]'))
+})
+
+test('priority 가 같거나 없으면 예전처럼 앞에서부터 채운다', () => {
+  const many = ['a', 'b', 'c'].map((id) => ({ id, name: id, strategy: 'always', content: 'x'.repeat(100), priority: 1 }))
+  const out = injectWorldbooksWithManifest(many, [], {}, { budgetChars: 250 })
+  assert.deepEqual(out.manifest.filter((m) => m.injected).map((m) => m.id), ['a', 'b'])
+})
+
+test('숫자가 아닌 priority 는 0 으로 본다', () => {
+  const books = [
+    { id: 'str', name: 'str', strategy: 'always', content: 'x'.repeat(100), priority: '99' },
+    { id: 'num', name: 'num', strategy: 'always', content: 'x'.repeat(100), priority: 1 },
+  ]
+  const out = injectWorldbooksWithManifest(books, [], {}, { budgetChars: 150 })
+  assert.deepEqual(out.manifest.filter((m) => m.injected).map((m) => m.id), ['num'])
+  assert.equal('priority' in out.manifest[0], false)
+})
