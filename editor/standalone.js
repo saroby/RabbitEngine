@@ -15,15 +15,20 @@ const editView = byId('edit-view')
 const editTitle = byId('edit-title')
 const name = byId('name')
 const save = byId('save')
-const revert = byId('revert')
+const cancel = byId('cancel')
+const edit = byId('edit')
 const duplicate = byId('duplicate')
 const remove = byId('delete')
+const more = byId('more')
+const moreMenu = byId('more-menu')
 const addSheet = byId('add-sheet')
 const importFile = byId('import')
 let profiles = []
 let selectedId
-// 편집 화면을 연 시점의 설정. 되돌리기의 기준이며, 새 설정은 첫 저장 전까지 여기에만 있다.
+// 편집 화면을 연 시점의 설정. 취소의 기준이며, 새 설정은 첫 저장 전까지 여기에만 있다.
 let opened
+// 설정은 읽기 모드로 연다. 수정을 눌러야 고칠 수 있고, 저장을 눌러야 적용된다.
+let editing = false
 let draft
 let dirty = false
 let valid = true
@@ -55,10 +60,33 @@ const unsaved = () => Boolean(selectedId) && !profiles.some((profile) => profile
 function status() {
   // 바뀐 것이 없으면 저장을 끈다. 저장 전인 새 설정만은 바뀐 것이 없어도 저장할 수 있다.
   save.disabled = !selectedId || !valid || !name.value.trim() || (!dirty && !unsaved())
-  revert.disabled = !selectedId || !dirty
   byId('dirty').hidden = !dirty
-  // 저장 전인 새 설정은 지울 것도, 원본으로 남길 것도 없다.
-  duplicate.disabled = remove.disabled = unsaved()
+  // 읽기 모드: 수정 · 복제 · JSON 내보내기 · 삭제. 수정 모드: 저장 · 취소. 복제 · 내보내기 · 삭제는 저장된 설정을 대상으로 한다.
+  byId('read-actions').hidden = editing
+  byId('edit-actions').hidden = !editing
+  byId('more-actions').hidden = editing
+  name.readOnly = !editing
+  if (opened) editTitle.textContent = titleOf(opened)
+}
+
+// 더보기 메뉴: 복제 · JSON 내보내기 · 삭제. ↑/↓ · Home/End 로 옮기고 Esc 나 바깥을 누르면 닫는다.
+const menuItems = () => [...moreMenu.querySelectorAll('[role="menuitem"]')]
+function openMenu(index = 0) {
+  moreMenu.hidden = false
+  more.setAttribute('aria-expanded', 'true')
+  menuItems().at(index)?.focus()
+}
+function closeMenu(focusButton = false) {
+  if (moreMenu.hidden) return
+  moreMenu.hidden = true
+  more.setAttribute('aria-expanded', 'false')
+  if (focusButton) more.focus()
+}
+
+function setEditing(next) {
+  editing = next
+  editor?.setDisabled(!editing)
+  status()
 }
 
 // 카드에서 설정끼리 구별할 수 있도록 사용 중인 블록 수와 시스템 프롬프트 작성 여부를 보여 준다.
@@ -108,7 +136,7 @@ function renderList() {
       return line
     })
     hint.className = 'profile-open'
-    hint.textContent = '편집 →'
+    hint.textContent = '열기 →'
     button.append(title, ...meta, hint)
     button.addEventListener('click', () => choose(profile.id))
     item.append(button)
@@ -117,22 +145,24 @@ function renderList() {
 }
 
 function choose(id, focus = true) {
-  open(profiles.find((item) => item.id === id), focus)
+  open(profiles.find((item) => item.id === id), { focus })
 }
 
-function open(profile, focus = true) {
+function open(profile, { focus = true, edit: startEditing = false } = {}) {
+  closeMenu()
   opened = profile
   selectedId = profile.id
   name.value = profile.name
   draft = validatePromptProfile(profile.value)
   dirty = false
   valid = true
-  editTitle.textContent = titleOf(profile)
+  editing = startEditing
   listView.hidden = true
   editView.hidden = false
   editor?.destroy()
   editor = mountPromptEditor(byId('editor'), {
     value: draft,
+    disabled: !editing,
     customBlocks: SAMPLE_CUSTOM_BLOCKS,
     onChange(value) { draft = value; dirty = true; status() },
     onValidityChange(next) { valid = next; dirty = true; status() },
@@ -142,14 +172,17 @@ function open(profile, focus = true) {
 }
 
 function titleOf(profile) {
-  return `${profile.name} ${unsaved() ? '만들기' : '편집'}`
+  if (unsaved()) return `${profile.name} 만들기`
+  return editing ? `${profile.name} 수정` : profile.name
 }
 
 function showList() {
+  closeMenu()
   editor?.destroy()
   editor = undefined
   selectedId = undefined
   opened = undefined
+  editing = false
   draft = undefined
   dirty = false
   valid = true
@@ -182,17 +215,48 @@ save.addEventListener('click', () => attempt(() => {
   if (!valid) throw new Error('잘못된 프롬프트 항목을 먼저 고쳐 주세요.')
   const next = readProfile({ id: selectedId, name: name.value.trim(), value: draft })
   persist(unsaved() ? [...profiles, next] : profiles.map((profile) => profile.id === selectedId ? next : profile))
+  // 저장하면 읽기 모드로 돌아간다.
   choose(selectedId, false)
+  edit.focus()
 }))
-revert.addEventListener('click', () => attempt(() => {
+more.addEventListener('click', () => (moreMenu.hidden ? openMenu() : closeMenu()))
+more.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  event.preventDefault()
+  openMenu(event.key === 'ArrowUp' ? -1 : 0)
+})
+moreMenu.addEventListener('keydown', (event) => {
+  const items = menuItems()
+  const index = items.indexOf(document.activeElement)
+  const next = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: items.length - 1 }[event.key]
+  if (next !== undefined) {
+    event.preventDefault()
+    items[(next + items.length) % items.length].focus()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    closeMenu(true)
+  } else if (event.key === 'Tab') closeMenu()
+})
+// 항목을 고르면 메뉴부터 닫고(캡처 단계) 동작한다 — 삭제 확인 창이 열린 메뉴 위에 뜨지 않게.
+moreMenu.addEventListener('click', (event) => { if (event.target.closest('[role="menuitem"]')) closeMenu(true) }, true)
+document.addEventListener('pointerdown', (event) => { if (!moreMenu.hidden && !event.target.closest('.menu-wrap')) closeMenu() })
+edit.addEventListener('click', () => {
+  setEditing(true)
+  name.focus()
+})
+// 취소는 마지막 저장 상태로 돌리고 읽기 모드로 돌아간다. 저장 전인 새 설정은 버리고 목록으로 간다.
+cancel.addEventListener('click', () => attempt(() => {
+  if (dirty && !confirm('저장하지 않은 변경을 버릴까요?')) return
+  if (unsaved()) return showList()
   const restored = validatePromptProfile(opened.value)
   editor.setValue(restored)
   name.value = opened.name
-  editTitle.textContent = titleOf(opened)
   draft = restored
+  // setValue 가 유효성 알림을 보내 dirty 를 켜므로 그 뒤에 끈다.
   dirty = false
   valid = true
-  status()
+  setEditing(false)
+  edit.focus()
 }))
 addSheet.addEventListener('click', (event) => { if (event.target === addSheet) addSheet.close() }) // 배경을 누르면 닫는다
 // 고르지 않고 닫으면 + 카드로 초점을 돌린다. 새 설정을 고른 경우에는 편집 화면이 초점을 가져간다.
@@ -201,24 +265,22 @@ byId('sheet-cancel').addEventListener('click', () => addSheet.close())
 // 새 설정은 편집 화면만 열고, 첫 저장 때 목록에 넣는다.
 byId('new').addEventListener('click', () => attempt(() => {
   addSheet.close()
-  open({ id: crypto.randomUUID(), name: '새 설정', value: defaultPromptProfile() })
+  open({ id: crypto.randomUUID(), name: '새 설정', value: defaultPromptProfile() }, { edit: true })
 }))
 duplicate.addEventListener('click', () => attempt(() => {
-  if (!valid) throw new Error('잘못된 프롬프트 항목을 먼저 고쳐 주세요.')
-  const profile = readProfile({ id: crypto.randomUUID(), name: `${name.value.trim() || '설정'} 복사`.slice(0, 120), value: draft })
+  const profile = readProfile({ id: crypto.randomUUID(), name: `${opened.name} 복사`.slice(0, 120), value: opened.value })
   persist([...profiles, profile])
   choose(profile.id)
 }))
 remove.addEventListener('click', () => attempt(() => {
-  if (!confirm(`“${name.value}” 설정을 이 브라우저에서 삭제할까요?`)) return
+  if (!confirm(`“${opened.name}” 설정을 이 브라우저에서 삭제할까요?`)) return
   let next = profiles.filter((profile) => profile.id !== selectedId)
   if (!next.length) next = [{ id: crypto.randomUUID(), name: '기본 설정', value: defaultPromptProfile() }]
   persist(next)
   showList()
 }))
 byId('export').addEventListener('click', () => attempt(() => {
-  if (!valid) throw new Error('잘못된 프롬프트 항목을 먼저 고쳐 주세요.')
-  const profile = readProfile({ id: selectedId, name: name.value.trim(), value: draft })
+  const profile = readProfile({ id: opened.id, name: opened.name, value: opened.value })
   const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

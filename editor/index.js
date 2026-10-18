@@ -22,6 +22,8 @@ const ROLE_BADGES = { system: '사용자 쪽 · 메모', user: '사용자 쪽 ·
 // 더 이전 대화 보기 한 번에 늘리는 말풍선 수.
 const HISTORY_STEP = 4
 const DROP_TEXT = '+ 여기에 넣기'
+// 편집이 잠겨도 쓸 수 있는 보기용 컨트롤과 그 자손.
+const VIEW_CONTROL = '[data-view-control]'
 const isCustomKey = (key) => key.startsWith('custom:')
 
 const defaultSystemTemplate = (blocks) => blocks
@@ -87,6 +89,9 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-gap{position:relative;display:flex;flex-direction:column;gap:4px;padding:3px 0 25px}
 .rabbit-prompt-editor .rpe-gap-drop{position:absolute;left:18px;right:18px;bottom:2px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#245dbd;border:1px dashed #a9c4ed;border-radius:6px;background:#f5f8ff;opacity:0;transition:opacity .12s;pointer-events:none}
 .rabbit-prompt-editor .rpe-gap:hover>.rpe-gap-drop,.rabbit-prompt-editor.rpe-dragging .rpe-gap-drop{opacity:1}
+.rabbit-prompt-editor.rpe-readonly .rpe-tags,.rabbit-prompt-editor.rpe-readonly .rpe-gap-drop,.rabbit-prompt-editor.rpe-readonly .rpe-card-grip{display:none}
+.rabbit-prompt-editor.rpe-readonly .rpe-composer{background:#f9fafb;border-color:var(--rabbit-border)}.rabbit-prompt-editor.rpe-readonly .rpe-chip,.rabbit-prompt-editor.rpe-readonly .rpe-card{cursor:pointer}
+.rabbit-prompt-editor textarea[readonly]{background:#f7f9fb;color:#3a4654}
 .rabbit-prompt-editor .rpe-gap.rpe-drag-over>.rpe-gap-drop{border-style:solid;border-color:#3874e5;background:#e3edff;font-weight:600}
 .rabbit-prompt-editor .rpe-gap.rpe-drop-blocked>.rpe-gap-drop{opacity:1;color:#a11a24;border-color:#e3a1a7;background:#fff3f4}
 .rabbit-prompt-editor .rpe-gap-caption{font-size:11px;color:var(--rabbit-muted);text-align:center;margin-top:2px}
@@ -265,6 +270,7 @@ export function mountPromptEditor(container, options) {
     const row = node('div', undefined, className)
     const toggle = node('button', 'i', 'rpe-info-button')
     toggle.type = 'button'
+    toggle.dataset.viewControl = ''
     toggle.setAttribute('aria-label', `${label} 설명`)
     const bubble = node('div', undefined, 'rpe-info-bubble')
     bubble.id = fieldId('info')
@@ -307,7 +313,6 @@ export function mountPromptEditor(container, options) {
   layout.style.padding = '0'
   layout.style.margin = '0'
   layout.style.minWidth = '0'
-  layout.disabled = disabled
   const composerPane = node('section', undefined, 'rpe-composer-pane')
   composerPane.setAttribute('aria-label', '시스템 프롬프트 편집')
   composerPane.append(heading('h2', '시스템 프롬프트', [
@@ -370,6 +375,7 @@ export function mountPromptEditor(container, options) {
     advancedToggle.setAttribute('aria-expanded', String(!blockList.hidden))
   })
   advancedToggle.setAttribute('aria-expanded', 'false')
+  advancedToggle.dataset.viewControl = ''
   advancedToggle.setAttribute('aria-controls', blockList.id)
   advanced.append(heading('h2', '모든 블록 문구', [
     '모든 블록의 문구를 한 화면에서 고칩니다. 블록의 자리는 위 두 구역에서 정합니다.',
@@ -395,7 +401,9 @@ export function mountPromptEditor(container, options) {
     '예시 데이터를 같은 RabbitEngine 조립 코드에 넣습니다. LLM 호출 없이 시스템 프롬프트와 대화 메시지를 확인합니다.',
     '미리보기 데이터 수정에서 캐릭터 · 세계관 · 대화(JSON)를 바꿀 수 있습니다. 미리보기에만 쓰이고 설정에는 저장되지 않습니다.',
   ]))
+  // 미리보기 데이터는 설정이 아니라 잠긴 동안에도 고칠 수 있다.
   const inputDetails = node('details')
+  inputDetails.dataset.viewControl = ''
   inputDetails.append(node('summary', '미리보기 데이터 수정'))
   const inputEditor = node('textarea')
   inputEditor.rows = 12
@@ -441,7 +449,7 @@ export function mountPromptEditor(container, options) {
   // Fieldsets disable native controls, but not editable documents, capsule shortcuts or dragging.
   // Inspection (click/Enter) and dismissal (close/Escape) remain available while editing is locked.
   const preventEditing = (event) => {
-    if (!disabled) return
+    if (!disabled || event.target?.closest?.(VIEW_CONTROL)) return
     if (event.type === 'keydown' && !event.altKey && !['Backspace', 'Delete'].includes(event.key)) return
     event.preventDefault()
     event.stopImmediatePropagation()
@@ -449,6 +457,27 @@ export function mountPromptEditor(container, options) {
   for (const type of ['beforeinput', 'input', 'paste', 'cut', 'dragstart', 'dragover', 'drop', 'keydown']) {
     root.addEventListener(type, preventEditing, true)
   }
+  // 잠금은 고치는 컨트롤만 끈다 — fieldset 째로 끄면 i · 펼치기 · 이전 대화 보기 · 팝업 닫기 같은 보기용
+  // 컨트롤까지 죽는다. 보기용은 data-view-control 로 표시한다. 글 칸은 읽고 고를 수 있게 readOnly 로 잠근다.
+  // 자기 규칙으로 이미 꺼진 컨트롤은 건드리지 않고, 잠근 것만 data-locked 로 표시해 풀 때 되살린다.
+  // 다시 그려진 컨트롤도 잠기도록 root 의 자식 변화를 지켜본다.
+  const usesReadOnly = (control) => control.tagName === 'TEXTAREA' || (control.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file'].includes(control.type))
+  const syncLock = () => {
+    root.classList.toggle('rpe-readonly', disabled)
+    for (const control of root.querySelectorAll('button, select, textarea, input')) {
+      if (control.closest(VIEW_CONTROL)) continue
+      const property = usesReadOnly(control) ? 'readOnly' : 'disabled'
+      if (disabled && !control[property]) {
+        control[property] = true
+        control.dataset.locked = ''
+      } else if (!disabled && control.dataset.locked !== undefined) {
+        control[property] = false
+        delete control.dataset.locked
+      }
+    }
+  }
+  const lockObserver = new MutationObserver(() => { if (disabled) syncLock() })
+  lockObserver.observe(root, { childList: true, subtree: true })
 
   const tokenText = (token) => token.startsWith('{{block:')
     ? labelOf(token.slice(8, -2))
@@ -1000,6 +1029,7 @@ export function mountPromptEditor(container, options) {
       list.querySelector('.rpe-more')?.focus()
     })
     more.className = 'rpe-more'
+    more.dataset.viewControl = ''
     more.disabled = history >= MAX_DEPTH
     more.title = '위쪽에 이전 대화 말풍선을 더 보여 줘서 더 앞자리에도 블록을 놓을 수 있게 합니다.'
     const less = button('이전 대화 접기', () => {
@@ -1009,6 +1039,7 @@ export function mountPromptEditor(container, options) {
       list.querySelector('.rpe-more')?.focus()
     })
     less.className = 'rpe-more rpe-less'
+    less.dataset.viewControl = ''
     less.disabled = history <= floor && !unfolded.size
     less.title = less.disabled
       ? '더 접을 이전 대화가 없습니다. 블록이 없는 구간은 이미 접혀 있습니다.'
@@ -1026,6 +1057,7 @@ export function mountPromptEditor(container, options) {
           list.querySelector('.rpe-less')?.focus()
         })
         fold.className = 'rpe-fold'
+        fold.dataset.viewControl = ''
         fold.title = `이번 입력보다 메시지 ${row.to}~${row.from}개 앞 구간입니다. 블록이 없어 접어 두었습니다. 펼치면 이 구간의 칸에도 블록을 놓을 수 있습니다.`
         list.append(fold)
         continue
@@ -1345,7 +1377,9 @@ export function mountPromptEditor(container, options) {
       return
     }
     const head = node('div', undefined, 'rpe-block-panel-head')
-    head.append(node('h3', `블록 문구 · ${labelOf(selectedKey)}`), button('닫기', () => closePanel(true)))
+    const close = button('닫기', () => closePanel(true))
+    close.dataset.viewControl = ''
+    head.append(node('h3', `블록 문구 · ${labelOf(selectedKey)}`), close)
     blockPanel.dataset.panelFor = selectedKey
     const inConversation = zoneOf(rule) === 'conversation'
     const controls = node('fieldset')
@@ -1353,7 +1387,6 @@ export function mountPromptEditor(container, options) {
     controls.style.padding = '0'
     controls.style.margin = '0'
     controls.style.minWidth = '0'
-    controls.disabled = disabled
     controls.append(...blockEditorParts(rule), ...(inConversation ? conversationControls(rule) : []))
     blockPanel.replaceChildren(head, node('p', `${inConversation ? '대화 안' : '시스템 프롬프트'} · ${isCustomKey(selectedKey) ? '커스텀 블록' : '엔진 블록'}`, 'rpe-help'), controls)
     if (!blockPanel.open && blockPanel.isConnected) blockPanel.showModal()
@@ -1443,14 +1476,13 @@ export function mountPromptEditor(container, options) {
   renderBlocks()
   renderComposer()
   schedulePreview()
+  syncLock()
   return {
     setDisabled(next) {
       disabled = Boolean(next)
-      layout.disabled = disabled
       composer.contentEditable = String(!disabled)
       composer.setAttribute('aria-readonly', String(disabled))
-      const controls = blockPanel.querySelector('fieldset')
-      if (controls) controls.disabled = disabled
+      syncLock()
     },
     setValue(next) {
       value = validatePromptProfile(next)
@@ -1471,6 +1503,7 @@ export function mountPromptEditor(container, options) {
     destroy() {
       destroyed = true
       hideTip()
+      lockObserver.disconnect()
       doc.removeEventListener('pointerdown', onDocPointerDown)
       doc.removeEventListener('keydown', onDocKeyDown)
       doc.removeEventListener('scroll', onDocScroll, true)
