@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createMacroExpander, macroVarsOf } from '../prompt/macros.js'
+import { createMacroExpander, macroVarsOf, checkMacros } from '../prompt/macros.js'
 import { buildTurn } from '../build-turn.js'
 
 const vars = { 호감도: 60, tension: 'hostile', place: '현관', 비밀공개: false, 별명: '토끼' }
@@ -25,15 +25,89 @@ test('if — 참거짓 그대로와 ! 부정', () => {
   assert.equal(expand('{{#if 비밀공개 == false}}숨긴다{{/if}}'), '숨긴다')
 })
 
-test('if — 중첩되고, 꺼진 갈래 안의 조건은 평가하지 않는다', () => {
+test('if — 중첩되고, 꺼진 갈래 안의 조건 · 변수도 검사한다', () => {
   assert.equal(expand('{{#if 호감도 >= 50}}A{{#if tension == hostile}}B{{else}}C{{/if}}{{/if}}'), 'AB')
-  // 꺼진 갈래 안에 모르는 변수가 있어도 던지지 않는다.
-  assert.equal(expand('{{#if 비밀공개}}{{#if 없는변수 > 1}}x{{/if}}{{/if}}끝'), '끝')
+  // 꺼진 갈래 안의 오타도 지금 던진다 — 그 갈래가 처음 켜지는 턴까지 미루지 않는다.
+  assert.throws(() => expand('{{#if 비밀공개}}{{#if 없는변수 > 1}}x{{/if}}{{/if}}끝'), /모르는 변수 없는변수/)
+  assert.throws(() => expand('{{#if 비밀공개}}{{var:없는변수}}{{/if}}'), /모르는 변수 없는변수/)
+  assert.throws(() => expand('{{#if 비밀공개}}x{{else if 호감도 >= }}y{{/if}}'), /읽을 수 없습니다/)
+  assert.throws(() => expand('{{#if 비밀공개}}{{#if tension > 3}}x{{/if}}{{/if}}'), /숫자끼리만/)
 })
 
 test('if — 한 줄을 차지한 태그는 빈 줄을 남기지 않는다', () => {
   const text = '서연은 조용하다.\n{{#if 호감도 >= 50}}\n가끔 웃는다.\n{{else}}\n눈을 피한다.\n{{/if}}\n끝.'
   assert.equal(expand(text), '서연은 조용하다.\n가끔 웃는다.\n끝.')
+})
+
+test('else if — 위에서부터 처음 참인 갈래 하나만 낸다', () => {
+  const tiers = '{{#if 호감도 >= 80}}애정{{else if 호감도 >= 50}}신뢰{{else if 호감도 >= 20}}호기심{{else}}경계{{/if}}'
+  const at = (value) => createMacroExpander({ vars: { 호감도: value } })(tiers)
+  assert.equal(at(90), '애정', '뒤 갈래도 참이지만 앞 갈래가 이긴다')
+  assert.equal(at(60), '신뢰')
+  assert.equal(at(30), '호기심')
+  assert.equal(at(10), '경계')
+  assert.equal(expand('{{#if 호감도 > 80}}a{{else if 호감도 > 90}}b{{/if}}끝'), '끝', 'else 없이 끝나도 된다')
+  assert.equal(expand('{{#if 비밀공개}}{{#if 호감도 > 0}}a{{else if 호감도 > -1}}b{{else}}c{{/if}}{{/if}}끝'), '끝', '꺼진 부모 안에서는 어느 갈래도 안 낸다')
+})
+
+test('else if — 한 줄을 차지하면 빈 줄을 남기지 않는다', () => {
+  const text = '서연은\n{{#if 호감도 >= 80}}\n웃는다.\n{{else if 호감도 >= 50}}\n고개를 끄덕인다.\n{{else}}\n눈을 피한다.\n{{/if}}\n끝.'
+  assert.equal(expand(text), '서연은\n고개를 끄덕인다.\n끝.')
+})
+
+test('else if — 짝 없는 else if, else 뒤의 else if 는 던진다', () => {
+  assert.throws(() => expand('a{{else if 호감도 > 1}}b'), /짝이 없는 \{\{else if\}\}/)
+  assert.throws(() => expand('{{#if 호감도 > 1}}a{{else}}b{{else if 호감도 > 2}}c{{/if}}'), /\{\{else\}\} 뒤에는/)
+})
+
+test('모르는 제어 태그는 원문이 새지 않게 던진다', () => {
+  for (const tag of ['{{elif 호감도 > 1}}', '{{elseif 호감도 > 1}}', '{{elsif 호감도 > 1}}', '{{else 호감도 > 1}}', '{{#unless 비밀공개}}', '{{/iff}}', '{{#if}}']) {
+    assert.throws(() => expand(`{{#if 호감도 > 1}}a${tag}b{{/if}}`), /알 수 없는 태그/, tag)
+  }
+  assert.equal(expand('{{// 작가 메모}}본문'), '{{// 작가 메모}}본문', '다른 도구의 주석은 건드리지 않는다')
+})
+
+test('&& · || 는 조용히 틀리지 않고 던진다', () => {
+  assert.throws(() => expand('{{#if tension == tense || tension == hostile}}x{{/if}}'), /&& · \|\|/)
+  assert.throws(() => expand('{{#if 호감도 >= 50 && 비밀공개}}x{{/if}}'), /&& · \|\|/)
+  assert.throws(() => expand('{{#if !비밀공개 && 호감도 > 1}}x{{/if}}'), /&& · \|\|/)
+  assert.equal(expand('{{#if place != "a || b"}}따옴표 안은 글자{{/if}}'), '따옴표 안은 글자')
+})
+
+test('따옴표 없는 값 안의 비교 기호는 던진다', () => {
+  assert.throws(() => expand('{{#if tension == hostile == calm}}x{{/if}}'), /비교 기호/)
+  assert.equal(createMacroExpander({ vars: { place: 'a == b' } })('{{#if place == "a == b"}}같다{{/if}}'), '같다')
+  assert.equal(createMacroExpander({ vars: { place: '안녕!' } })('{{#if place == 안녕!}}같다{{/if}}'), '같다', '! 하나는 비교 기호가 아니다')
+})
+
+test('같음 비교 — 숫자 변수는 숫자와, 참거짓 변수는 true · false 와만', () => {
+  assert.throws(() => expand('{{#if 호감도 == 높음}}x{{/if}}'), /호감도 는 숫자라/)
+  assert.throws(() => expand('{{#if 호감도 != ""}}x{{/if}}'), /호감도 는 숫자라/)
+  assert.throws(() => expand('{{#if 비밀공개 == 1}}x{{/if}}'), /비밀공개 는 참거짓이라/)
+  assert.throws(() => expand('{{#if 비밀공개 == "false"}}x{{/if}}'), /비밀공개 는 참거짓이라/)
+  assert.equal(expand('{{#if 호감도 == "60"}}a{{/if}}{{#if 비밀공개 != true}}b{{/if}}'), 'ab')
+  assert.equal(createMacroExpander({ vars: { place: null } })('{{#if place == "현관"}}x{{else}}아직{{/if}}'), '아직', '값이 없는 장소는 묻지 않는다')
+})
+
+test('choices — 허용값 밖의 값과 비교하면 던진다', () => {
+  const scene = createMacroExpander({ vars: { tension: 'tense' }, choices: { tension: ['calm', 'tense'] } })
+  assert.equal(scene('{{#if tension == tense}}긴장{{/if}}{{#if tension != "calm"}}!{{/if}}'), '긴장!')
+  assert.throws(() => scene('{{#if tension == 긴장}}x{{/if}}'), /tension 는 calm · tense 중 하나와 비교합니다 \("긴장"\)/)
+  assert.throws(() => scene('{{#if tension == calm}}{{else if tension == hostlie}}x{{/if}}'), /"hostlie"/)
+})
+
+test('checkMacros — 저장 전에 모든 갈래를 장면 상태 없이 검사한다', () => {
+  const defs = [{ key: 'affection', label: '호감도', type: 'number', initial: 0 }, { key: 'secret', type: 'boolean', initial: false }]
+  assert.deepEqual(checkMacros('{{#if 호감도 >= 80}}a{{else if affection >= 50}}b{{else}}c{{/if}} {{var:secret}}', { indicatorDefs: defs }), { ok: true })
+  assert.deepEqual(checkMacros('그냥 문장'), { ok: true })
+  assert.deepEqual(checkMacros(undefined), { ok: true })
+  const typo = checkMacros('{{#if secret}}{{#if 호감두 > 1}}x{{/if}}{{/if}}', { indicatorDefs: defs })
+  assert.equal(typo.ok, false)
+  assert.match(typo.error, /모르는 변수 호감두/)
+  assert.match(checkMacros('{{#if tension == 적대}}x{{/if}}').error, /tension 는 calm · playful · tense · hostile · intimate · grief 중 하나/)
+  assert.match(checkMacros('{{#if 호감도 > 1}}x', { indicatorDefs: defs }).error, /닫히지 않은/)
+  // 지표가 tension 이라는 key 를 쓰면 그 지표의 규칙을 따른다.
+  assert.deepEqual(checkMacros('{{#if tension == 높음}}x{{/if}}', { indicatorDefs: [{ key: 'tension', type: 'string', initial: '낮음' }] }), { ok: true })
 })
 
 test('var — 값을 넣고, null 은 빈칸이다', () => {
@@ -64,7 +138,8 @@ test('오류 — 모르는 변수, 짝 안 맞는 태그, 읽을 수 없는 조�
   assert.throws(() => expand('{{var:호감돈}}'), /모르는 변수 호감돈/)
   assert.throws(() => expand('{{#if 호감도 > 1}}x'), /닫히지 않은/)
   assert.throws(() => expand('x{{/if}}'), /짝이 없는 \{\{\/if\}\}/)
-  assert.throws(() => expand('{{#if 호감도}}a{{else}}b{{else}}c{{/if}}'), /짝이 없는 \{\{else\}\}/)
+  assert.throws(() => expand('{{#if 호감도}}a{{else}}b{{else}}c{{/if}}'), /\{\{else\}\} 는 하나만/)
+  assert.throws(() => expand('a{{else}}b'), /짝이 없는 \{\{else\}\}/)
   assert.throws(() => expand('{{#if 호감도 >= }}x{{/if}}'), /읽을 수 없습니다/)
   assert.throws(() => expand('{{#if tension > 3}}x{{/if}}'), /숫자끼리만/)
   assert.throws(() => expand('{{#if !호감도 > 3}}x{{/if}}'), /같이 쓸 수 없습니다/)
@@ -126,6 +201,15 @@ test('buildTurn — random 은 macroSeed 로 정해지고 manifest 에 남는다
 
 test('buildTurn — 카드의 매크로 오타는 조용히 넘어가지 않고 던진다', async () => {
   await assert.rejects(buildTurn({ cards: [{ name: '서연', description: '{{var:호감돈}}' }], indicatorDefs }), /모르는 변수 호감돈/)
+})
+
+test('buildTurn — 꺼진 갈래의 오타와 허용값 밖의 tension 도 첫 턴에 던진다', async () => {
+  const card = (description) => ({ cards: [{ name: '서연', description }], indicatorDefs, sceneState: sceneState(10) })
+  await assert.rejects(buildTurn(card('{{#if 호감도 >= 50}}{{var:호감돈}}{{/if}}')), /모르는 변수 호감돈/)
+  await assert.rejects(buildTurn(card('{{#if tension == 긴장}}x{{/if}}')), /tension 는 calm/)
+  const turn = await buildTurn(card('{{#if 호감도 >= 50}}신뢰{{else if 호감도 >= 5}}호기심{{else}}경계{{/if}}'))
+  assert.match(turn.system, /호기심/)
+  assert.doesNotMatch(turn.system, /\{\{/)
 })
 
 test('buildTurn — 이름에는 매크로를 돌리지 않는다', async () => {
