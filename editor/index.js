@@ -39,8 +39,9 @@ const STYLE = `
 .rabbit-prompt-editor{color:#18212b;background:#fff;color-scheme:light;padding:20px;border-radius:12px;font:14px/1.55 system-ui,sans-serif;--rabbit-border:#d4dce4;--rabbit-muted:#526171;max-width:100%}
 .rabbit-prompt-editor *{box-sizing:border-box}.rabbit-prompt-editor [hidden]{display:none!important}.rabbit-prompt-editor h2,.rabbit-prompt-editor h3{margin:0 0 12px}
 .rabbit-prompt-editor p{margin:8px 0}.rabbit-prompt-editor .rpe-help{color:var(--rabbit-muted)}
-.rabbit-prompt-editor .rpe-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
-.rabbit-prompt-editor .rpe-composer-pane{min-width:0}
+.rabbit-prompt-editor .rpe-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.rabbit-prompt-editor .rpe-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:16px}
+.rabbit-prompt-editor .rpe-row>*{min-width:0}
 .rabbit-prompt-editor .rpe-tags{margin:12px 0}
 .rabbit-prompt-editor .rpe-tag-group{position:relative;display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0;padding-left:82px;min-height:32px}
 .rabbit-prompt-editor .rpe-tag-group-label{position:absolute;left:0;top:7px;width:76px;font-size:12px;font-weight:600;color:var(--rabbit-muted)}
@@ -73,12 +74,12 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-original{margin-top:8px}.rabbit-prompt-editor .rpe-original summary{cursor:pointer;color:var(--rabbit-muted);font-size:13px}.rabbit-prompt-editor .rpe-original pre{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#f1f4f8;font:12px/1.6 ui-monospace,monospace}
 .rabbit-prompt-editor .rpe-block-panel h3{margin:0;font-size:14px}.rabbit-prompt-editor .rpe-block-panel label{margin-top:6px}
 .rabbit-prompt-editor .rpe-link{color:#245dbd;font-weight:600}
-.rabbit-prompt-editor .rpe-zone{margin-top:18px;border:1px dashed #a3b0bd;border-radius:8px;padding:12px;background:#fafbfc}
+.rabbit-prompt-editor .rpe-zone{border:1px dashed #a3b0bd;border-radius:8px;padding:12px;background:#fafbfc}
 .rabbit-prompt-editor .rpe-zone.rpe-drag-over{outline:2px dashed #3874e5;outline-offset:2px;background:#f2f7ff}
 .rabbit-prompt-editor .rpe-zone h2{font-size:16px;margin:0}
 .rabbit-prompt-editor .rpe-zone-note{font-size:12px;color:var(--rabbit-muted);margin:4px 0}.rabbit-prompt-editor .rpe-zone-note[data-warn]{color:#a11a24}.rabbit-prompt-editor .rpe-zone-note:empty{display:none}
 .rabbit-prompt-editor .rpe-timeline{display:flex;flex-direction:column;margin-top:8px}
-.rabbit-prompt-editor .rpe-history-controls{align-self:center;display:flex;gap:6px}
+.rabbit-prompt-editor .rpe-history-controls{align-self:center;display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
 .rabbit-prompt-editor .rpe-fold{align-self:stretch;margin:4px 18px 8px;padding:6px 10px;font-size:12px;color:var(--rabbit-muted);background:#f4f6f8;border:1px dashed var(--rabbit-border);border-radius:8px;cursor:pointer}
 .rabbit-prompt-editor .rpe-fold:hover{color:#245dbd;border-color:#a9c4ed;background:#f5f8ff}
 .rabbit-prompt-editor .rpe-more{font-size:12px;padding:2px 10px;border-style:dashed;background:#fff;color:var(--rabbit-muted)}
@@ -95,9 +96,10 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-gap.rpe-drag-over>.rpe-gap-drop{border-style:solid;border-color:#3874e5;background:#e3edff;font-weight:600}
 .rabbit-prompt-editor .rpe-gap.rpe-drop-blocked>.rpe-gap-drop{opacity:1;color:#a11a24;border-color:#e3a1a7;background:#fff3f4}
 .rabbit-prompt-editor .rpe-gap-caption{font-size:11px;color:var(--rabbit-muted);text-align:center;margin-top:2px}
-.rabbit-prompt-editor .rpe-card{display:flex;align-items:center;gap:8px;margin:0 18px;padding:5px 10px;border:1px solid var(--rabbit-border);border-left:3px solid #3874e5;border-radius:7px;background:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
-.rabbit-prompt-editor .rpe-card:hover{background:#f8fbff;border-color:#a9c4ed;border-left-color:#3874e5}
-.rabbit-prompt-editor .rpe-card[data-custom]{border-left-color:#e08a1e}.rabbit-prompt-editor .rpe-card[data-custom]:hover{border-left-color:#e08a1e}
+.rabbit-prompt-editor .rpe-card{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:0 18px;padding:5px 10px;border:1px solid #c3d5f2;border-radius:7px;background:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+/* 엔진 블록(파랑)과 커스텀 블록(주황)은 캡슐과 같은 색의 테두리로 가른다. */
+.rabbit-prompt-editor .rpe-card:hover{background:#f5f8ff;border-color:#8fb0ea}
+.rabbit-prompt-editor .rpe-card[data-custom]{border-color:#ebc58f}.rabbit-prompt-editor .rpe-card[data-custom]:hover{background:#fffaf2;border-color:#e0a24f}
 .rabbit-prompt-editor .rpe-card.rpe-selected{box-shadow:0 0 0 2px #3874e5}.rabbit-prompt-editor .rpe-card[data-side=user]{align-self:flex-end;width:82%;margin:0 0 0 auto}.rabbit-prompt-editor .rpe-card[data-side=assistant]{align-self:flex-start;width:82%;margin:0 auto 0 0}
 .rabbit-prompt-editor .rpe-card-grip{color:#9aa6b2;cursor:grab;user-select:none;font-size:13px}
 .rabbit-prompt-editor .rpe-card-name{font-weight:600;white-space:nowrap}
@@ -109,7 +111,7 @@ const STYLE = `
 .rabbit-prompt-editor .rpe-panel-section h4{margin:0 0 4px;font-size:13px}
 .rabbit-prompt-editor .rpe-panel-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .rabbit-prompt-editor .rpe-danger{color:#a11a24;border-color:#e3a1a7;background:#fff}
-.rabbit-prompt-editor .rpe-advanced{margin-top:18px;padding-top:14px;border-top:1px solid var(--rabbit-border)}
+.rabbit-prompt-editor .rpe-advanced{padding-top:14px;border-top:1px solid var(--rabbit-border)}
 .rabbit-prompt-editor .rpe-block{border:1px solid var(--rabbit-border);border-radius:8px;margin:10px 0;background:#fff;overflow:hidden}
 .rabbit-prompt-editor summary{cursor:pointer;font-weight:600;padding:12px;overflow-wrap:anywhere}
 .rabbit-prompt-editor .rpe-block-body{padding:0 12px 12px}.rabbit-prompt-editor label{display:grid;gap:4px;margin:10px 0;font-weight:500}
@@ -120,13 +122,21 @@ const STYLE = `
 .rabbit-prompt-editor button{font:inherit;border:1px solid #8795a4;border-radius:5px;padding:6px 10px;background:#f5f7fa;color:#18212b;cursor:pointer}
 .rabbit-prompt-editor button:disabled{cursor:default;opacity:.5}.rabbit-prompt-editor :focus-visible{outline:3px solid #3874e5;outline-offset:2px}
 .rabbit-prompt-editor .rpe-error{color:#a11a24;white-space:pre-wrap}.rabbit-prompt-editor .rpe-warnings{margin:8px 0;padding-left:20px;color:#8a4b00;font-size:13px;overflow-wrap:anywhere}.rabbit-prompt-editor pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#f3f5f8;padding:12px;border-radius:5px;max-height:65vh;overflow:auto}
-.rabbit-prompt-editor .rpe-preview{border:1px solid var(--rabbit-border);border-radius:8px;padding:14px;min-width:0;background:#fff}
-.rabbit-prompt-editor .rpe-preview details{margin-top:12px}.rabbit-prompt-editor .rpe-preview summary{padding:8px 0}
-.rabbit-prompt-editor .rpe-output-section{border:1px solid var(--rabbit-border);border-radius:6px;padding:12px;margin-top:12px;min-width:0}
-.rabbit-prompt-editor .rpe-output-section h3{margin:0 0 8px}.rabbit-prompt-editor .rpe-output-section pre{margin:0}
-.rabbit-prompt-editor .rpe-message+.rpe-message{border-top:1px solid var(--rabbit-border);padding-top:12px;margin-top:12px}
-.rabbit-prompt-editor .rpe-message h4{margin:0 0 6px}
-@media(max-width:850px){.rabbit-prompt-editor .rpe-layout{grid-template-columns:1fr}}
+/* 결과 칸은 왼쪽 편집 구역의 높이를 따르고 넘치는 결과는 칸 안에서 스크롤한다. 아래로 내려간 좁은 화면에서는 min-height 가 칸 높이다. */
+.rabbit-prompt-editor .rpe-preview{position:relative;min-height:320px;border:1px solid var(--rabbit-border);border-radius:8px;background:#fff}
+.rabbit-prompt-editor .rpe-preview-body{position:absolute;inset:0;display:flex;flex-direction:column;padding:12px 14px}
+.rabbit-prompt-editor .rpe-preview .rpe-heading{margin-bottom:8px}.rabbit-prompt-editor .rpe-preview h3{font-size:15px}
+.rabbit-prompt-editor .rpe-preview-meta{font-size:12px;color:var(--rabbit-muted)}
+.rabbit-prompt-editor .rpe-preview .rpe-warnings{flex:none;max-height:96px;overflow:auto;margin:0 0 8px}
+.rabbit-prompt-editor .rpe-preview-scroll{flex:1;min-height:0;overflow:auto}
+.rabbit-prompt-editor pre.rpe-preview-scroll{margin:0;max-height:none}
+.rabbit-prompt-editor .rpe-message{width:fit-content;max-width:88%;padding:6px 10px;border-radius:10px;background:#f3f5f8}
+.rabbit-prompt-editor .rpe-message+.rpe-message{margin-top:8px}
+.rabbit-prompt-editor .rpe-message[data-role=user]{margin-left:auto;background:#eef4fd;border-bottom-right-radius:4px}.rabbit-prompt-editor .rpe-message[data-role=assistant]{border-bottom-left-radius:4px}
+.rabbit-prompt-editor .rpe-message h4{margin:0 0 2px;font-size:11px;font-weight:600;color:var(--rabbit-muted)}
+.rabbit-prompt-editor .rpe-message pre{margin:0;padding:0;background:none;max-height:none}
+.rabbit-prompt-editor .rpe-preview-data{padding-top:14px;border-top:1px solid var(--rabbit-border)}
+.rabbit-prompt-editor .rpe-preview-data summary{padding:8px 0}
 `
 
 /** Local preview material. No model call or storage access is performed.
@@ -313,9 +323,9 @@ export function mountPromptEditor(container, options) {
   layout.style.padding = '0'
   layout.style.margin = '0'
   layout.style.minWidth = '0'
-  const composerPane = node('section', undefined, 'rpe-composer-pane')
-  composerPane.setAttribute('aria-label', '시스템 프롬프트 편집')
-  composerPane.append(heading('h2', '시스템 프롬프트', [
+  const systemPane = node('section')
+  systemPane.setAttribute('aria-label', '시스템 프롬프트 편집')
+  systemPane.append(heading('h2', '시스템 프롬프트', [
     '직접 쓴 문장과 태그가 표시된 순서대로 조립됩니다. 출력 규약 태그는 반드시 한 번 포함해야 합니다.',
     [
       '태그 줄의 버튼을 누르면 커서 위치에 블록 캡슐이 들어갑니다. 엔진 블록은 아직 배치하지 않은 것만 보입니다.',
@@ -394,12 +404,34 @@ export function mountPromptEditor(container, options) {
   blockPanel.addEventListener('close', () => { if (openTip && blockPanel.contains(openTip.toggle)) hideTip() })
   // 바깥(배경)을 누르면 닫는다. dialog 자신이 눌린 경우만 배경이다.
   blockPanel.addEventListener('click', (event) => { if (event.target === blockPanel) closePanel(true) })
-  composerPane.append(tagPalette, composer, conversationZone.section, advanced)
-  const preview = node('section', undefined, 'rpe-preview')
-  preview.setAttribute('aria-label', '프롬프트 미리보기')
-  preview.append(heading('h2', '실제 조립 결과', [
-    '예시 데이터를 같은 RabbitEngine 조립 코드에 넣습니다. LLM 호출 없이 시스템 프롬프트와 대화 메시지를 확인합니다.',
-    '미리보기 데이터 수정에서 캐릭터 · 세계관 · 대화(JSON)를 바꿀 수 있습니다. 미리보기에만 쓰이고 설정에는 저장되지 않습니다.',
+  systemPane.append(tagPalette, composer)
+  // 조립 결과는 그 결과를 만드는 구역 바로 오른쪽에 둔다 — 시스템 프롬프트 옆에 system, 대화 안에 넣기 옆에 대화 메시지.
+  const previewPane = (title, help) => {
+    const section = node('section', undefined, 'rpe-preview')
+    section.setAttribute('aria-label', title)
+    const body = node('div', undefined, 'rpe-preview-body')
+    const meta = node('span', '', 'rpe-preview-meta')
+    // 결과가 없을 때(첫 조립 전 · 설정 오류 · 조립 실패) 그 이유를 보여 준다.
+    const empty = node('p', '미리보기 조립 중…', 'rpe-help')
+    body.append(infoRow(node('h3', title), title, help, [meta]), empty)
+    section.append(body)
+    return { section, body, meta, empty }
+  }
+  const systemPreview = previewPane('시스템 프롬프트 결과', [
+    '미리보기 데이터를 같은 RabbitEngine 조립 코드에 넣어 만든 실제 `system`입니다. LLM은 부르지 않습니다.',
+    '앞 갈래에 가려 나오지 않는 갈래, 캐시 접두를 흔드는 매크로가 있으면 결과 위에 경고로 보입니다.',
+  ])
+  // 상태는 한 곳에서만 알린다. 대화 메시지 결과의 표시는 같은 조립의 메시지 수다.
+  systemPreview.meta.setAttribute('role', 'status')
+  const conversationPreview = previewPane('대화 메시지 결과', [
+    '같은 조립에서 나온 대화 메시지입니다. 위가 오래된 메시지, 맨 아래가 이번 입력이고, 사용자 쪽은 오른쪽 · 모델 쪽은 왼쪽에 붙습니다.',
+    '대화 안에 넣은 블록이 메시지로 들어간 자리와, 이번 입력 끝에 붙은 `[진행 메모]`를 확인합니다.',
+  ])
+  const previewData = node('section', undefined, 'rpe-preview-data')
+  previewData.setAttribute('aria-label', '미리보기 데이터')
+  previewData.append(heading('h2', '미리보기 데이터', [
+    '두 조립 결과는 이 예시 데이터로 만듭니다.',
+    '캐릭터 · 세계관 · 대화(JSON)를 바꿀 수 있습니다. 미리보기에만 쓰이고 설정에는 저장되지 않습니다.',
   ]))
   // 미리보기 데이터는 설정이 아니라 잠긴 동안에도 고칠 수 있다.
   const inputDetails = node('details')
@@ -424,25 +456,32 @@ export function mountPromptEditor(container, options) {
       schedulePreview()
     } catch (error) { inputError.textContent = String(error.message) }
   }))
-  const previewStatus = node('p', '', 'rpe-help')
-  previewStatus.setAttribute('role', 'status')
+  previewData.append(inputDetails)
   // 조립은 되지만 작가가 알아야 할 것: 앞 갈래에 가려 안 나오는 갈래, 캐시 접두를 흔드는 매크로.
   const warningList = node('ul', undefined, 'rpe-warnings')
   warningList.setAttribute('aria-label', '조립 경고')
   warningList.hidden = true
-  const result = node('div')
-  result.hidden = true
-  const systemSection = node('section', undefined, 'rpe-output-section')
-  const systemText = node('pre')
-  systemSection.append(node('h3', '시스템 프롬프트'), systemText)
-  const messageSection = node('section', undefined, 'rpe-output-section')
-  const messageList = node('div')
-  messageSection.append(node('h3', '대화 메시지'), messageList)
-  result.append(systemSection, messageSection)
-  preview.append(inputDetails, previewStatus, warningList, result)
+  // 결과 칸은 안에서 스크롤하므로 키보드로도 스크롤할 수 있게 초점을 받는다.
+  const systemText = node('pre', undefined, 'rpe-preview-scroll')
+  systemText.hidden = true
+  systemText.tabIndex = 0
+  systemText.setAttribute('aria-label', '시스템 프롬프트 조립 결과')
+  systemPreview.body.append(warningList, systemText)
+  const messageList = node('div', undefined, 'rpe-preview-scroll')
+  messageList.hidden = true
+  messageList.tabIndex = 0
+  messageList.setAttribute('role', 'group')
+  messageList.setAttribute('aria-label', '대화 메시지 조립 결과')
+  conversationPreview.body.append(messageList)
   // 블록 종류별 {{content}} 원문(미리보기 데이터 기준). 문구를 고치는 바로 그 자리에서 보여 준다.
   let originalsByKind = new Map()
-  layout.append(composerPane, preview)
+  // 편집 구역과 그 결과를 한 줄에 둔다. 편집기 폭이 좁으면 결과가 그 구역 아래로 내려간다.
+  const pairRow = (...cells) => {
+    const element = node('div', undefined, 'rpe-row')
+    element.append(...cells)
+    return element
+  }
+  layout.append(pairRow(systemPane, systemPreview.section), pairRow(conversationZone.section, conversationPreview.section), previewData, advanced)
   root.append(layout, blockPanel)
   container.append(root)
 
@@ -917,9 +956,9 @@ export function mountPromptEditor(container, options) {
       options.onValidityChange?.(false)
       clearTimeout(previewTimer)
       previewRevision += 1
-      previewStatus.textContent = '잘못된 항목을 고치면 미리보기가 갱신됩니다.'
-      showOutput()
+      showOutput(undefined, { meta: '갱신 멈춤', reason: '잘못된 항목을 고치면 미리보기가 갱신됩니다.' })
       setOriginals([])
+      showWarnings([])
     }
   }
 
@@ -1417,13 +1456,29 @@ export function mountPromptEditor(container, options) {
     renderPanel()
   }
 
-  const showOutput = (rendered) => {
-    result.hidden = !rendered
+  const setPreviewMeta = (system, conversation = system) => {
+    systemPreview.meta.textContent = system
+    conversationPreview.meta.textContent = conversation
+  }
+
+  /** 두 결과 칸을 채운다. 결과가 없으면 두 칸 모두 그 이유를 보여 준다. */
+  const showOutput = (rendered, { meta = '', reason = '' } = {}) => {
+    for (const pane of [systemPreview, conversationPreview]) {
+      pane.empty.hidden = Boolean(rendered)
+      pane.empty.textContent = reason
+    }
+    systemText.hidden = !rendered
+    messageList.hidden = !rendered
     systemText.textContent = rendered?.system ?? ''
     messageList.replaceChildren()
-    if (!rendered) return
+    if (!rendered) {
+      setPreviewMeta(meta)
+      return
+    }
+    setPreviewMeta(`조립 완료 · ${rendered.system.length.toLocaleString()}자`, `메시지 ${rendered.messages.length}개`)
     rendered.messages.forEach((message, index) => {
       const item = node('div', undefined, 'rpe-message')
+      item.dataset.role = message.role
       item.append(node('h4', `메시지 ${index + 1} · ${message.role}`), node('pre', message.text))
       messageList.append(item)
     })
@@ -1438,7 +1493,8 @@ export function mountPromptEditor(container, options) {
   function schedulePreview() {
     clearTimeout(previewTimer)
     const revision = ++previewRevision
-    previewStatus.textContent = '미리보기 조립 중…'
+    // 다시 조립하는 동안에도 앞 결과는 그대로 둔다 — 글자를 칠 때마다 칸이 깜박이지 않게.
+    setPreviewMeta('조립 중…')
     previewTimer = setTimeout(async () => {
       try {
         const valid = validatePromptProfile(value)
@@ -1461,11 +1517,9 @@ export function mountPromptEditor(container, options) {
           return checked.ok ? (checked.warnings ?? []).map((warning) => `${source.label}: ${warning}`) : []
         })
         showWarnings([...branchWarnings, ...(current.manifest.prompt.cacheWarnings ?? []).map((warning) => warning.message)])
-        previewStatus.textContent = `조립 완료 · 시스템 ${currentRendered.system.length.toLocaleString()}자 · 메시지 ${currentRendered.messages.length}개`
       } catch (error) {
         if (destroyed || revision !== previewRevision) return
-        previewStatus.textContent = `미리보기를 만들 수 없습니다: ${error.message}`
-        showOutput()
+        showOutput(undefined, { meta: '조립 실패', reason: `미리보기를 만들 수 없습니다: ${error.message}` })
         setOriginals([])
         showWarnings([])
       }
