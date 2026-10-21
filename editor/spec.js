@@ -4,7 +4,7 @@
 import { buildTurn, PACING_TEXT } from '../build-turn.js'
 import { DEFAULT_DEPTHS } from '../prompt/blocks.js'
 import { NOTE_LABEL } from '../prompt/note.js'
-import { PROMPT_PROFILE_KINDS, PROMPT_PROFILE_LIMITS, PROMPT_PROFILE_VERSION, CUSTOM_MESSAGES_MAX } from '../prompt/profile.js'
+import { PROMPT_PROFILE_KINDS, PROMPT_PROFILE_OPTIONAL_KINDS, PROMPT_PROFILE_LIMITS, PROMPT_PROFILE_VERSION, CUSTOM_MESSAGES_MAX, everyBlockPromptProfile } from '../prompt/profile.js'
 import { MEMORY_PRESETS } from '../memory/presets.js'
 import { RATING_TEXT } from '../scene/rating.js'
 import { buildDirective, DIRECTIVE_MAX_CHARS } from '../scene/directive.js'
@@ -62,7 +62,8 @@ export function specSampleInput() {
   }
 }
 
-export const specSampleTurn = () => buildTurn(specSampleInput())
+// 모든 엔진 블록을 켠 설정으로 돌린다 — 설정이 켜야 생기는 블록(프롬프트 공격 방어)도 예시 문구가 보이게.
+export const specSampleTurn = () => buildTurn({ ...specSampleInput(), promptProfile: everyBlockPromptProfile() })
 
 const exampleOf = (turn, kind) => turn.blocks
   .filter((block) => block.kind === kind || (kind === 'context' && block.kind.startsWith('context_')))
@@ -152,8 +153,8 @@ export async function specHtml() {
       p('공급자의 접두 캐시는 앞에서부터 같은 만큼만 다시 쓴다. 시스템 프롬프트에서 매 턴 달라질 수 있는 첫 블록(기억 노트 · 로어북 · 장면 상태 · 사건 · 턴 마무리 지시 · `context_*`) 앞까지가 캐시 접두이고, `render()` 가 그 길이를 `cachePrefixLength` 로 준다.'),
       renderedExample(turn),
     ].join('')),
-    section('blocks', '블록 15종', [
-      p(`엔진이 만드는 블록은 ${PROMPT_PROFILE_KINDS.length}종이다. 재료가 있을 때만 생기고, 없는 장면이나 기억을 지어내지 않는다. \`trust\` 는 출처 표시다 — engine 은 엔진이 쓴 문장, curated 는 사람이 쓴 카드 · 로어북 · 기억이며 프롬프트 주입 방어의 근거로 값에 남긴다. 예시는 아래 재료로 실제 \`buildTurn\` 을 돌린 결과다.`),
+    section('blocks', `블록 ${PROMPT_PROFILE_KINDS.length}종`, [
+      p(`엔진이 만드는 블록은 ${PROMPT_PROFILE_KINDS.length}종이다. 재료가 있을 때만 생기고, 없는 장면이나 기억을 지어내지 않는다. \`trust\` 는 출처 표시다 — engine 은 엔진이 쓴 문장, curated 는 사람이 쓴 카드 · 로어북 · 기억이며 프롬프트 주입 방어의 근거로 값에 남긴다. 예시는 아래 재료에 모든 블록을 켠 설정으로 실제 \`buildTurn\` 을 돌린 결과다.`),
       `<details><summary>예시 턴의 재료</summary>${pre(JSON.stringify({ ...sample, dialect: sample.dialect.id }, null, 2))}</details>`,
       `<div class="spec-blocks">${blockCards(turn)}</div>`,
     ].join('')),
@@ -252,6 +253,7 @@ export async function specHtml() {
       p(`\`buildTurn({ promptProfile })\` 로 작품마다 블록 문구 · 순서 · 위치를 바꾼다. 형식은 \`{ version: ${PROMPT_PROFILE_VERSION}, blocks, systemTemplate? }\` 이고 \`validatePromptProfile\` 이 엄격히 검사한다. 이 편집기가 만드는 값이 이것이다.`),
       ul([
         `\`blocks\` 는 엔진 블록 ${PROMPT_PROFILE_KINDS.length}종을 각각 한 번씩 \`{ kind, enabled, template, slot }\` 으로 담는다. 커스텀 블록은 \`{ kind: 'custom', id, enabled, role, slot }\` 으로 섞는다.`,
+        `나중에 더한 선택 블록(${PROMPT_PROFILE_OPTIONAL_KINDS.map((kind) => `\`${kind}\``).join(' · ')})은 \`defaultPromptProfile()\` 에서 꺼져 있다. 이 블록이 생기기 전에 저장한 설정은 규칙이 없어도 받고, 앞 종류의 규칙 바로 뒤에 꺼진 채로 채운다 — 조립 결과는 그대로다.`,
         '`template` 의 `{{content}}` 는 엔진 원문, `{{char}}` · `{{user}}` 는 이름이다. 치환은 한 번만 하고 삽입된 내용을 다시 템플릿으로 읽지 않는다.',
         `\`slot\` 은 \`default\`(엔진 기본 위치) · \`system\` · \`post_history\` · \`{ depth: 0..${limits.depth} }\`.`,
         '`systemTemplate` 은 시스템 프롬프트 문서다. 자유 문장 사이에 `{{block:character}}` 같은 태그를 넣고, 활성 시스템 블록 ⇔ 문서의 태그다. `{{block:output_contract}}` 는 정확히 한 번 필요하다.',

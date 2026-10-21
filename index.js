@@ -35,7 +35,8 @@ export { extractionRecipe, applyExtraction, parseExtractionOutput, EXTRACTION_VE
 export { buildTurn, PACING_TEXT } from './build-turn.js'
 export { resolveTools, authorizeToolCall, TOOL_ACTOR_KEY } from './prompt/tools.js'
 
-export { defaultPromptProfile, validatePromptProfile, validateCustomBlocks, promptProfileHash, PROMPT_PROFILE_VERSION, PROMPT_PROFILE_KINDS, PROMPT_PROFILE_LIMITS } from './prompt/profile.js'
+export { defaultPromptProfile, validatePromptProfile, validateCustomBlocks, promptProfileHash, PROMPT_PROFILE_VERSION, PROMPT_PROFILE_KINDS, PROMPT_PROFILE_OPTIONAL_KINDS, PROMPT_PROFILE_LIMITS } from './prompt/profile.js'
+export { PROMPT_GUARD_TEXT } from './prompt/guard.js'
 /** @typedef {import('./types.js').ReplyCheck} ReplyCheck */
 /** @typedef {import('./types.js').ReplyIssue} ReplyIssue */
 /** @typedef {import('./types.js').PromptProfile} PromptProfile */
