@@ -34,7 +34,7 @@ editor.destroy()                  // 페이지 해제
 
 ## 설정 계약
 
-`defaultPromptProfile()`은 `{version:1, blocks:[...]}`를 새 값으로 반환한다. `blocks`는 알려진 15개 종류를 각각 한 번 포함한다. 각 항목은 `{kind, enabled, template, slot}`이다. `validatePromptProfile(unknown)`은 엄격히 검사한 복사본을 반환하거나 오류를 던진다.
+`defaultPromptProfile()`은 `{version:1, blocks:[...]}`를 새 값으로 반환한다. `blocks`는 알려진 16개 종류를 각각 한 번 포함한다. 나중에 더한 선택 블록(`PROMPT_PROFILE_OPTIONAL_KINDS`, 지금은 프롬프트 공격 방어 `prompt_guard`)은 기본값에서 꺼져 있고, 이 블록이 없는 예전 설정도 받아 꺼진 채로 채운다. 각 항목은 `{kind, enabled, template, slot}`이다. `validatePromptProfile(unknown)`은 엄격히 검사한 복사본을 반환하거나 오류를 던진다.
 
 - `systemTemplate`은 선택적인 시스템 프롬프트 조립 문서다. 기존 설정에 이 필드가 없으면 종전의 블록 순서·위치로 조립한다. 편집기에서 문서를 수정하면 자유 문장과 `{{block:character}}` 같은 태그를 저장한다. 태그는 같은 종류당 한 번까지 사용할 수 있고 `{{block:output_contract}}`는 정확히 한 번 필요하다. `{{char}}`와 `{{user}}`는 이름을 넣는다.
 - 블록의 자리는 한 곳에서만 정해진다: **활성인 시스템 위치 블록 ⇔ 문서에 태그가 있다.** `validatePromptProfile`은 어긋난 저장값을 정규화한다 — 대화 위치·비활성 블록의 태그는 지우고(조립과 같은 빈 문단 규칙), 태그 없는 시스템 블록은 비활성으로 둔다. 두 경우 모두 원래 아무것도 출력하지 않으므로 조립 결과는 바뀌지 않는다. 대화 중간이나 마지막 사용자 메시지 뒤에 놓인 블록은 대화 메시지에 들어간다. 태그가 가리키는 원본 데이터가 없으면 태그는 빈 내용으로 펼쳐진다.

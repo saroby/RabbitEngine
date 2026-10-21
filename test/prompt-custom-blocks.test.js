@@ -88,7 +88,7 @@ test('프로필 검증은 커스텀 블록 형식·중복·개수와 엔진 블�
   assert.throws(() => validatePromptProfile(add({ ...ok, slot: 'default' })), /엔진 기본 위치가 없습니다/)
   assert.throws(() => validatePromptProfile(add({ ...ok, template: 'x' })), /알 수 없는 항목/)
   assert.throws(() => validatePromptProfile(add(...Array.from({ length: 51 }, (_, index) => ({ ...ok, id: `b${index}` })))), /50개까지/)
-  assert.throws(() => validatePromptProfile({ ...base, blocks: [...base.blocks.slice(1), ok] }), /15개 블록/)
+  assert.throws(() => validatePromptProfile({ ...base, blocks: [...base.blocks.slice(1), ok] }), /16개 블록/)
   const normalized = validatePromptProfile({ ...withSystemDocument(base, '{{block:custom:missing}}\n\n') })
   assert.equal(normalized.systemTemplate.includes('custom:missing'), false)
 })

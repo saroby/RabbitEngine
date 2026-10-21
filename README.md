@@ -61,7 +61,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    SYS["system<br>instruction · character · cast · player<br>worldbook(고정) · user_boundary · output_contract<br><i>캐시 접두는 첫 동적 블록(worldbook · context_*) 앞까지</i>"]
+    SYS["system<br>instruction · prompt_guard(설정에서 켤 때) · character · cast · player<br>worldbook(고정) · user_boundary · output_contract<br><i>캐시 접두는 첫 동적 블록(worldbook · context_*) 앞까지</i>"]
     H1["이력 (오래된 쪽)"]
     M["depth 4 · memory<br>요약 노트"]
     W["depth N · worldbook<br>항목별 depth"]
@@ -241,5 +241,7 @@ turn.manifest.prompt.blocks        // 블록 본문까지 값으로 들어 있�
 ## 프롬프트 설정과 독립 편집기
 
 `buildTurn({ ...input, promptProfile })`로 캐릭터/작품마다 다른 블록 문구·순서·위치를 적용할 수 있다. `defaultPromptProfile()`과 `validatePromptProfile()`이 엔진 설정 계약을 제공한다. 설정 저장과 캐릭터 연결은 호스트 몫이다.
+
+엔진 블록 `prompt_guard`(프롬프트 공격 방어)는 대화 속 지시 무시·프롬프트 유출 요구·사칭·역할 이탈을 따르지 않고 인물로서 받아넘기라는 엔진 문장(`PROMPT_GUARD_TEXT`)이다. 켜면 모든 대화의 프롬프트가 바뀌므로 `defaultPromptProfile()`에서는 꺼져 있고, 설정 없이 부르면 생기지 않는다. 이 블록이 생기기 전에 저장한 설정은 `validatePromptProfile()`이 꺼진 채로 채워 그대로 받는다(`PROMPT_PROFILE_OPTIONAL_KINDS`). 설정에서 켜고 위치를 정한다 — 시스템 문장만으로는 약해 대화 안 깊이로 옮길 수 있다.
 
 `rabbit-engine/editor`는 프레임워크 없이 admin에 마운트할 수 있는 같은 편집기다. 저장소의 `/editor/` 페이지는 시스템 프롬프트 문장 사이에 태그 캡슐을 넣고, 여러 설정을 브라우저에 저장하며 실제 조립 결과를 미리 본다. [실행·호스트 연결·설정 계약](editor/README.md)을 참고한다.

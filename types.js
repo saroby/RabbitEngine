@@ -76,7 +76,7 @@
 /**
  * 프롬프트 조각 하나와 그것이 놓일 자리. system 한 문자열 대신 이 목록이 정본이다.
  * @typedef {object} Block
- * @property {string} kind instruction · rating · pacing · character · cast · player · context_* · worldbook · user_boundary · output_contract · memory · scene_state · event · directive
+ * @property {string} kind instruction · rating · pacing · prompt_guard · character · cast · player · context_* · worldbook · user_boundary · output_contract · memory · scene_state · event · directive
  * @property {string} role 공급자에 넣을 역할. 지금은 모두 'system'
  * @property {'system' | 'post_history' | { depth: number }} slot 놓일 자리. depth N 은 이력 끝에서 N 번째 앞
  * @property {'engine' | 'curated' | 'external'} trust 문장의 출처. engine 은 엔진이 쓴 것,
@@ -226,7 +226,7 @@
 export {}
 
 /**
- * @typedef {'instruction'|'long_description'|'rating'|'pacing'|'character'|'cast'|'player'|'context'|'worldbook'|'user_boundary'|'output_contract'|'memory'|'scene_state'|'event'|'directive'} PromptProfileKind
+ * @typedef {'instruction'|'long_description'|'rating'|'pacing'|'prompt_guard'|'character'|'cast'|'player'|'context'|'worldbook'|'user_boundary'|'output_contract'|'memory'|'scene_state'|'event'|'directive'} PromptProfileKind
  */
 /**
  * @typedef {object} PromptProfileBlock

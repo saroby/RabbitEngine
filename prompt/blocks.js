@@ -8,13 +8,14 @@ import { injectWorldbooksWithManifest } from '../worldbook/strategies.js'
 import { MEMORY_LABEL } from '../memory/defaults.js'
 import { applyPromptProfile, validatePromptProfile, validateCustomBlocks, promptProfileHash } from './profile.js'
 import { createMacroExpander } from './macros.js'
+import { PROMPT_GUARD_TEXT } from './guard.js'
 
 export const BLOCK_COMPILER_VERSION = 'blocks-v1'
 export const DEFAULT_DEPTHS = Object.freeze({ memory: 4, scene_state: 2, event: 0 })
 
 // 블록의 출처 신뢰도. 'engine' 은 엔진이 쓴 문장, 'curated' 는 사람이 쓴 카드·로어북·기억이다.
 // 프롬프트 주입 방어의 근거라 값으로 남긴다 — 분류가 아니라 증거다.
-const ENGINE_KINDS = new Set(['instruction', 'rating', 'pacing', 'user_boundary', 'output_contract', 'scene_state', 'event', 'directive'])
+const ENGINE_KINDS = new Set(['instruction', 'rating', 'pacing', 'prompt_guard', 'user_boundary', 'output_contract', 'scene_state', 'event', 'directive'])
 const trustOf = (kind) => (ENGINE_KINDS.has(kind) ? 'engine' : 'curated')
 const sys = (kind, content, extra = {}) => ({ kind, role: 'system', slot: 'system', trust: trustOf(kind), content, ...extra })
 const at = (kind, depth, content, extra = {}) => ({ kind, role: 'system', slot: { depth }, trust: trustOf(kind), content, ...extra })
@@ -85,6 +86,8 @@ export function compileBlocks({
   if (longDescriptionText) blocks.push(sys('long_description', substitute(expandMacros(longDescriptionText), names)))
   if (ratingInstruction) blocks.push(sys('rating', ratingInstruction))
   if (pacingText) blocks.push(sys('pacing', pacingText))
+  // 프롬프트 공격 방어는 설정이 켰을 때만 들어간다. 설정 없는 호출에는 만들지 않는다 — 그 출력은 바뀌면 안 된다(골든).
+  if (profile) blocks.push(sys('prompt_guard', PROMPT_GUARD_TEXT))
   for (const source of list) {
     const content = renderCard(substituteCard(source, names))
     if (content) blocks.push(sys('character', content, { sourceId: source.id || null, revisionId: source.revisionId || null }))

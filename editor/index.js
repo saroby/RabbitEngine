@@ -2,7 +2,7 @@ import { buildTurn } from '../build-turn.js'
 import { asteriskScript } from '../dialect/asterisk-script.js'
 import { emptySceneState } from '../scene/state.js'
 import {
-  defaultPromptProfile, validatePromptProfile, parseSystemTemplate, withoutSystemBlocks, isSystemRule,
+  defaultPromptProfile, everyBlockPromptProfile, validatePromptProfile, parseSystemTemplate, withoutSystemBlocks, isSystemRule,
   profileKeyOf, PROMPT_MESSAGE_KINDS, PROMPT_PROFILE_LIMITS,
 } from '../prompt/profile.js'
 import { blockSnippet } from './snippet.js'
@@ -11,7 +11,7 @@ import {
 } from './timeline.js'
 
 const LABELS = {
-  instruction: '엔진 지시문', long_description: '소개', rating: '콘텐츠 등급', pacing: '진행 속도',
+  instruction: '엔진 지시문', long_description: '소개', rating: '콘텐츠 등급', pacing: '진행 속도', prompt_guard: '프롬프트 공격 방어',
   character: '캐릭터', cast: '등장인물', player: '사용자 캐릭터', context: '선택된 기억',
   worldbook: '로어북', user_boundary: '사용자 역할 경계', output_contract: '출력 규약',
   memory: '기억 노트', scene_state: '장면 상태', event: '사건', directive: '턴 마무리 지시',
@@ -1264,7 +1264,8 @@ export function mountPromptEditor(container, options) {
         const base = { ...input, dialect: input.dialect ?? dialect ?? asteriskScript }
         const [current, original] = await Promise.all([
           buildTurn({ ...base, promptProfile: valid, customBlocks: library.map(({ id, content, messages }) => (Array.isArray(messages) ? { id, messages } : { id, content })) }),
-          buildTurn({ ...base, promptProfile: undefined }),
+          // 원문은 모든 엔진 블록을 켜고 그대로 둔 설정으로 본다 — 설정이 켜야 생기는 블록(프롬프트 공격 방어)도 원문이 보이게.
+          buildTurn({ ...base, promptProfile: everyBlockPromptProfile() }),
         ])
         if (destroyed || revision !== previewRevision) return
         const currentRendered = current.render()
