@@ -8,7 +8,7 @@ const PUBLIC = [
   'VERSION',
   'buildTurn',
   'defaultPromptProfile', 'validatePromptProfile', 'validateCustomBlocks', 'promptProfileHash',
-  'PROMPT_PROFILE_VERSION', 'PROMPT_PROFILE_KINDS', 'PROMPT_PROFILE_LIMITS',
+  'PROMPT_PROFILE_VERSION', 'PROMPT_PROFILE_KINDS', 'PROMPT_PROFILE_OPTIONAL_KINDS', 'PROMPT_PROFILE_LIMITS', 'PROMPT_GUARD_TEXT',
   'defineDialect', 'verifyDialect', 'parserVersionOf', 'koreanPlayscript',
   'asteriskScript', 'ASTERISK_FORMAT',
   'parseWith', 'parseScript', 'choicesOf', 'SCRIPT_PARSER_VERSION',

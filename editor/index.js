@@ -4,7 +4,7 @@ import { checkMacros } from '../prompt/macros.js'
 import { asteriskScript } from '../dialect/asterisk-script.js'
 import { emptySceneState } from '../scene/state.js'
 import {
-  defaultPromptProfile, validatePromptProfile, parseSystemTemplate, withoutSystemBlocks, isSystemRule,
+  defaultPromptProfile, everyBlockPromptProfile, validatePromptProfile, parseSystemTemplate, withoutSystemBlocks, isSystemRule,
   profileKeyOf, PROMPT_MESSAGE_KINDS, PROMPT_PROFILE_LIMITS,
 } from '../prompt/profile.js'
 import { blockSnippet } from './snippet.js'
@@ -1503,7 +1503,8 @@ export function mountPromptEditor(container, options) {
         const customBlocks = library.map(({ id, content, messages }) => (Array.isArray(messages) ? { id, messages } : { id, content }))
         const [current, original] = await Promise.all([
           buildTurn({ ...base, promptProfile: valid, customBlocks }),
-          buildTurn({ ...base, promptProfile: undefined }),
+          // 원문은 모든 엔진 블록을 켜고 그대로 둔 설정으로 본다 — 설정이 켜야 생기는 블록(프롬프트 공격 방어)도 원문이 보이게.
+          buildTurn({ ...base, promptProfile: everyBlockPromptProfile() }),
         ])
         if (destroyed || revision !== previewRevision) return
         const currentRendered = current.render()

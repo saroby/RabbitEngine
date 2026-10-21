@@ -5,10 +5,13 @@ import { canonical } from '../memory/recipe.js'
 
 export const PROMPT_PROFILE_VERSION = 1
 export const PROMPT_PROFILE_KINDS = Object.freeze([
-  'instruction', 'long_description', 'rating', 'pacing', 'character', 'cast', 'player',
+  'instruction', 'long_description', 'rating', 'pacing', 'prompt_guard', 'character', 'cast', 'player',
   'context', 'worldbook', 'user_boundary', 'output_contract', 'memory',
   'scene_state', 'event', 'directive',
 ])
+// 나중에 더한 선택 블록. 설정이 있을 때만 생기고 기본 설정에서는 꺼져 있어, 설정 없는 호출과 기본 설정의 출력이 그대로다.
+// 이 블록이 생기기 전에 저장한 설정은 규칙이 없어도 받아 꺼진 채로 채운다 — 저장값을 다시 쓰지 않아도 출력이 같다.
+export const PROMPT_PROFILE_OPTIONAL_KINDS = Object.freeze(['prompt_guard'])
 export const PROMPT_PROFILE_LIMITS = Object.freeze({ template: 20000, total: 80000, depth: 100, custom: 50 })
 // 엔진 기본 위치(`default`)가 시스템이 아니라 대화 안인 블록들 (prompt/blocks.js).
 export const PROMPT_MESSAGE_KINDS = Object.freeze(['memory', 'scene_state', 'event', 'directive'])
@@ -92,8 +95,15 @@ export function withoutSystemBlocks(template, remove) {
 export function defaultPromptProfile() {
   return {
     version: 1,
-    blocks: PROMPT_PROFILE_KINDS.map((kind) => ({ kind, enabled: true, template: '{{content}}', slot: 'default' })),
+    blocks: PROMPT_PROFILE_KINDS.map((kind) => ({ kind, enabled: !PROMPT_PROFILE_OPTIONAL_KINDS.includes(kind), template: '{{content}}', slot: 'default' })),
   }
+}
+
+/** Every engine block on, with its engine text as is. The editor reads each block's `{{content}}` source from this. */
+export function everyBlockPromptProfile() {
+  const profile = defaultPromptProfile()
+  for (const block of profile.blocks) block.enabled = true
+  return profile
 }
 
 function object(value, keys, label) {
@@ -155,6 +165,16 @@ export function validatePromptProfile(input) {
     }
     return { kind: block.kind, enabled: block.enabled, template: block.template, slot: slotOf(block.slot, block.kind) }
   })
+  // 빠진 선택 블록은 기본 설정과 같은 자리(앞 종류의 규칙 바로 뒤)에 꺼진 채로 넣는다. 꺼져 있어 출력은 그대로다.
+  for (const kind of PROMPT_PROFILE_OPTIONAL_KINDS) {
+    if (seen.has(kind)) continue
+    const previous = PROMPT_PROFILE_KINDS.slice(0, PROMPT_PROFILE_KINDS.indexOf(kind)).reverse().find((other) => seen.has(other))
+    const rule = { kind, enabled: false, template: '{{content}}', slot: 'default' }
+    total += rule.template.length
+    if (total > PROMPT_PROFILE_LIMITS.total) throw new Error(`PromptProfile: 전체 문구는 ${PROMPT_PROFILE_LIMITS.total}자 이하여야 합니다`)
+    blocks.splice(previous ? blocks.findIndex((block) => block.kind === previous) + 1 : 0, 0, rule)
+    seen.add(kind)
+  }
   if (PROMPT_PROFILE_KINDS.some((kind) => !seen.has(kind))) {
     throw new Error(`PromptProfile: ${PROMPT_PROFILE_KINDS.length}개 블록이 각각 한 번씩 필요합니다`)
   }
