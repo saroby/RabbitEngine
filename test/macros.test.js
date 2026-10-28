@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createMacroExpander, macroVarsOf } from '../prompt/macros.js'
+import { createMacroExpander, macroVarsOf, withHostMacroVars } from '../prompt/macros.js'
 import { buildTurn } from '../build-turn.js'
+import { defaultPromptProfile } from '../prompt/profile.js'
 
 const vars = { 호감도: 60, tension: 'hostile', place: '현관', 비밀공개: false, 별명: '토끼' }
 const expand = createMacroExpander({ vars })
@@ -131,4 +132,38 @@ test('buildTurn — 카드의 매크로 오타는 조용히 넘어가지 않고 
 test('buildTurn — 이름에는 매크로를 돌리지 않는다', async () => {
   const turn = await buildTurn({ cards: [{ name: '{{random::a::b}}' }] })
   assert.match(turn.system, /이름: \{\{random::a::b\}\}/)
+})
+
+test('withHostMacroVars — 호스트 변수를 더하고, 장면 변수와 겹치거나 부를 수 없는 이름 · 값은 던진다', () => {
+  const scene = macroVarsOf(null, [])
+  assert.equal(withHostMacroVars(scene, undefined), scene)
+  assert.deepEqual(withHostMacroVars(scene, { 난이도: '어려운', '분위기.로맨스': true, 길이: 3, 스토리텔링: null }),
+    { ...scene, 난이도: '어려운', '분위기.로맨스': true, 길이: 3, 스토리텔링: null })
+  assert.throws(() => withHostMacroVars(scene, { tension: 'hostile' }), /tension 이 장면 변수와 겹칩니다/)
+  assert.throws(() => withHostMacroVars(macroVarsOf(null, indicatorDefs), { 호감도: 1 }), /호감도 이 장면 변수와 겹칩니다/)
+  for (const name of ['전개 속도', '난이도!', 'a=b', '{x}', '']) assert.throws(() => withHostMacroVars(scene, { [name]: 'v' }), /부를 수 없습니다/, name)
+  for (const value of [[], {}, Number.NaN, undefined]) assert.throws(() => withHostMacroVars(scene, { 난이도: value }), /값은 문자열/)
+  for (const vars of [null, [], 'x']) assert.throws(() => withHostMacroVars(scene, vars), /이름 → 값 객체/)
+})
+
+test('buildTurn — macroVars 로 커스텀 블록 · 지시문 · 카드의 문장이 바뀐다', async () => {
+  const profile = defaultPromptProfile()
+  profile.blocks.push({ kind: 'custom', id: 'difficulty', enabled: true, role: 'system', slot: 'system' })
+  const input = (난이도) => ({
+    cards: [{ name: '서연', description: '{{#if 분위기.로맨스}}설렌다{{else}}담담하다{{/if}}' }],
+    instruction: '난이도는 {{var:난이도}}이다.',
+    promptProfile: profile,
+    customBlocks: [{ id: 'difficulty', content: '{{#if 난이도 == 어려운}}\n쉽게 양보하지 않는다.\n{{/if}}\n{{#if 난이도 == 쉬운}}\n순조롭게 풀린다.\n{{/if}}' }],
+    macroVars: { 난이도, '분위기.로맨스': true },
+  })
+  const hard = await buildTurn(input('어려운'))
+  assert.match(hard.system, /쉽게 양보하지 않는다\./)
+  assert.doesNotMatch(hard.system, /순조롭게/)
+  assert.match(hard.system, /설렌다/)
+  const easy = await buildTurn(input('쉬운'))
+  assert.match(easy.system, /순조롭게 풀린다\./)
+  assert.doesNotMatch(easy.system, /양보/)
+  // 모르는 변수는 호스트 변수가 있어도 그대로 던진다.
+  await assert.rejects(buildTurn({ ...input('보통'), instruction: '{{var:난이도x}}' }), /모르는 변수 난이도x/)
+  await assert.rejects(buildTurn({ ...input('보통'), macroVars: { place: '현관' } }), /place 이 장면 변수와 겹칩니다/)
 })

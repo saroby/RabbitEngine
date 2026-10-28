@@ -150,6 +150,8 @@
  * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
  * @property {ToolSpec[]} [toolSpecs] 호스트 도구 명세. 카드의 tools 가 id 로 가리킨다
  * @property {number} [macroSeed] {{random::…}} 의 시드. 기본은 messages 길이 — 같은 턴을 다시 만들면 같은 값이 나온다
+ * @property {Record<string, number | string | boolean | null>} [macroVars] 호스트가 정한 매크로 변수(작품 설정처럼 장면 밖의 값).
+ * 장면 변수(지표 key · label · place · time · tension)와 이름이 겹치면 오류다
  */
 
 /**

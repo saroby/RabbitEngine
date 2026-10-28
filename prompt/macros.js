@@ -124,3 +124,27 @@ export function macroVarsOf(sceneState, indicatorDefs = []) {
   }
   return vars
 }
+
+// 조건과 {{var:…}} 가 읽을 수 있는 이름 — 공백 · 비교 기호 · ! · 중괄호가 끼면 COMPARE · TAG 가 다르게 자른다.
+const HOST_VAR_NAME = /^[^\s=!<>{}]+$/u
+
+/**
+ * 장면 변수에 호스트가 정한 변수를 더한다. 작품 설정처럼 장면 밖에서 오는 값이라 턴마다 바뀌지 않는다.
+ * 이름이 장면 변수(지표 key · label · place · time · tension)와 겹치면 던진다 — 어느 값이 들어갈지 작가가 알 수 없다.
+ * @param {Record<string, number | string | boolean | null>} sceneVars macroVarsOf 의 결과
+ * @param {Record<string, number | string | boolean | null> | undefined} hostVars
+ * @returns {Record<string, number | string | boolean | null>}
+ */
+export function withHostMacroVars(sceneVars, hostVars) {
+  if (hostVars === undefined) return sceneVars
+  if (hostVars === null || typeof hostVars !== 'object' || Array.isArray(hostVars)) throw new Error('buildTurn: macroVars 는 이름 → 값 객체여야 합니다')
+  const vars = { ...sceneVars }
+  for (const [name, value] of Object.entries(hostVars)) {
+    if (!HOST_VAR_NAME.test(name)) throw new Error(`buildTurn: macroVars 이름 ${JSON.stringify(name)} 은 매크로에서 부를 수 없습니다`)
+    const scalar = value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))
+    if (!scalar) throw new Error(`buildTurn: macroVars ${name} 의 값은 문자열 · 유한한 숫자 · 참거짓 · null 이어야 합니다`)
+    if (Object.hasOwn(vars, name)) throw new Error(`buildTurn: macroVars ${name} 이 장면 변수와 겹칩니다`)
+    vars[name] = value
+  }
+  return vars
+}

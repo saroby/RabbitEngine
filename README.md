@@ -163,7 +163,7 @@ const result = check.ok ? await run(check.name, check.args, check.actor) : { err
 
 ## 조건 문장과 매크로
 
-카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `longDescription` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension` 이다.
+카드(`description` · `personality` · `scenario` · `first_mes` · `mes_example` · `behavior`, 플레이어 카드 포함) · `instruction` · `longDescription` · 로어북 `content` · 커스텀 블록 안에서 장면 상태로 문장을 켜고 끈다. 변수는 지표 `key`·`label` 과 `place` · `time` · `tension`, 그리고 호스트가 `macroVars` 로 넘긴 이름이다(작품 설정처럼 장면 밖의 값 — `{ 난이도: '어려운' }` 이면 `{{#if 난이도 == 어려운}}`). `macroVars` 이름이 장면 변수와 겹치면 던진다.
 
 ```
 {{#if 호감도 >= 50}}서연은 {{user}}에게 마음을 열었다.{{else}}서연은 {{user}}를 경계한다.{{/if}}
@@ -173,7 +173,7 @@ const result = check.ok ? await run(check.name, check.args, check.actor) : { err
 ```
 
 - 비교: `>=` `<=` `>` `<`(숫자끼리) · `==` `!=` · 변수만 쓰면 참거짓 · `!` 부정. 중첩되고, 한 줄을 차지한 태그는 빈 줄을 남기지 않는다.
-- 모르는 변수와 짝 안 맞는 태그는 `buildTurn` 이 던진다. 저장할 때 미리 보려면 `createMacroExpander({ vars: macroVarsOf(sceneState, indicatorDefs) })(text)` 를 돌려 본다.
+- 모르는 변수와 짝 안 맞는 태그는 `buildTurn` 이 던진다. 저장할 때 미리 보려면 `createMacroExpander({ vars: withHostMacroVars(macroVarsOf(sceneState, indicatorDefs), macroVars) })(text)` 를 돌려 본다.
 - `{{random}}` 은 `macroSeed`(기본: `messages` 길이)로 정해져 같은 턴을 다시 만들면 같은 값이 나온다. 시드는 `manifest.prompt.macroSeed` 에 남는다.
 - **모델이 쓴 문장(기억 노트·이력)과 카드 `name` 에는 돌리지 않는다.** 모델이 `{{var:…}}` 로 숨긴 지표를 빼내지 못하게 하려는 것이다.
 - system 쪽 문장이 조건으로 바뀌면 그 턴부터 캐시 접두가 달라진다. 자주 바뀌는 조건은 로어북 항목에 `depth` 를 줘 대화 쪽에 두는 편이 싸다.
