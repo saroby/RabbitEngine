@@ -45,28 +45,45 @@ function compare(left, op, right) {
   return op === '==' ? same : !same
 }
 
-/**
- * 매크로 확장기를 만든다. 변수 이름은 지표 key · 지표 label · place · time · tension 이다.
- * 모르는 변수와 짝이 안 맞는 if 는 던진다 — 오타가 조용히 빈칸이 되면 작가가 영영 모른다.
- * @param {{ vars?: Record<string, number | string | boolean | null>, seed?: number }} [options]
- * @returns {(text: string) => string}
- */
-export function createMacroExpander({ vars = {}, seed = 0 } = {}) {
+// 변수 이름 → 값 읽기와 조건 평가. 확장기와 저장 전 검사(checkMacros)가 같은 규칙을 쓰게 한 자리에 둔다.
+function macroScope({ vars = {}, choices = {} }) {
   const lookup = (name) => {
     if (!Object.hasOwn(vars, name)) throw new Error(`매크로: 모르는 변수 ${name} — 지표 key·label 또는 place · time · tension 을 쓴다`)
     return vars[name]
   }
-  let randomIndex = 0
-
   const evaluate = (expression) => {
     const m = COMPARE.exec(expression.trim())
     if (!m) throw new Error(`매크로: 조건을 읽을 수 없습니다 — {{#if ${expression}}}`)
     const [, negate, name, op, right] = m
     if (negate && op) throw new Error(`매크로: ! 와 비교를 같이 쓸 수 없습니다 — {{#if ${expression}}}`)
     const value = lookup(name)
-    const result = op ? compare(value, op, literal(right)) : truthy(value)
+    const allowed = Object.hasOwn(choices, name) ? choices[name] : null
+    // 허용값이 있는 변수는 적힌 글자 그대로 비교한다 — "1인칭" 같은 값이 숫자로 읽히지 않게.
+    const operand = op && allowed ? literalText(right) : op ? literal(right) : null
+    if (allowed && (op === '==' || op === '!=') && !allowed.includes(operand)) {
+      throw new Error(`매크로: ${name} 는 ${allowed.join(' · ')} 중 하나와 비교합니다 (${JSON.stringify(operand)}) — {{#if ${expression}}}`)
+    }
+    const result = op ? compare(value, op, operand) : truthy(value)
     return negate ? !result : result
   }
+  return { lookup, evaluate }
+}
+
+function literalText(raw) {
+  const text = raw.trim()
+  return (/^"(.*)"$/u.exec(text) || /^'(.*)'$/u.exec(text))?.[1] ?? text
+}
+
+/**
+ * 매크로 확장기를 만든다. 변수 이름은 지표 key · 지표 label · place · time · tension, 그리고 호스트가 선언한 이름이다.
+ * 모르는 변수와 짝이 안 맞는 if 는 던진다 — 오타가 조용히 빈칸이 되면 작가가 영영 모른다.
+ * @param {{ vars?: Record<string, number | string | boolean | null>, seed?: number, choices?: Record<string, readonly string[]> }} [options]
+ * choices 는 변수별 허용값이다. == · != 의 값이 목록에 없으면 던진다
+ * @returns {(text: string) => string}
+ */
+export function createMacroExpander({ vars = {}, seed = 0, choices = {} } = {}) {
+  const { lookup, evaluate } = macroScope({ vars, choices })
+  let randomIndex = 0
 
   return function expand(text) {
     if (typeof text !== 'string' || !text.includes('{{')) return text
@@ -129,22 +146,60 @@ export function macroVarsOf(sceneState, indicatorDefs = []) {
 const HOST_VAR_NAME = /^[^\s=!<>{}]+$/u
 
 /**
- * 장면 변수에 호스트가 정한 변수를 더한다. 작품 설정처럼 장면 밖에서 오는 값이라 턴마다 바뀌지 않는다.
- * 이름이 장면 변수(지표 key · label · place · time · tension)와 겹치면 던진다 — 어느 값이 들어갈지 작가가 알 수 없다.
+ * 장면 변수에 호스트가 선언한 변수를 더한다. 작품 설정처럼 장면 밖에서 정해지는 값이라 턴마다 바뀌지 않는다.
+ * 선언은 이름 · 이번 값 · (있으면) 허용값이다. 허용값이 있으면 조건의 == · != 값이 그 목록에 있어야 한다.
+ * 이름이 장면 변수(지표 key · label · place · time · tension)와 겹치거나 두 번 선언되면 던진다 — 어느 값이 들어갈지 작가가 알 수 없다.
  * @param {Record<string, number | string | boolean | null>} sceneVars macroVarsOf 의 결과
- * @param {Record<string, number | string | boolean | null> | undefined} hostVars
- * @returns {Record<string, number | string | boolean | null>}
+ * @param {import('../types.js').MacroVar[] | undefined} macroVars
+ * @returns {{ vars: Record<string, number | string | boolean | null>, choices: Record<string, string[]> }}
  */
-export function withHostMacroVars(sceneVars, hostVars) {
-  if (hostVars === undefined) return sceneVars
-  if (hostVars === null || typeof hostVars !== 'object' || Array.isArray(hostVars)) throw new Error('buildTurn: macroVars 는 이름 → 값 객체여야 합니다')
+export function hostMacroOptions(sceneVars, macroVars) {
   const vars = { ...sceneVars }
-  for (const [name, value] of Object.entries(hostVars)) {
-    if (!HOST_VAR_NAME.test(name)) throw new Error(`buildTurn: macroVars 이름 ${JSON.stringify(name)} 은 매크로에서 부를 수 없습니다`)
+  /** @type {Record<string, string[]>} */
+  const choices = {}
+  if (macroVars === undefined) return { vars, choices }
+  if (!Array.isArray(macroVars)) throw new Error('macroVars: { name, value, choices? } 목록이어야 합니다')
+  for (const declaration of macroVars) {
+    if (!declaration || typeof declaration !== 'object') throw new Error('macroVars: 선언은 { name, value, choices? } 객체여야 합니다')
+    const { name, value, choices: allowed } = declaration
+    if (typeof name !== 'string' || !HOST_VAR_NAME.test(name)) throw new Error(`macroVars: 이름 ${JSON.stringify(name)} 은 매크로에서 부를 수 없습니다`)
+    if (Object.hasOwn(sceneVars, name)) throw new Error(`macroVars: ${name} 이 장면 변수와 겹칩니다`)
+    if (Object.hasOwn(vars, name)) throw new Error(`macroVars: ${name} 을 두 번 선언했습니다`)
     const scalar = value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))
-    if (!scalar) throw new Error(`buildTurn: macroVars ${name} 의 값은 문자열 · 유한한 숫자 · 참거짓 · null 이어야 합니다`)
-    if (Object.hasOwn(vars, name)) throw new Error(`buildTurn: macroVars ${name} 이 장면 변수와 겹칩니다`)
+    if (!scalar) throw new Error(`macroVars: ${name} 의 값은 문자열 · 유한한 숫자 · 참거짓 · null 이어야 합니다`)
+    if (allowed !== undefined) {
+      if (!Array.isArray(allowed) || !allowed.length || !allowed.every((choice) => typeof choice === 'string' && choice !== '')) {
+        throw new Error(`macroVars: ${name} 의 허용값은 빈 글자가 아닌 문자열 목록이어야 합니다`)
+      }
+      if (value !== null && !allowed.includes(value)) throw new Error(`macroVars: ${name} 의 값 ${JSON.stringify(value)} 가 허용값 ${allowed.join(' · ')} 에 없습니다`)
+      choices[name] = [...allowed]
+    }
     vars[name] = value
   }
-  return vars
+  return { vars, choices }
+}
+
+/**
+ * 저장하기 전에 사람이 쓴 문구의 매크로를 검사한다. 확장기는 꺼진 갈래의 조건을 평가하지 않지만,
+ * 여기서는 모든 갈래의 조건 · {{var}} 를 보고 변수 이름과 허용값을 확인한다 — 다른 값의 작품에서 처음 켜질 때 터지지 않게.
+ * @param {string} text
+ * @param {{ indicatorDefs?: import('../types.js').IndicatorDef[], macroVars?: import('../types.js').MacroVar[] }} [options]
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+export function checkMacros(text, { indicatorDefs = [], macroVars } = {}) {
+  try {
+    const options = hostMacroOptions(macroVarsOf(null, indicatorDefs), macroVars)
+    if (typeof text === 'string' && text.includes('{{')) {
+      const { lookup, evaluate } = macroScope(options)
+      for (const [, tag] of text.matchAll(TAG)) {
+        if (tag.startsWith('#if')) evaluate(tag.slice(3))
+        else if (tag.startsWith('var:')) lookup(tag.slice(4).trim())
+      }
+    }
+    // 짝이 안 맞는 if · else 는 확장기가 잡는다.
+    createMacroExpander(options)(text)
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  return { ok: true }
 }

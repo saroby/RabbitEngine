@@ -117,6 +117,15 @@
  */
 
 /**
+ * 호스트가 선언하는 매크로 변수. 작품 설정처럼 장면 밖에서 정해져 턴마다 바뀌지 않는 값이다.
+ * 장면 상태에 들어가지 않고 추출기도 바꾸지 않는다 — 문구의 {{#if}} · {{var}} 만 읽는다.
+ * @typedef {object} MacroVar
+ * @property {string} name 조건에서 부르는 이름. 공백 · 비교 기호 · ! · 중괄호는 쓸 수 없다
+ * @property {number | string | boolean | null} value 이번 턴의 값
+ * @property {string[]} [choices] 허용값. 있으면 value 는 그중 하나이거나 null 이고, 조건의 == · != 값도 그중 하나여야 한다
+ */
+
+/**
  * 묘사 수위. 누가 어떤 등급을 볼 수 있는지는 호스트가 정한다.
  * @typedef {'all' | 'teen' | 'adult'} Rating
  */
@@ -150,8 +159,8 @@
  * @property {number | null} [worldbookDepth] 정수면 로어북을 system 이 아니라 그 depth 에 둔다
  * @property {ToolSpec[]} [toolSpecs] 호스트 도구 명세. 카드의 tools 가 id 로 가리킨다
  * @property {number} [macroSeed] {{random::…}} 의 시드. 기본은 messages 길이 — 같은 턴을 다시 만들면 같은 값이 나온다
- * @property {Record<string, number | string | boolean | null>} [macroVars] 호스트가 정한 매크로 변수(작품 설정처럼 장면 밖의 값).
- * 장면 변수(지표 key · label · place · time · tension)와 이름이 겹치면 오류다
+ * @property {MacroVar[]} [macroVars] 호스트가 선언한 매크로 변수(작품 설정처럼 장면 밖의 값).
+ * 장면 변수(지표 key · label · place · time · tension)와 이름이 겹치거나 허용값에 없는 값이면 오류다
  */
 
 /**

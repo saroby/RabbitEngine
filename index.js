@@ -10,7 +10,7 @@ export { parseScript, choicesOf, SCRIPT_PARSER_VERSION } from './dialect/compat.
 export { compilePrompt, PROMPT_COMPILER_VERSION } from './prompt/compile.js'
 export { compileBlocks, BLOCK_COMPILER_VERSION, DEFAULT_DEPTHS } from './prompt/blocks.js'
 export { renderTurn } from './prompt/render.js'
-export { createMacroExpander, macroVarsOf, withHostMacroVars } from './prompt/macros.js'
+export { createMacroExpander, macroVarsOf, checkMacros } from './prompt/macros.js'
 export { SCRIPT_FORMAT, namesOf, renderCard, renderCast, renderPlayerCard, substitute, substituteCard } from './prompt/parts.js'
 export { selectMemory } from './memory/index.js'
 export { selectContext, LEGACY_STRATEGIES } from './memory/legacy-strategies.js'
@@ -43,3 +43,4 @@ export { PROMPT_GUARD_TEXT } from './prompt/guard.js'
 /** @typedef {import('./types.js').PromptProfileBlock} PromptProfileBlock */
 /** @typedef {import('./types.js').PromptProfileCustomBlock} PromptProfileCustomBlock */
 /** @typedef {import('./types.js').CustomBlockSource} CustomBlockSource */
+/** @typedef {import('./types.js').MacroVar} MacroVar */

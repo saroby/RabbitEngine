@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createMacroExpander, macroVarsOf, withHostMacroVars } from '../prompt/macros.js'
+import { checkMacros, createMacroExpander, hostMacroOptions, macroVarsOf } from '../prompt/macros.js'
 import { buildTurn } from '../build-turn.js'
 import { defaultPromptProfile } from '../prompt/profile.js'
 
@@ -134,16 +134,53 @@ test('buildTurn — 이름에는 매크로를 돌리지 않는다', async () => 
   assert.match(turn.system, /이름: \{\{random::a::b\}\}/)
 })
 
-test('withHostMacroVars — 호스트 변수를 더하고, 장면 변수와 겹치거나 부를 수 없는 이름 · 값은 던진다', () => {
+const DIFFICULTY = ['쉬운', '보통', '어려운', '극한']
+const styleVars = (난이도 = '보통') => [
+  { name: '난이도', value: 난이도, choices: DIFFICULTY },
+  { name: '시점', value: '1인칭', choices: ['1인칭', '2인칭', '3인칭'] },
+  { name: '분위기.로맨스', value: true },
+  { name: '스토리텔링', value: null, choices: ['살롱 앤 티', '데드 타운'] },
+]
+
+test('hostMacroOptions — 선언을 변수와 허용값으로 바꾸고, 겹치거나 틀린 선언은 던진다', () => {
   const scene = macroVarsOf(null, [])
-  assert.equal(withHostMacroVars(scene, undefined), scene)
-  assert.deepEqual(withHostMacroVars(scene, { 난이도: '어려운', '분위기.로맨스': true, 길이: 3, 스토리텔링: null }),
-    { ...scene, 난이도: '어려운', '분위기.로맨스': true, 길이: 3, 스토리텔링: null })
-  assert.throws(() => withHostMacroVars(scene, { tension: 'hostile' }), /tension 이 장면 변수와 겹칩니다/)
-  assert.throws(() => withHostMacroVars(macroVarsOf(null, indicatorDefs), { 호감도: 1 }), /호감도 이 장면 변수와 겹칩니다/)
-  for (const name of ['전개 속도', '난이도!', 'a=b', '{x}', '']) assert.throws(() => withHostMacroVars(scene, { [name]: 'v' }), /부를 수 없습니다/, name)
-  for (const value of [[], {}, Number.NaN, undefined]) assert.throws(() => withHostMacroVars(scene, { 난이도: value }), /값은 문자열/)
-  for (const vars of [null, [], 'x']) assert.throws(() => withHostMacroVars(scene, vars), /이름 → 값 객체/)
+  assert.deepEqual(hostMacroOptions(scene, undefined), { vars: scene, choices: {} })
+  assert.deepEqual(hostMacroOptions(scene, styleVars('어려운')), {
+    vars: { ...scene, 난이도: '어려운', 시점: '1인칭', '분위기.로맨스': true, 스토리텔링: null },
+    choices: { 난이도: DIFFICULTY, 시점: ['1인칭', '2인칭', '3인칭'], 스토리텔링: ['살롱 앤 티', '데드 타운'] },
+  })
+  assert.throws(() => hostMacroOptions(scene, [{ name: 'tension', value: 'hostile' }]), /tension 이 장면 변수와 겹칩니다/)
+  assert.throws(() => hostMacroOptions(macroVarsOf(null, indicatorDefs), [{ name: '호감도', value: 1 }]), /호감도 이 장면 변수와 겹칩니다/)
+  assert.throws(() => hostMacroOptions(scene, [{ name: '난이도', value: '보통' }, { name: '난이도', value: '쉬운' }]), /두 번 선언했습니다/)
+  for (const name of ['전개 속도', '난이도!', 'a=b', '{x}', '', 3]) assert.throws(() => hostMacroOptions(scene, [{ name, value: 'v' }]), /부를 수 없습니다/, String(name))
+  for (const value of [[], {}, Number.NaN, undefined]) assert.throws(() => hostMacroOptions(scene, [{ name: '난이도', value }]), /값은 문자열/)
+  assert.throws(() => hostMacroOptions(scene, [{ name: '난이도', value: '어려움', choices: DIFFICULTY }]), /값 "어려움" 가 허용값 쉬운 · 보통 · 어려운 · 극한 에 없습니다/)
+  for (const choices of [[], 'x', [''], [1]]) assert.throws(() => hostMacroOptions(scene, [{ name: '난이도', value: null, choices }]), /허용값은 빈 글자가 아닌 문자열 목록/)
+  for (const macroVars of [null, {}, 'x']) assert.throws(() => hostMacroOptions(scene, macroVars), /목록이어야 합니다/)
+  assert.throws(() => hostMacroOptions(scene, [null]), /객체여야 합니다/)
+})
+
+test('허용값 — == · != 의 값이 목록에 없으면 던지고, 숫자처럼 보이는 값도 글자 그대로 비교한다', () => {
+  const { vars, choices } = hostMacroOptions(macroVarsOf(null, []), styleVars('어려운'))
+  const expand = createMacroExpander({ vars, choices })
+  assert.equal(expand('{{#if 난이도 == 어려운}}A{{/if}}{{#if 난이도 != 쉬운}}B{{/if}}{{#if 시점 == "1인칭"}}C{{/if}}'), 'ABC')
+  assert.throws(() => expand('{{#if 난이도 == 어려움}}A{{/if}}'), /난이도 는 쉬운 · 보통 · 어려운 · 극한 중 하나와 비교합니다 \("어려움"\)/)
+  assert.equal(expand('{{#if 스토리텔링}}있음{{else}}없음{{/if}}'), '없음', '값이 null 이면 거짓')
+  assert.equal(expand('{{#if 스토리텔링 == "살롱 앤 티"}}A{{else}}B{{/if}}'), 'B')
+})
+
+test('checkMacros — 꺼진 갈래까지 변수 이름 · 허용값을 보고, 짝이 안 맞는 태그도 알린다', () => {
+  const macroVars = styleVars('보통')
+  assert.deepEqual(checkMacros('{{#if 난이도 == 쉬운}}A{{/if}}{{#if 난이도 == 극한}}{{var:시점}}{{/if}}', { macroVars }), { ok: true })
+  assert.deepEqual(checkMacros('그냥 글', { macroVars }), { ok: true })
+  // 확장기라면 꺼진 갈래라 그냥 넘어갈 오타도 잡는다.
+  const typo = checkMacros('{{#if 난이도 == 쉬운}}{{#if 난이도 == 어려움}}X{{/if}}{{/if}}', { macroVars })
+  assert.equal(typo.ok, false)
+  assert.match(typo.error, /난이도 는 쉬운 · 보통 · 어려운 · 극한 중 하나와 비교합니다/)
+  assert.match(checkMacros('{{#if 난이도 == 쉬운}}{{var:난이도x}}{{/if}}', { macroVars }).error, /모르는 변수 난이도x/)
+  assert.match(checkMacros('{{#if 난이도 == 쉬운}}A', { macroVars }).error, /닫히지 않은/)
+  assert.match(checkMacros('{{#if tension == hostile}}A{{/if}}{{#if 난이도}}B{{/if}}', { macroVars: [{ name: 'place', value: null }] }).error, /장면 변수와 겹칩니다/)
+  assert.deepEqual(checkMacros('{{#if 호감도 >= 50}}A{{/if}}', { indicatorDefs }), { ok: true })
 })
 
 test('buildTurn — macroVars 로 커스텀 블록 · 지시문 · 카드의 문장이 바뀐다', async () => {
@@ -154,16 +191,18 @@ test('buildTurn — macroVars 로 커스텀 블록 · 지시문 · 카드의 문
     instruction: '난이도는 {{var:난이도}}이다.',
     promptProfile: profile,
     customBlocks: [{ id: 'difficulty', content: '{{#if 난이도 == 어려운}}\n쉽게 양보하지 않는다.\n{{/if}}\n{{#if 난이도 == 쉬운}}\n순조롭게 풀린다.\n{{/if}}' }],
-    macroVars: { 난이도, '분위기.로맨스': true },
+    macroVars: styleVars(난이도),
   })
   const hard = await buildTurn(input('어려운'))
   assert.match(hard.system, /쉽게 양보하지 않는다\./)
   assert.doesNotMatch(hard.system, /순조롭게/)
+  assert.match(hard.system, /난이도는 어려운이다/)
   assert.match(hard.system, /설렌다/)
   const easy = await buildTurn(input('쉬운'))
   assert.match(easy.system, /순조롭게 풀린다\./)
   assert.doesNotMatch(easy.system, /양보/)
-  // 모르는 변수는 호스트 변수가 있어도 그대로 던진다.
+  // 모르는 변수 · 허용값에 없는 비교 · 장면 변수와 겹치는 선언은 던진다.
   await assert.rejects(buildTurn({ ...input('보통'), instruction: '{{var:난이도x}}' }), /모르는 변수 난이도x/)
-  await assert.rejects(buildTurn({ ...input('보통'), macroVars: { place: '현관' } }), /place 이 장면 변수와 겹칩니다/)
+  await assert.rejects(buildTurn({ ...input('보통'), instruction: '{{#if 난이도 == 어려움}}A{{/if}}' }), /중 하나와 비교합니다/)
+  await assert.rejects(buildTurn({ ...input('보통'), macroVars: [{ name: 'place', value: '현관' }] }), /place 이 장면 변수와 겹칩니다/)
 })
